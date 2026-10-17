@@ -166,6 +166,22 @@ const OPUS_SEND = {
   rtcp: { cname: 'test' },
 }
 
+const VP8_SCREEN = {
+  mid: '1',
+  codecs: [
+    { mimeType: 'video/VP8', payloadType: 96, clockRate: 90000, parameters: {}, rtcpFeedback: [] },
+  ],
+  headerExtensions: [
+    { uri: 'urn:ietf:params:rtp-hdrext:sdes:mid', id: 1 },
+    { uri: 'urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id', id: 2 },
+  ],
+  encodings: [
+    { rid: 'low', scaleResolutionDownBy: 3, maxBitrate: 500000 },
+    { rid: 'high', scaleResolutionDownBy: 1, maxBitrate: 2800000 },
+  ],
+  rtcp: { cname: 'screen' },
+}
+
 interface Transport {
   id: string
   iceCandidates: { protocol: string; port: number }[]
@@ -507,6 +523,77 @@ describe('forwarding only the loudest voices (#21)', () => {
     expect(running(listener)).toBe(3)
     people[0]?.client.socket.close()
     await expect.poll(() => running(listener)).toBe(3)
+  })
+})
+
+describe('one screen at a time (#29)', () => {
+  async function sender(client: Client) {
+    const transport = await client.ok<Transport>({ method: 'createTransport', direction: 'send' })
+    await client.ok({ method: 'connectTransport', transportId: transport.id, dtlsParameters: DTLS })
+    return (encodings = VP8_SCREEN) =>
+      client.request({
+        method: 'produce',
+        transportId: transport.id,
+        kind: 'video',
+        rtpParameters: encodings,
+      })
+  }
+
+  it('refuses a second screen, relays «Показать свой» and frees the screen when it stops', async () => {
+    const { port } = await startRoom()
+    const alice = await connect(port, 'Алиса')
+    const { peerId: aliceId } = await alice.next('welcome')
+    const bob = await connect(port, 'Боб')
+    const { peerId: bobId, sharerId } = await bob.next('welcome')
+    expect(sharerId).toBeNull()
+    const aliceShares = await sender(alice)
+    const bobShares = await sender(bob)
+
+    const screen = await aliceShares()
+    const screenId = (screen.data as { id: string }).id
+    expect(await bob.next('screen-share-started')).toMatchObject({ peerId: aliceId })
+    expect((await bobShares()).error).toBe('SCREEN_BUSY')
+    expect(
+      (await bob.request({ method: 'answerScreenRequest', fromPeerId: aliceId, accept: true }))
+        .error,
+    ).toBe('you are not sharing')
+
+    // Bob asks; Alice says no, then yes.
+    expect((await bob.request({ method: 'requestScreen' })).error).toBeUndefined()
+    expect(await alice.next('screen-request')).toMatchObject({ fromPeerId: bobId })
+    expect((await bob.request({ method: 'requestScreen' })).error).toBe('already asked')
+    await alice.ok({ method: 'answerScreenRequest', fromPeerId: bobId, accept: false })
+    expect(await bob.next('screen-request-answer')).toMatchObject({ accepted: false })
+    await bob.ok({ method: 'requestScreen' })
+    await alice.next('screen-request')
+    await alice.ok({ method: 'answerScreenRequest', fromPeerId: bobId, accept: true })
+    expect(await bob.next('screen-request-answer')).toMatchObject({ accepted: true })
+
+    // Alice stops: the screen is free, Bob shows his, a newcomer learns who shares.
+    await alice.ok({ method: 'closeProducer', producerId: screenId })
+    expect(await bob.next('screen-share-stopped')).toMatchObject({ peerId: aliceId })
+    expect((await bobShares()).error).toBeUndefined()
+    const vera = await connect(port, 'Вера')
+    expect((await vera.next('welcome')).sharerId).toBe(bobId)
+    expect((await vera.request({ method: 'requestScreen' })).error).toBeUndefined()
+    expect((await alice.request({ method: 'requestScreen' })).error).toBeUndefined()
+  })
+
+  it('frees the screen when the sharer leaves', async () => {
+    const { port } = await startRoom()
+    const alice = await connect(port, 'Алиса')
+    const { peerId: aliceId } = await alice.next('welcome')
+    const bob = await connect(port, 'Боб')
+    await bob.next('welcome')
+    await (
+      await sender(alice)
+    )()
+    await bob.next('screen-share-started')
+
+    alice.socket.close()
+
+    expect(await bob.next('screen-share-stopped')).toMatchObject({ peerId: aliceId })
+    expect((await bob.request({ method: 'requestScreen' })).error).toBe('nobody is sharing')
   })
 })
 

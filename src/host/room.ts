@@ -15,7 +15,7 @@ import {
 } from '@shared/signaling'
 import { AttemptLimiter } from './attempt-limiter'
 import type { MediaServer, MediaTransport } from './media-server'
-import { PeerMedia } from './peer-media'
+import { MediaRequestError, PeerMedia } from './peer-media'
 import { SpeakerSelector } from './speakers'
 
 export interface RoomConfig {
@@ -63,6 +63,10 @@ export class Room {
   /** Audio producer → the participant whose voice it is. */
   readonly #voiceOwner = new Map<string, string>()
   #speaking: string[] = []
+  /** Who shares a screen; the room allows one (PLAN #29). */
+  #sharer: { peerId: string; producerId: string } | null = null
+  /** Participants waiting for the sharer's answer to «Показать свой». */
+  readonly #screenRequests = new Set<string>()
 
   constructor(
     private readonly config: RoomConfig,
@@ -195,8 +199,14 @@ export class Room {
     const peer: Peer = { id: randomUUID(), name }
     const media = this.#media
       ? new PeerMedia(this.#media, {
+          beforeProduce: (kind) => {
+            if (kind === 'video' && this.#sharer && this.#sharer.peerId !== peer.id) {
+              throw new MediaRequestError('SCREEN_BUSY')
+            }
+          },
           onProducer: (producer) => {
             if (producer.kind === 'audio') this.#addVoice(producer, peer.id)
+            else this.#startSharing(producer, peer.id)
             this.#broadcast(
               {
                 type: 'new-producer',
@@ -230,6 +240,7 @@ export class Room {
       routerRtpCapabilities: { ...this.#media?.rtpCapabilities },
       mutedPeers: others.filter((member) => member.muted).map((member) => member.peer.id),
       screenMode: this.config.screenMode ?? 'auto',
+      sharerId: this.#sharer?.peerId ?? null,
     })
     // Whoever is already talking can be consumed right away.
     for (const member of others) {
@@ -245,6 +256,10 @@ export class Room {
   }
 
   async #serve(member: Member, id: number, request: MediaRequest): Promise<HostMessage> {
+    if (request.method === 'requestScreen' || request.method === 'answerScreenRequest') {
+      const error = this.#screenRequest(member, request)
+      return error === null ? { type: 'response', id, data: {} } : { type: 'response', id, error }
+    }
     if (!member.media) return { type: 'response', id, error: 'media is not available' }
     if (member.pending >= MAX_PENDING_REQUESTS) {
       return { type: 'response', id, error: 'too many requests' }
@@ -258,6 +273,44 @@ export class Room {
       return { type: 'response', id, error: error instanceof Error ? error.message : 'failed' }
     } finally {
       member.pending--
+    }
+  }
+
+  #startSharing(producer: types.Producer, peerId: string): void {
+    this.#sharer = { peerId, producerId: producer.id }
+    this.#broadcast({ type: 'screen-share-started', peerId })
+    producer.observer.on('close', () => {
+      if (this.#sharer?.producerId !== producer.id) return
+      this.#sharer = null
+      // Whoever was waiting can show theirs now.
+      this.#screenRequests.clear()
+      this.#broadcast({ type: 'screen-share-stopped', peerId })
+    })
+  }
+
+  /** «Показать свой» and the sharer's answer; returns an error or null. */
+  #screenRequest(
+    member: Member,
+    request: Extract<MediaRequest, { method: 'requestScreen' | 'answerScreenRequest' }>,
+  ): string | null {
+    const sharer = this.#sharer
+    if (!sharer) return 'nobody is sharing'
+    if (request.method === 'requestScreen') {
+      if (sharer.peerId === member.peer.id) return 'you are sharing'
+      if (this.#screenRequests.has(member.peer.id)) return 'already asked'
+      this.#screenRequests.add(member.peer.id)
+      this.#sendTo(sharer.peerId, { type: 'screen-request', fromPeerId: member.peer.id })
+      return null
+    }
+    if (sharer.peerId !== member.peer.id) return 'you are not sharing'
+    if (!this.#screenRequests.delete(request.fromPeerId)) return 'no such request'
+    this.#sendTo(request.fromPeerId, { type: 'screen-request-answer', accepted: request.accept })
+    return null
+  }
+
+  #sendTo(peerId: string, message: HostMessage): void {
+    for (const [socket, member] of this.#peers) {
+      if (member.peer.id === peerId) socket.send(JSON.stringify(message))
     }
   }
 

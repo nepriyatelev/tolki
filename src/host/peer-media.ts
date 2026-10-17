@@ -23,6 +23,8 @@ export interface PeerMediaEvents {
   isForwarded: (producerId: string) => boolean
   /** The participant muted or unmuted a producer. */
   onProducerPaused: (producer: types.Producer, paused: boolean) => void
+  /** Called before producing; throws to refuse (one screen at a time, PLAN #29). */
+  beforeProduce: (kind: 'audio' | 'video') => void
 }
 
 /** A participant's transports, producers and consumers on the host's router. */
@@ -73,6 +75,7 @@ export class PeerMedia {
       case 'produce': {
         const transport = this.#transport(request.transportId, 'send')
         if (this.#producers.size >= MAX_PRODUCERS) throw new MediaRequestError('too many producers')
+        this.events.beforeProduce(request.kind)
         const producer = await transport.produce({
           kind: request.kind,
           rtpParameters: request.rtpParameters as unknown as types.RtpParameters,
@@ -149,6 +152,11 @@ export class PeerMedia {
       case 'resumeProducer':
         await this.#setPaused(request.producerId, false)
         return {}
+
+      case 'requestScreen':
+      case 'answerScreenRequest':
+        // Room matters, not media; the Room answers these before they get here.
+        throw new MediaRequestError('not a media request')
 
       case 'closeProducer': {
         const producer = this.#producers.get(request.producerId)

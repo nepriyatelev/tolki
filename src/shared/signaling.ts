@@ -88,6 +88,14 @@ export const mediaRequestSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('resumeProducer'), producerId: mediaIdSchema }),
   /** The participant stopped sending it (e.g. ended screen sharing). */
   z.object({ method: z.literal('closeProducer'), producerId: mediaIdSchema }),
+  /** «Показать свой»: ask whoever shares now to give way (PLAN #29). */
+  z.object({ method: z.literal('requestScreen') }),
+  /** The current sharer's answer to a request. */
+  z.object({
+    method: z.literal('answerScreenRequest'),
+    fromPeerId: z.string().max(64),
+    accept: z.boolean(),
+  }),
 ])
 export type MediaRequest = z.infer<typeof mediaRequestSchema>
 export type MediaMethod = MediaRequest['method']
@@ -120,6 +128,8 @@ export interface MediaResults {
   pauseProducer: Record<string, never>
   resumeProducer: Record<string, never>
   closeProducer: Record<string, never>
+  requestScreen: Record<string, never>
+  answerScreenRequest: Record<string, never>
 }
 
 export const clientMessageSchema = z.discriminatedUnion('type', [
@@ -149,6 +159,8 @@ export const hostMessageSchema = z.discriminatedUnion('type', [
     mutedPeers: z.array(z.string()),
     /** How screens are shared in this room (PLAN #27). */
     screenMode: z.enum(SCREEN_MODES).catch('auto'),
+    /** Who shares a screen right now; one at a time (PLAN #29). */
+    sharerId: z.string().nullable().catch(null),
   }),
   z.object({ type: z.literal('error'), code: errorCodeSchema }),
   /** Answer to the client's `request` with the same id: `data` on success, otherwise `error`. */
@@ -167,6 +179,13 @@ export const hostMessageSchema = z.discriminatedUnion('type', [
     producerId: z.string(),
     kind: z.enum(['audio', 'video']),
   }),
+  /** Someone started or stopped sharing a screen (only one at a time). */
+  z.object({ type: z.literal('screen-share-started'), peerId: z.string() }),
+  z.object({ type: z.literal('screen-share-stopped'), peerId: z.string() }),
+  /** To the sharer: someone wants to show theirs. */
+  z.object({ type: z.literal('screen-request'), fromPeerId: z.string() }),
+  /** To the one who asked: the sharer gave way or not. */
+  z.object({ type: z.literal('screen-request-answer'), accepted: z.boolean() }),
   /** Someone turned their microphone off or on. */
   z.object({ type: z.literal('peer-muted'), peerId: z.string(), muted: z.boolean() }),
   /** Who is speaking now (loud enough), for the frame around their tile; empty in silence. */

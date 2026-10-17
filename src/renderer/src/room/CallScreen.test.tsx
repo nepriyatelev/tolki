@@ -16,6 +16,7 @@ const RESULT: Extract<JoinResult, { ok: true }> = {
   routerRtpCapabilities: {},
   mutedPeers: [],
   screenMode: 'auto',
+  sharerId: null,
 }
 
 const FAKE_DEVICES: MicrophoneAccess = {
@@ -75,6 +76,7 @@ function setup(
     mutedPeers?: string[]
     peerVolumes?: Record<string, number>
     screenSources?: ScreenSourcesResult
+    sharerId?: string | null
   } = {},
 ) {
   const api = installRatatoskMock({ peerVolumes: options.peerVolumes ?? {} })
@@ -92,6 +94,10 @@ function setup(
     Promise.resolve(),
   )
   let showScreens: (screens: RemoteScreen[]) => void = () => undefined
+  const requestScreen = vi.fn(() => Promise.resolve())
+  const answerScreenRequest = vi.fn<(fromPeerId: string, accept: boolean) => Promise<void>>(() =>
+    Promise.resolve(),
+  )
   const onLeft = vi.fn()
   const events = collectRoomEvents()
   const playTestSound = vi.fn<(outputDeviceId: string) => Promise<void>>(() => Promise.resolve())
@@ -102,7 +108,11 @@ function setup(
       screen={screenAccess.access}
       playTestSound={playTestSound}
       session={{
-        result: { ...RESULT, mutedPeers: options.mutedPeers ?? [] },
+        result: {
+          ...RESULT,
+          mutedPeers: options.mutedPeers ?? [],
+          sharerId: options.sharerId ?? null,
+        },
         events,
         name: 'Алексей',
         muted: options.muted ?? false,
@@ -118,6 +128,8 @@ function setup(
           stopScreen,
           setScreenVisible,
           setScreenLayer,
+          requestScreen,
+          answerScreenRequest,
           close,
         })
       }}
@@ -136,6 +148,8 @@ function setup(
     stopScreen,
     setScreenVisible,
     setScreenLayer,
+    requestScreen,
+    answerScreenRequest,
     showScreens: (screens: RemoteScreen[]) => {
       showScreens(screens)
     },
@@ -567,5 +581,93 @@ describe('others’ screens in the call (#28)', () => {
     ctx.showScreens([])
     expect(screen.queryByRole('listitem', { name: 'Экран: Дима' })).toBeNull()
     vi.unstubAllGlobals()
+  })
+})
+
+describe('one screen at a time: «Показать свой» (#29)', () => {
+  const button = (name: string | RegExp) => screen.getByRole('button', { name })
+
+  it('asks the sharer, waits, and opens the picker when they give way', async () => {
+    const ctx = setup({ sharerId: 'dima' })
+    await screen.findByText('Звук подключён')
+
+    await ctx.user.click(button('Попросить показать свой экран'))
+    expect(ctx.requestScreen).toHaveBeenCalledOnce()
+    expect(button('Ждём ответа на запрос показа')).toHaveProperty('disabled', true)
+
+    ctx.api.room.emitEvent({ type: 'screen-request-answer', accepted: true })
+    expect(await screen.findByRole('dialog', { name: 'Что показать' })).toBeTruthy()
+  })
+
+  it('says so when the sharer keeps showing', async () => {
+    const ctx = setup({ sharerId: 'dima' })
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(button('Попросить показать свой экран'))
+
+    ctx.api.room.emitEvent({ type: 'screen-request-answer', accepted: false })
+
+    expect(await screen.findByText('Дима продолжает показ')).toBeTruthy()
+    expect(button('Попросить показать свой экран')).toHaveProperty('disabled', false)
+  })
+
+  it('opens the picker if the sharer simply stops while the user waits', async () => {
+    const ctx = setup({ sharerId: 'dima' })
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(button('Попросить показать свой экран'))
+
+    ctx.api.room.emitEvent({ type: 'screen-share-stopped', peerId: 'dima' })
+
+    expect(await screen.findByRole('dialog', { name: 'Что показать' })).toBeTruthy()
+    expect(button('Показать экран')).toBeTruthy()
+  })
+
+  it('follows who shares', async () => {
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    expect(button('Показать экран')).toBeTruthy()
+    ctx.api.room.emitEvent({ type: 'screen-share-started', peerId: 'dima' })
+    expect(button('Попросить показать свой экран')).toBeTruthy()
+  })
+
+  it('lets the sharer give way or keep showing', async () => {
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(button('Показать экран'))
+    const dialog = screen.getByRole('dialog', { name: 'Что показать' })
+    await ctx.user.click(await within(dialog).findByRole('radio', { name: 'Экран 1' }))
+    await ctx.user.click(within(dialog).getByRole('button', { name: 'Показать' }))
+    await screen.findByRole('listitem', { name: 'Твой экран' })
+
+    ctx.api.room.emitEvent({ type: 'screen-request', fromPeerId: 'dima' })
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Дима просит показать свой экран',
+    )
+    await ctx.user.click(button('Продолжить показ'))
+    expect(ctx.answerScreenRequest).toHaveBeenLastCalledWith('dima', false)
+    expect(screen.getByRole('listitem', { name: 'Твой экран' })).toBeTruthy()
+
+    ctx.api.room.emitEvent({ type: 'screen-request', fromPeerId: 'dima' })
+    await ctx.user.click(await screen.findByRole('button', { name: 'Уступить' }))
+    expect(ctx.answerScreenRequest).toHaveBeenLastCalledWith('dima', true)
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('listitem', { name: 'Твой экран' })).toBeNull()
+    })
+    expect(ctx.stopScreen).toHaveBeenCalled()
+  })
+
+  it('stops the capture when someone else got the screen first', async () => {
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    ctx.startScreen.mockRejectedValueOnce(new Error('produce: SCREEN_BUSY'))
+    ctx.api.room.emitEvent({ type: 'screen-share-started', peerId: 'dima' })
+    ctx.api.room.emitEvent({ type: 'screen-share-stopped', peerId: 'dima' })
+    await ctx.user.click(button('Показать экран'))
+    const dialog = screen.getByRole('dialog', { name: 'Что показать' })
+    await ctx.user.click(await within(dialog).findByRole('radio', { name: 'Экран 1' }))
+    await ctx.user.click(within(dialog).getByRole('button', { name: 'Показать' }))
+
+    expect(await screen.findByText(/Сейчас показывает/)).toBeTruthy()
+    expect(screen.queryByRole('listitem', { name: 'Твой экран' })).toBeNull()
+    expect(ctx.screen.stop).toHaveBeenCalled()
   })
 })

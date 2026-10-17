@@ -266,6 +266,16 @@ export class Call {
     if (!this.#closed) await this.#request({ method: 'closeProducer', producerId: producer.id })
   }
 
+  /** «Показать свой»: asks whoever shares now to give way (PLAN #29). */
+  async requestScreen(): Promise<void> {
+    await this.#request({ method: 'requestScreen' })
+  }
+
+  /** The sharer's answer to someone's «Показать свой». */
+  async answerScreenRequest(fromPeerId: string, accept: boolean): Promise<void> {
+    await this.#request({ method: 'answerScreenRequest', fromPeerId, accept })
+  }
+
   /** The codec the screen goes out with, e.g. "video/H264"; null when not sharing. */
   get screenCodec(): string | null {
     return this.#screen?.rtpParameters.codecs[0]?.mimeType ?? null

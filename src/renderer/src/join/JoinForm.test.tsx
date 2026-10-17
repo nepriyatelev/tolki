@@ -36,6 +36,8 @@ function setup(invite: Invite, result: JoinResult, startCall?: StartCall) {
             stopScreen: () => Promise.resolve(),
             setScreenVisible: () => Promise.resolve(),
             setScreenLayer: () => Promise.resolve(),
+            requestScreen: () => Promise.resolve(),
+            answerScreenRequest: () => Promise.resolve(),
             close: () => undefined,
           }))
       }
@@ -52,6 +54,7 @@ const ok: JoinResult = {
   routerRtpCapabilities: {},
   mutedPeers: [],
   screenMode: 'auto',
+  sharerId: null,
 }
 
 describe('join form', () => {
@@ -186,6 +189,8 @@ describe('the call after joining', () => {
         stopScreen: () => Promise.resolve(),
         setScreenVisible: () => Promise.resolve(),
         setScreenLayer: () => Promise.resolve(),
+        requestScreen: () => Promise.resolve(),
+        answerScreenRequest: () => Promise.resolve(),
         close,
       }),
     )
@@ -213,6 +218,8 @@ describe('the call after joining', () => {
         stopScreen: () => Promise.resolve(),
         setScreenVisible: () => Promise.resolve(),
         setScreenLayer: () => Promise.resolve(),
+        requestScreen: () => Promise.resolve(),
+        answerScreenRequest: () => Promise.resolve(),
         close: () => undefined,
       }),
     )

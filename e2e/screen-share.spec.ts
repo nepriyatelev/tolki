@@ -238,3 +238,65 @@ test('others see the shared screen at a layer that fits, and nothing while hidde
     await host.app.close()
   }
 })
+
+test('one screen at a time: «Показать свой» goes to the sharer, who gives way', async () => {
+  test.setTimeout(120_000)
+  const host = await launchApp()
+  try {
+    const port = await freePort()
+    const state = await host.page.evaluate(
+      (p) =>
+        window.ratatosk.host.start({ port: p, portMapping: false, roomName: 'Кино', password: '' }),
+      port,
+    )
+    if (state.status !== 'running') throw new Error('host did not start')
+    const link = `ratatosk://join?v=1&h=127.0.0.1&p=${port}&r=kino&fp=${state.fingerprint}`
+    const katya = await launchApp({ args: [link] })
+    const misha = await launchApp({ args: [link] })
+    try {
+      let hasScreen = false
+      for (let attempt = 0; attempt < 20 && !hasScreen; attempt++) {
+        const sources = await katya.page.evaluate(() => window.ratatosk.screen.listSources())
+        hasScreen = sources.picker === 'app' && sources.sources.some((s) => s.kind === 'screen')
+        if (!hasScreen) await katya.page.waitForTimeout(500)
+      }
+      if (Boolean(process.env['CI']) && process.platform === 'linux') expect(hasScreen).toBe(true)
+      test.skip(!hasScreen, 'no screen to capture (no «Запись экрана» permission?)')
+
+      for (const [app, name] of [
+        [katya, 'Катя'],
+        [misha, 'Миша'],
+      ] as const) {
+        await app.page.getByLabel('Твоё имя').fill(name)
+        await app.page.getByRole('button', { name: 'Войти в комнату' }).click()
+        await expect(app.page.getByRole('heading', { name: 'Кино' })).toBeVisible()
+      }
+      const share = async (page: typeof katya.page) => {
+        const dialog = page.getByRole('dialog', { name: 'Что показать' })
+        await dialog.getByRole('radio').first().click()
+        await dialog.getByRole('button', { name: 'Показать' }).click()
+      }
+
+      await katya.page.getByRole('button', { name: 'Показать экран' }).click()
+      await share(katya.page)
+      await expect(misha.page.getByRole('listitem', { name: 'Экран: Катя' })).toBeVisible()
+
+      // Misha asks; Katya gives way; Misha picks his screen and everyone sees it.
+      await misha.page.getByRole('button', { name: 'Попросить показать свой экран' }).click()
+      await expect(
+        misha.page.getByRole('button', { name: 'Ждём ответа на запрос показа' }),
+      ).toBeDisabled()
+      await expect(katya.page.getByText('Миша просит показать свой экран')).toBeVisible()
+      await katya.page.getByRole('button', { name: 'Уступить' }).click()
+      await expect(katya.page.getByRole('listitem', { name: 'Твой экран' })).toHaveCount(0)
+      await share(misha.page)
+      await expect(katya.page.getByRole('listitem', { name: 'Экран: Миша' })).toBeVisible()
+      await expect(misha.page.getByRole('listitem', { name: 'Экран: Катя' })).toHaveCount(0)
+    } finally {
+      await misha.app.close()
+      await katya.app.close()
+    }
+  } finally {
+    await host.app.close()
+  }
+})

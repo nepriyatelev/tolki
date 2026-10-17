@@ -23,6 +23,8 @@ export type JoinResult =
       mutedPeers: string[]
       /** How screens are shared in this room. */
       screenMode: ScreenMode
+      /** Who shares a screen right now, if anyone. */
+      sharerId: string | null
     }
   | { ok: false; error: JoinError; room?: RoomInfo }
 
@@ -56,6 +58,10 @@ export type RoomEvent = Extract<
       | 'consumer-closed'
       | 'active-speakers'
       | 'peer-muted'
+      | 'screen-share-started'
+      | 'screen-share-stopped'
+      | 'screen-request'
+      | 'screen-request-answer'
   }
 >
 

@@ -167,6 +167,7 @@ export function installRatatoskMock(options: RatatoskMockOptions = {}): Ratatosk
               routerRtpCapabilities: {},
               mutedPeers: [],
               screenMode: 'auto',
+              sharerId: null,
             })),
       ),
       leave: vi.fn<RatatoskApi['room']['leave']>(() => Promise.resolve(null)),
