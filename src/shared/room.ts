@@ -1,4 +1,4 @@
-import type { Peer, RoomInfo, SignalingErrorCode } from './signaling'
+import type { HostMessage, Peer, RoomInfo, SignalingErrorCode } from './signaling'
 
 export type JoinError =
   | SignalingErrorCode
@@ -11,7 +11,14 @@ export type JoinError =
   | 'protocol'
 
 export type JoinResult =
-  | { ok: true; peerId: string; peers: Peer[]; room: RoomInfo }
+  | {
+      ok: true
+      peerId: string
+      peers: Peer[]
+      room: RoomInfo
+      /** For the renderer's mediasoup Device. */
+      routerRtpCapabilities: Record<string, unknown>
+    }
   | { ok: false; error: JoinError; room?: RoomInfo }
 
 /** What a light check (hello → challenge, no authentication) learns about a room. */
@@ -32,3 +39,12 @@ export interface RoomClosedEvent {
   reason: RoomClosedReason
   roomName: string
 }
+
+/** What happens in a joined room: people come and go, voices start and stop. */
+export type RoomEvent = Extract<
+  HostMessage,
+  { type: 'peer-joined' | 'peer-left' | 'new-producer' | 'consumer-closed' }
+>
+
+/** The host's answer to a media request. */
+export type MediaResponse = { ok: true; data: unknown } | { ok: false; error: string }

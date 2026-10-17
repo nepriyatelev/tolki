@@ -154,3 +154,12 @@
   align-items: flex-start;
   gap: var(--space-4);
 }
+
+.join-sound {
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.join-sound--failed {
+  color: var(--color-danger-text);
+}

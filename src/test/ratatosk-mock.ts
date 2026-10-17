@@ -3,7 +3,7 @@ import type { InviteParseResult } from '@shared/invite'
 import type { RatatoskApi } from '@shared/ipc'
 import type { NetworkCheckResult } from '@shared/network'
 import type { RecentRoom, RecentStatus } from '@shared/recent'
-import type { RoomClosedEvent, RoomPreview } from '@shared/room'
+import type { RoomClosedEvent, RoomEvent, RoomPreview } from '@shared/room'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 
 export const MOCK_FINGERPRINT = '2_SqXt3l45Ay59VWqBcvcLmeh7BmqvL0m-UwbNw3EiE'
@@ -53,6 +53,10 @@ export interface RatatoskMock {
     emitClosed(event: RoomClosedEvent): void
     join: Mock<RatatoskApi['room']['join']>
     leave: Mock<RatatoskApi['room']['leave']>
+    request: Mock<RatatoskApi['room']['request']>
+    onEvent: Mock<RatatoskApi['room']['onEvent']>
+    /** Simulates an event of the joined room. */
+    emitEvent(event: RoomEvent): void
   }
   invite: {
     takePending: Mock<RatatoskApi['invite']['takePending']>
@@ -81,6 +85,7 @@ export const LIVE_PREVIEW: RoomPreview = {
 export function installRatatoskMock(options: RatatoskMockOptions = {}): RatatoskMock {
   const inviteListeners = new Set<(result: InviteParseResult) => void>()
   const closedListeners = new Set<(event: RoomClosedEvent) => void>()
+  const eventListeners = new Set<(event: RoomEvent) => void>()
   let recent = options.recentRooms ?? []
   const api = {
     app: {
@@ -149,9 +154,20 @@ export function installRatatoskMock(options: RatatoskMockOptions = {}): Ratatosk
               peerId: 'me',
               peers: [],
               room: { name: 'Комната', peerCount: 0, hasPassword: false },
+              routerRtpCapabilities: {},
             })),
       ),
       leave: vi.fn<RatatoskApi['room']['leave']>(() => Promise.resolve(null)),
+      request: vi.fn<RatatoskApi['room']['request']>(() =>
+        Promise.resolve({ ok: false, error: 'no host in tests' }),
+      ),
+      onEvent: vi.fn<RatatoskApi['room']['onEvent']>((listener) => {
+        eventListeners.add(listener)
+        return () => eventListeners.delete(listener)
+      }),
+      emitEvent: (event: RoomEvent) => {
+        for (const listener of eventListeners) listener(event)
+      },
     },
     invite: {
       takePending: vi.fn<RatatoskApi['invite']['takePending']>(() =>

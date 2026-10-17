@@ -3,8 +3,8 @@ import { hostPortSchema, type HostState } from './host-protocol'
 import type { Invite, InviteParseResult } from './invite'
 import type { NetworkCheckResult } from './network'
 import type { RecentRoom, RecentStatus } from './recent'
-import type { JoinResult, RoomClosedEvent, RoomPreview } from './room'
-import { peerNameSchema } from './signaling'
+import type { JoinResult, MediaResponse, RoomClosedEvent, RoomEvent, RoomPreview } from './room'
+import { mediaRequestSchema, peerNameSchema, type MediaRequest } from './signaling'
 import { settingsPatchSchema, type Settings, type SettingsPatch } from './settings'
 import type { UploadMeasurement } from './upload-capacity'
 
@@ -38,6 +38,8 @@ export interface InvokeContract {
   /** Connect to a host and authenticate; replaces any current connection. */
   'room:join': { args: [request: JoinRoomRequest]; result: JoinResult }
   'room:leave': { args: []; result: null }
+  /** A mediasoup signalling request to the host of the joined room. */
+  'room:request': { args: [request: MediaRequest]; result: MediaResponse }
   /** Room name, number of people and whether a password is needed, before joining. */
   'room:preview': { args: [invite: Invite]; result: RoomPreview }
   'recent:list': { args: []; result: RecentRoom[] }
@@ -78,6 +80,8 @@ export interface EventContract {
   'invite:opened': InviteParseResult
   /** The joined room ended without the user leaving: the host closed it or the link dropped. */
   'room:closed': RoomClosedEvent
+  /** Someone joined or left the room, started or stopped sending. */
+  'room:event': RoomEvent
 }
 
 export type InvokeChannel = keyof InvokeContract
@@ -127,6 +131,7 @@ export const invokeArgsSchemas: {
     }),
   ]),
   'room:leave': z.tuple([]),
+  'room:request': z.tuple([mediaRequestSchema]),
   'room:preview': z.tuple([inviteSchema]),
   'recent:list': z.tuple([]),
   'recent:probe': z.tuple([]),
@@ -162,6 +167,9 @@ export interface RatatoskApi {
     onClosed(listener: (event: RoomClosedEvent) => void): () => void
     join(request: JoinRoomRequest): Promise<JoinResult>
     leave(): Promise<null>
+    request(request: MediaRequest): Promise<MediaResponse>
+    /** Returns an unsubscribe function. */
+    onEvent(listener: (event: RoomEvent) => void): () => void
   }
   recent: {
     list(): Promise<RecentRoom[]>

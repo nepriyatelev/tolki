@@ -7,9 +7,10 @@ import { WebSocket } from 'ws'
 import type { Invite } from '@shared/invite'
 import { AttemptLimiter, normalizeAddress } from '../host/attempt-limiter'
 import { loadOrCreateCertificate, type HostCertificate } from '../host/certificate'
+import { MediaServer } from '../host/media-server'
 import { Room } from '../host/room'
 import { startSignalingServer, type SignalingServer } from '../host/server'
-import { joinRoom, probeRoom, type RoomConnection } from './room-client'
+import { joinRoom, pointCandidatesAt, probeRoom, type RoomConnection } from './room-client'
 
 // Real host (TLS server + Room) and real client, over loopback.
 
@@ -17,6 +18,7 @@ let dir: string
 let certificate: HostCertificate
 let server: SignalingServer | null = null
 let room: Room
+let media: MediaServer | null = null
 const connections: RoomConnection[] = []
 
 beforeAll(async () => {
@@ -32,6 +34,8 @@ afterEach(async () => {
   for (const c of connections.splice(0)) c.close()
   await server?.close()
   server = null
+  media?.close()
+  media = null
 })
 
 async function freePort(): Promise<number> {
@@ -48,13 +52,19 @@ async function freePort(): Promise<number> {
   return port
 }
 
-async function startHost(password: string, options: { handshakeTimeoutMs?: number } = {}) {
+async function startHost(
+  password: string,
+  options: { handshakeTimeoutMs?: number; withMedia?: boolean } = {},
+) {
+  const { withMedia, ...roomOptions } = options
+  const port = await freePort()
+  if (withMedia) media = await MediaServer.start({ port })
   room = new Room(
     { name: 'Вечерний созвон', password, fingerprint: certificate.fingerprint },
-    { limiter: new AttemptLimiter(), ...options },
+    { limiter: new AttemptLimiter(), ...roomOptions, ...(media && { media }) },
   )
   server = await startSignalingServer({
-    port: await freePort(),
+    port,
     key: certificate.key,
     cert: certificate.cert,
     onConnection: (socket, address) => {
@@ -293,5 +303,71 @@ describe('when a joined room ends', () => {
     await new Promise((r) => setTimeout(r, 200))
 
     expect(called).toBe(false)
+  })
+})
+
+describe('media requests and room events', () => {
+  it('passes requests to the host and points ICE candidates at the invite’s host', async () => {
+    const invite = await startHost('', { withMedia: true })
+    const connection = await joinRoom({ invite, name: 'Катя', password: undefined })
+    connections.push(connection)
+    expect(connection.result).toMatchObject({ ok: true })
+    if (!connection.result.ok) return
+    expect(JSON.stringify(connection.result.routerRtpCapabilities)).toContain('audio/opus')
+
+    const response = await connection.request({ method: 'createTransport', direction: 'recv' })
+
+    expect(response.ok).toBe(true)
+    const data = (response as { data: { iceCandidates: { ip: string; address: string }[] } }).data
+    expect(data.iceCandidates.length).toBeGreaterThan(0)
+    for (const candidate of data.iceCandidates) {
+      expect(candidate).toMatchObject({ ip: '127.0.0.1', address: '127.0.0.1' })
+    }
+    expect(await connection.request({ method: 'resumeConsumer', consumerId: 'x' })).toEqual({
+      ok: false,
+      error: 'unknown consumer',
+    })
+  })
+
+  it('reports host errors and a closed connection as failed responses', async () => {
+    const invite = await startHost('')
+    const connection = await joinRoom({ invite, name: 'Катя', password: undefined })
+
+    expect(await connection.request({ method: 'createTransport', direction: 'send' })).toEqual({
+      ok: false,
+      error: 'media is not available',
+    })
+    connection.close()
+    expect(await connection.request({ method: 'createTransport', direction: 'send' })).toEqual({
+      ok: false,
+      error: 'disconnected',
+    })
+  })
+
+  it('delivers room events, including those that came right after welcome', async () => {
+    const invite = await startHost('')
+    const first = await joinRoom({ invite, name: 'Катя', password: undefined })
+    connections.push(first)
+    const second = await joinRoom({ invite, name: 'Миша', password: undefined })
+    connections.push(second)
+    await new Promise((r) => setTimeout(r, 100))
+
+    const seen: string[] = []
+    first.onEvent((event) => seen.push(event.type))
+    expect(seen).toEqual(['peer-joined'])
+
+    second.close()
+    await expect.poll(() => seen).toEqual(['peer-joined', 'peer-left'])
+  })
+})
+
+describe('pointCandidatesAt', () => {
+  it('replaces candidate addresses and leaves other data alone', () => {
+    expect(
+      pointCandidatesAt({ id: 't', iceCandidates: [{ ip: '::', address: '::', port: 1 }] }, 'h'),
+    ).toEqual({ id: 't', iceCandidates: [{ ip: 'h', address: 'h', port: 1 }] })
+    expect(pointCandidatesAt({ id: 't' }, 'h')).toEqual({ id: 't' })
+    expect(pointCandidatesAt(null, 'h')).toBeNull()
+    expect(pointCandidatesAt({ iceCandidates: 'x' }, 'h')).toEqual({ iceCandidates: 'x' })
   })
 })
