@@ -1,16 +1,20 @@
-// Entry point of the `host` utility process: the room's signalling server and port forwarding.
-// mediasoup joins it in issue #19.
+// Entry point of the `host` utility process: the room's signalling server, the SFU
+// (mediasoup) and port forwarding.
 import type { HostToMainMessage, MainToHostMessage } from '@shared/host-protocol'
 import { normalizeAddress } from './attempt-limiter'
 import { loadOrCreateCertificate } from './certificate'
+import { MediaServer, MediaServerStartError } from './media-server'
 import { mapHostPort } from './nat'
 import type { PortMappingSession } from './nat/port-mapper'
 import { Room } from './room'
 import { SignalingServerStartError, startSignalingServer, type SignalingServer } from './server'
+import { monitorUpload } from './upload-monitor'
 
 const port = process.parentPort
 let server: SignalingServer | null = null
 let room: Room | null = null
+let media: MediaServer | null = null
+let stopMonitor: (() => void) | null = null
 let mapping: Promise<PortMappingSession> | null = null
 let stopping = false
 
@@ -24,11 +28,7 @@ function send(message: HostToMainMessage): void {
 async function start(message: Extract<MainToHostMessage, { type: 'start' }>): Promise<void> {
   try {
     const certificate = await loadOrCreateCertificate(message.dataDir)
-    room = new Room({
-      name: message.roomName,
-      password: message.password,
-      fingerprint: certificate.fingerprint,
-    })
+    // Signalling first: it owns the TCP port, so a busy port is reported the usual way.
     server = await startSignalingServer({
       port: message.port,
       key: certificate.key,
@@ -36,10 +36,29 @@ async function start(message: Extract<MainToHostMessage, { type: 'start' }>): Pr
       onConnection: (socket, address) => {
         room?.accept(socket, normalizeAddress(address))
       },
+      mediaTcpPort: () => media?.tcpPort,
     })
+    media = await MediaServer.start({
+      port: message.port,
+      onDied: (error) => {
+        send({ type: 'fatal', message: `mediasoup worker died: ${error.message}` })
+        process.exit(1)
+      },
+    })
+    const sfu = media
+    room = new Room(
+      { name: message.roomName, password: message.password, fingerprint: certificate.fingerprint },
+      { media: sfu },
+    )
+    stopMonitor = monitorUpload(
+      () => room?.transports ?? [],
+      (capacity) => {
+        send({ type: 'call-upload', capacity })
+      },
+    )
     send({ type: 'ready', port: server.port, fingerprint: certificate.fingerprint })
   } catch (error) {
-    if (error instanceof SignalingServerStartError) {
+    if (error instanceof SignalingServerStartError || error instanceof MediaServerStartError) {
       send({ type: 'start-failed', reason: error.reason, message: error.message })
     } else {
       send({ type: 'start-failed', reason: 'unknown', message: String(error) })
@@ -50,6 +69,9 @@ async function start(message: Extract<MainToHostMessage, { type: 'start' }>): Pr
   if (message.portMapping) {
     mapping = mapHostPort(message.port)
     const session = await mapping
+    if (session.state.status === 'mapped') {
+      media.publicUdpPort = session.state.externalUdpPort
+    }
     if (!stopping) send({ type: 'port-mapping', state: session.state })
   }
 }
@@ -69,6 +91,8 @@ async function shutdown(): Promise<void> {
   stopping = true
   // Participants learn the room was closed on purpose before the connection drops.
   room?.close()
+  stopMonitor?.()
+  media?.close()
   const unmap = mapping?.then((session) => session.close())
   await Promise.race([unmap, new Promise((resolve) => setTimeout(resolve, UNMAP_TIMEOUT_MS))])
   await server?.close()

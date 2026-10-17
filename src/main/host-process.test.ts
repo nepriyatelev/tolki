@@ -115,6 +115,15 @@ describe('HostProcess', () => {
     expect(states.at(-1)).toMatchObject({ portMapping: mapped })
   })
 
+  it('keeps the live upload estimate from the call', async () => {
+    const { host, children } = await startRunning()
+    const capacity = { uploadMbps: 12, participants: 15, screen: '720p' } as const
+
+    children[0]?.emit('message', { type: 'call-upload', capacity })
+
+    expect(host.state).toMatchObject({ status: 'running', callUpload: capacity })
+  })
+
   it('ignores malformed port mapping results', async () => {
     const { host, children } = await startRunning()
 

@@ -1,5 +1,5 @@
-import { createServer, type Server } from 'node:https'
-import type { Socket } from 'node:net'
+import { createServer as createHttpsServer } from 'node:https'
+import { connect, createServer, type Server, type Socket } from 'node:net'
 import { WebSocketServer, type WebSocket } from 'ws'
 
 export interface SignalingServerOptions {
@@ -7,6 +7,11 @@ export interface SignalingServerOptions {
   key: string
   cert: string
   onConnection?: (socket: WebSocket, remoteAddress: string | undefined) => void
+  /**
+   * Loopback port of mediasoup's ICE-TCP listener. Media over TCP (the fallback when UDP is
+   * blocked) arrives on the same public port as signalling and is passed on to it.
+   */
+  mediaTcpPort?: () => number | undefined
 }
 
 export interface SignalingServer {
@@ -29,14 +34,23 @@ export class SignalingServerStartError extends Error {
 /** Signalling messages are small JSON; anything bigger is a bug or abuse. */
 const MAX_MESSAGE_BYTES = 64 * 1024
 
+/** First byte of a TLS record carrying a handshake (ClientHello). */
+const TLS_HANDSHAKE = 0x16
+/**
+ * ICE-TCP frames (RFC 4571) start with a 16-bit length; STUN and DTLS packets are well under
+ * 1500 bytes, so the first byte is small. TLS and HTTP never start like that.
+ */
+const MAX_ICE_TCP_FIRST_BYTE = 0x05
+
 /**
  * HTTPS server that only speaks WebSocket (WSS). Plain HTTP/WS fails the TLS handshake;
- * HTTPS requests without an upgrade get 426.
+ * HTTPS requests without an upgrade get 426. The same TCP port also carries media over ICE-TCP:
+ * the first byte of a connection tells the two apart (PLAN §2 "Один порт").
  */
 export async function startSignalingServer(
   options: SignalingServerOptions,
 ): Promise<SignalingServer> {
-  const server = createServer({
+  const server = createHttpsServer({
     key: options.key,
     cert: options.cert,
     minVersion: 'TLSv1.3',
@@ -50,12 +64,26 @@ export async function startSignalingServer(
   })
 
   const sockets = new Set<Socket>()
-  server.on('connection', (socket: Socket) => {
+  const front = createServer((socket) => {
     sockets.add(socket)
     socket.once('close', () => sockets.delete(socket))
+    socket.on('error', () => socket.destroy())
+    socket.setTimeout(10_000, () => socket.destroy())
+    socket.once('data', (chunk) => {
+      socket.setTimeout(0)
+      socket.pause()
+      socket.unshift(chunk)
+      const mediaPort = options.mediaTcpPort?.()
+      const first = chunk[0] ?? TLS_HANDSHAKE
+      if (mediaPort !== undefined && first <= MAX_ICE_TCP_FIRST_BYTE) {
+        forward(socket, mediaPort)
+      } else {
+        server.emit('connection', socket)
+      }
+    })
   })
 
-  await listen(server, options.port)
+  await listen(front, options.port)
 
   // Attach only after listen succeeded: ws re-emits server errors on itself, and an
   // unhandled 'error' there would turn EADDRINUSE into an uncaught exception.
@@ -73,8 +101,20 @@ export async function startSignalingServer(
 
   return {
     port: options.port,
-    close: () => closeServer(server, wss, sockets),
+    close: () => closeServer(front, wss, sockets),
   }
+}
+
+function forward(socket: Socket, port: number): void {
+  const upstream = connect(port, '127.0.0.1')
+  const drop = (): void => {
+    socket.destroy()
+    upstream.destroy()
+  }
+  upstream.on('error', drop)
+  upstream.on('close', drop)
+  socket.on('close', drop)
+  socket.pipe(upstream).pipe(socket)
 }
 
 function listen(server: Server, port: number): Promise<void> {
@@ -106,7 +146,7 @@ function toStartError(error: NodeJS.ErrnoException, port: number): SignalingServ
 }
 
 async function closeServer(
-  server: Server,
+  front: Server,
   wss: WebSocketServer,
   sockets: Set<Socket>,
 ): Promise<void> {
@@ -117,7 +157,7 @@ async function closeServer(
     })
   })
   await new Promise<void>((resolve) => {
-    server.close(() => {
+    front.close(() => {
       resolve()
     })
     // Give clients a moment to finish the close handshake, then drop whatever is left.

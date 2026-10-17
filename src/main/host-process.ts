@@ -132,6 +132,11 @@ export class HostProcess {
               this.#setState({ ...this.#state, portMapping: message.data.state })
             }
             return
+          case 'call-upload':
+            if (this.#state.status === 'running') {
+              this.#setState({ ...this.#state, callUpload: message.data.capacity })
+            }
+            return
           case 'start-failed':
             failure = new HostStartError(message.data.reason, message.data.message)
             return

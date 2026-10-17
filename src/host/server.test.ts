@@ -107,6 +107,43 @@ describe('startSignalingServer', () => {
     socket.close()
   })
 
+  it('passes ICE-TCP media on the same port to mediasoup and keeps WSS working', async () => {
+    const received: Buffer[] = []
+    const mediasoup = createNetServer((socket) => {
+      socket.on('data', (chunk) => {
+        received.push(chunk)
+        socket.write('pong')
+      })
+    })
+    await new Promise<void>((resolve) => {
+      mediasoup.listen(0, '127.0.0.1', resolve)
+    })
+    const mediaPort = (mediasoup.address() as AddressInfo).port
+    server = await startSignalingServer({
+      port: await freePort(),
+      key: certificate.key,
+      cert: certificate.cert,
+      mediaTcpPort: () => mediaPort,
+    })
+
+    // RFC 4571 frame: 16-bit length, then a STUN binding request header.
+    const frame = Buffer.from([0x00, 0x14, 0x00, 0x01, 0x00, 0x00, 0x21, 0x12, 0xa4, 0x42])
+    const tcp = connect(server.port, '127.0.0.1')
+    tcp.write(frame)
+    const reply = await new Promise<string>((resolve) => {
+      tcp.once('data', (d) => {
+        resolve(d.toString('utf8'))
+      })
+    })
+    tcp.destroy()
+
+    expect(reply).toBe('pong')
+    expect(Buffer.concat(received).equals(frame)).toBe(true)
+    const { socket } = await connectWss(`wss://127.0.0.1:${server.port}/`)
+    socket.close()
+    mediasoup.close()
+  })
+
   it('does not speak plain HTTP or WS', async () => {
     const { port } = await start()
 

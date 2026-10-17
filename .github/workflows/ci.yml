@@ -28,6 +28,8 @@ jobs:
 
       # The Electron binary is not needed for static checks and unit tests.
       - run: pnpm install --frozen-lockfile --ignore-scripts
+      # Host tests run a real mediasoup worker: fetch its prebuilt binary.
+      - run: pnpm rebuild mediasoup
 
       - run: pnpm lint
       - run: pnpm typecheck
