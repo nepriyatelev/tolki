@@ -92,13 +92,12 @@ test('the user picks a screen and sees what they are showing', async () => {
         .poll(() => preview.evaluate((v: HTMLVideoElement) => v.videoWidth), { timeout: 15_000 })
         .toBeGreaterThan(0)
 
-      // Sent to the room (#27): two simulcast layers, H.264 or VP8, tuned for motion.
+      // Sent to the room (#27): two simulcast layers (≈360p and ≈1080p), both encoding,
+      // H.264 or VP8, tuned for motion.
       const encoded = await expect
         .poll(
           async () => (await sentVideo(page))?.layers.every((l) => l.framesEncoded > 0) ?? false,
-          {
-            timeout: 15_000,
-          },
+          { timeout: 20_000 },
         )
         .toBe(true)
         .then(
@@ -110,6 +109,10 @@ test('the user picks a screen and sees what they are showing', async () => {
       expect(video?.codec).toMatch(/^video\/(H264|VP8)$/)
       expect(video?.contentHint).toBe('motion')
       expect(video?.layers).toHaveLength(2)
+      expect(encoded).toBe(true)
+      expect(video?.layers.map((l) => l.frameHeight).sort((a, b) => a - b)[0]).toBeLessThanOrEqual(
+        360,
+      )
       // Reported, not asserted: CI encodes in software on a tiny virtual screen.
       console.log('cpu while sharing, % of one core:', (await cpuPercent(client.app)).toFixed(1))
 

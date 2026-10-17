@@ -55,9 +55,16 @@ export function sentVideo(page: Page): Promise<SentVideo | null> {
   })
 }
 
-/** CPU of the app's processes, percent of one core, summed. */
-export function cpuPercent(app: ElectronApplication): Promise<number> {
-  return app.evaluate(({ app: electronApp }) =>
-    electronApp.getAppMetrics().reduce((sum, m) => sum + m.cpu.percentCPUUsage, 0),
-  )
+/**
+ * CPU of the app's processes, percent of one core, summed. Electron measures usage since the
+ * previous call, so this samples twice, a second apart.
+ */
+export async function cpuPercent(app: ElectronApplication): Promise<number> {
+  const sample = () =>
+    app.evaluate(({ app: electronApp }) =>
+      electronApp.getAppMetrics().reduce((sum, m) => sum + m.cpu.percentCPUUsage, 0),
+    )
+  await sample()
+  await new Promise((resolve) => setTimeout(resolve, 1000))
+  return sample()
 }
