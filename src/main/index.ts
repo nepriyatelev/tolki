@@ -5,10 +5,12 @@ import { app, BrowserWindow, net, session, utilityProcess } from 'electron'
 import Store from 'electron-store'
 import { APP_NAME } from '@shared/app'
 import { DEFAULT_HOST_PORT } from '@shared/host-protocol'
+import { buildInvite, parseInvite } from '@shared/invite'
 import { integrateAppImage } from './appimage-integration'
 import { HostProcess, HostStartError } from './host-process'
 import { findInviteLink, InviteLinks } from './invite-links'
 import { NetworkChecker } from './network-check'
+import { joinRoom, type RoomConnection } from './room-client'
 import { SettingsStore } from './settings'
 import { measureUpload } from './speed-test'
 import { UploadEstimator } from './upload-estimator'
@@ -91,6 +93,14 @@ app.on('open-url', (event, url) => {
   focusMainWindow()
 })
 
+// The room this app is a client of (also when the host user joins their own room).
+let roomConnection: RoomConnection | null = null
+
+function leaveRoom(): void {
+  roomConnection?.close()
+  roomConnection = null
+}
+
 function registerInviteScheme(): void {
   if (!app.isPackaged) return
   // macOS: Info.plist from electron-builder `protocols`; Linux deb: its .desktop file.
@@ -146,11 +156,13 @@ registerIpcHandlers(
       version: app.getVersion(),
       platform: process.platform,
     }),
-    'host:start': async ({ port, portMapping }) => {
+    'host:start': async ({ port, portMapping, roomName, password }) => {
       try {
         return await host.start({
           port: port ?? DEFAULT_HOST_PORT,
           portMapping: portMappingEnabled && (portMapping ?? true),
+          roomName: roomName ?? 'Комната',
+          password: password ?? '',
           dataDir: app.getPath('userData'),
         })
       } catch (error) {
@@ -165,6 +177,28 @@ registerIpcHandlers(
     'settings:get': () => settings.get(),
     'settings:update': (patch) => settings.update(patch),
     'invite:take-pending': () => inviteLinks.takePending(),
+    'room:join': async ({ invite, name, password }) => {
+      // Re-validate: the renderer's invite must survive the strict parser like a link would.
+      let checked
+      try {
+        checked = parseInvite(buildInvite(invite))
+      } catch {
+        throw new Error('Invalid invite')
+      }
+      if (!checked.ok) throw new Error('Invalid invite')
+      leaveRoom()
+      const connection = await joinRoom({
+        invite: checked.invite,
+        name,
+        password: password ?? checked.invite.password,
+      })
+      if (connection.result.ok) roomConnection = connection
+      return connection.result
+    },
+    'room:leave': () => {
+      leaveRoom()
+      return null
+    },
   },
   isTrustedUrl,
 )
@@ -191,6 +225,7 @@ app.on('window-all-closed', () => {
 
 // Stop the host process before quitting so it can release ports and mappings.
 app.on('before-quit', (event) => {
+  leaveRoom()
   if (host.state.status === 'stopped') return
   event.preventDefault()
   void host.stop().finally(() => {

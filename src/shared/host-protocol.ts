@@ -39,7 +39,15 @@ export type HostState =
 
 /** Messages from main to the `host` utility process. */
 export type MainToHostMessage =
-  | { type: 'start'; port: number; dataDir: string; portMapping: boolean }
+  | {
+      type: 'start'
+      port: number
+      dataDir: string
+      portMapping: boolean
+      roomName: string
+      /** Empty: no password. Stays in memory only. */
+      password: string
+    }
   /** One-shot network check: try to forward the port, report, remove the mapping, exit. */
   | { type: 'check'; port: number }
   | { type: 'shutdown' }

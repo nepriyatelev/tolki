@@ -6,7 +6,7 @@ export interface SignalingServerOptions {
   port: number
   key: string
   cert: string
-  onConnection?: (socket: WebSocket) => void
+  onConnection?: (socket: WebSocket, remoteAddress: string | undefined) => void
 }
 
 export interface SignalingServer {
@@ -67,8 +67,8 @@ export async function startSignalingServer(
   wss.on('error', (error) => {
     console.error('[host] websocket server error:', error)
   })
-  wss.on('connection', (socket) => {
-    options.onConnection?.(socket)
+  wss.on('connection', (socket, request) => {
+    options.onConnection?.(socket, request.socket.remoteAddress)
   })
 
   return {

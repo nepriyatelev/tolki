@@ -1,9 +1,11 @@
 // Entry point of the `host` utility process: the room's signalling server and port forwarding.
 // mediasoup joins it in issue #19.
 import type { HostToMainMessage, MainToHostMessage } from '@shared/host-protocol'
+import { normalizeAddress } from './attempt-limiter'
 import { loadOrCreateCertificate } from './certificate'
 import { mapHostPort } from './nat'
 import type { PortMappingSession } from './nat/port-mapper'
+import { Room } from './room'
 import { SignalingServerStartError, startSignalingServer, type SignalingServer } from './server'
 
 const port = process.parentPort
@@ -21,10 +23,18 @@ function send(message: HostToMainMessage): void {
 async function start(message: Extract<MainToHostMessage, { type: 'start' }>): Promise<void> {
   try {
     const certificate = await loadOrCreateCertificate(message.dataDir)
+    const room = new Room({
+      name: message.roomName,
+      password: message.password,
+      fingerprint: certificate.fingerprint,
+    })
     server = await startSignalingServer({
       port: message.port,
       key: certificate.key,
       cert: certificate.cert,
+      onConnection: (socket, address) => {
+        room.accept(socket, normalizeAddress(address))
+      },
     })
     send({ type: 'ready', port: server.port, fingerprint: certificate.fingerprint })
   } catch (error) {

@@ -16,6 +16,8 @@ export interface HostChild {
 export interface HostStartOptions {
   port: number
   portMapping: boolean
+  roomName: string
+  password: string
   /** Where the host keeps its certificate (Electron userData). */
   dataDir: string
 }
@@ -156,6 +158,8 @@ export class HostProcess {
         port: options.port,
         dataDir: options.dataDir,
         portMapping: options.portMapping,
+        roomName: options.roomName,
+        password: options.password,
       })
     })
   }
