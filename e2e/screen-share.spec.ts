@@ -49,17 +49,17 @@ test('the user picks a screen and sees what they are showing', async () => {
     })
     try {
       const page = client.page
-      const sources = await page.evaluate(() => window.ratatosk.screen.listSources())
-      console.log(
-        'screen sources:',
-        JSON.stringify(sources, (key, value: unknown) =>
-          key === 'thumbnail' || key === 'icon' ? typeof value : value,
-        ),
-      )
-      test.skip(
-        sources.picker !== 'app' || !sources.sources.some((s) => s.kind === 'screen'),
-        `no screen to capture here (${sources.picker})`,
-      )
+      // Right after start the display may not be listed yet (seen under xvfb): ask a few times.
+      let hasScreen = false
+      for (let attempt = 0; attempt < 20 && !hasScreen; attempt++) {
+        const sources = await page.evaluate(() => window.ratatosk.screen.listSources())
+        hasScreen = sources.picker === 'app' && sources.sources.some((s) => s.kind === 'screen')
+        if (!hasScreen) await page.waitForTimeout(500)
+      }
+      // Linux CI has a screen (xvfb) and must run this; a developer's Mac may lack the permission.
+      const mustRun = Boolean(process.env['CI']) && process.platform === 'linux'
+      if (mustRun) expect(hasScreen).toBe(true)
+      test.skip(!hasScreen, 'no screen to capture (no «Запись экрана» permission?)')
 
       await page.getByLabel('Твоё имя').fill('Катя')
       await page.getByRole('button', { name: 'Войти в комнату' }).click()
