@@ -51,7 +51,10 @@
 }
 
 .recent-name {
+  overflow: hidden;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .recent-subtitle {

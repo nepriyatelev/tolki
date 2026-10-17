@@ -35,9 +35,13 @@ export interface RoomOptions {
   maxPeers?: number
 }
 
+/** Requests a participant may have in flight; more is a bug or abuse. */
+const MAX_PENDING_REQUESTS = 16
+
 interface Member {
   peer: Peer
   media: PeerMedia | null
+  pending: number
   /** Their microphone is off (the audio producer is paused). */
   muted: boolean
 }
@@ -215,7 +219,7 @@ export class Room {
       : null
     const others = [...this.#peers.values()]
     this.#broadcast({ type: 'peer-joined', peer })
-    this.#peers.set(socket, { peer, media, muted: false })
+    this.#peers.set(socket, { peer, media, muted: false, pending: 0 })
     send({
       type: 'welcome',
       peerId: peer.id,
@@ -238,12 +242,18 @@ export class Room {
 
   async #serve(member: Member, id: number, request: MediaRequest): Promise<HostMessage> {
     if (!member.media) return { type: 'response', id, error: 'media is not available' }
+    if (member.pending >= MAX_PENDING_REQUESTS) {
+      return { type: 'response', id, error: 'too many requests' }
+    }
+    member.pending++
     try {
       const data = await member.media.handle(request)
       return { type: 'response', id, data }
     } catch (error) {
       // mediasoup's own messages (bad parameters) are fine to pass on; nothing secret in them.
       return { type: 'response', id, error: error instanceof Error ? error.message : 'failed' }
+    } finally {
+      member.pending--
     }
   }
 

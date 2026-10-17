@@ -4,6 +4,18 @@
   min-height: 100vh;
 }
 
+/* Screens fade in instead of popping: a short cue that the view changed. */
+.app > main {
+  animation: screen-in 180ms var(--ease-out);
+}
+
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
 .app-header {
   display: flex;
   align-items: center;

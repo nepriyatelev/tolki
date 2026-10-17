@@ -5,7 +5,7 @@ import type { JoinResult } from '@shared/room'
 import { installRatatoskMock } from '../../../test/ratatosk-mock'
 import type { MicrophoneAccess } from '../audio/microphone'
 import { collectRoomEvents } from './call'
-import { CallScreen } from './CallScreen'
+import { CallScreen, peopleCount, SPEAKING_HOLD_MS } from './CallScreen'
 
 const RESULT: Extract<JoinResult, { ok: true }> = {
   ok: true,
@@ -86,7 +86,8 @@ describe('CallScreen', () => {
     expect(await screen.findByText('Звук подключён')).toBeTruthy()
   })
 
-  it('frames whoever is speaking', () => {
+  it('frames whoever is speaking, and lets the frame linger briefly after', () => {
+    vi.useFakeTimers()
     const { api, labels } = setup()
 
     api.room.emitEvent({ type: 'active-speakers', peerIds: ['dima'] })
@@ -96,10 +97,30 @@ describe('CallScreen', () => {
     )
 
     api.room.emitEvent({ type: 'active-speakers', peerIds: ['me'] })
+    expect(labels()).toEqual(['Дима, говорит', 'Алексей (ты), говорит'])
+    vi.advanceTimersByTime(SPEAKING_HOLD_MS)
     expect(labels()).toEqual(['Дима', 'Алексей (ты), говорит'])
 
     api.room.emitEvent({ type: 'active-speakers', peerIds: [] })
+    vi.advanceTimersByTime(SPEAKING_HOLD_MS)
     expect(document.querySelector('.call-tile--speaking')).toBeNull()
+    vi.useRealTimers()
+  })
+
+  it('does not blink between words', () => {
+    vi.useFakeTimers()
+    const { api } = setup()
+    const framed = () =>
+      document.querySelector('[data-peer-id="dima"]')?.classList.contains('call-tile--speaking')
+
+    api.room.emitEvent({ type: 'active-speakers', peerIds: ['dima'] })
+    api.room.emitEvent({ type: 'active-speakers', peerIds: [] })
+    vi.advanceTimersByTime(300)
+    expect(framed()).toBe(true)
+    api.room.emitEvent({ type: 'active-speakers', peerIds: ['dima'] })
+    vi.advanceTimersByTime(SPEAKING_HOLD_MS)
+    expect(framed()).toBe(true)
+    vi.useRealTimers()
   })
 
   it('adds and removes people as they come and go', () => {
@@ -203,6 +224,7 @@ describe('microphone and sound (#22)', () => {
     input.remove()
 
     // A focused volume slider does not swallow the hotkeys.
+    await user.click(screen.getByRole('button', { name: 'Меню: Дима' }))
     screen.getByRole('slider', { name: 'Громкость: Дима' }).focus()
     await user.keyboard('d')
     expect(sound().getAttribute('aria-pressed')).toBe('false')
@@ -227,45 +249,89 @@ describe('microphone and sound (#22)', () => {
   })
 })
 
-describe('volume of each participant (#23)', () => {
-  const slider = (name: string) =>
-    screen.getByRole<HTMLInputElement>('slider', { name: `Громкость: ${name}` })
+describe('volume of each participant: the «⋯» menu (#23, #77)', () => {
+  const slider = () => screen.getByRole<HTMLInputElement>('slider', { name: 'Громкость: Дима' })
+  async function openMenu(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('button', { name: 'Меню: Дима' }))
+    return screen.getByRole('dialog', { name: 'Звук: Дима' })
+  }
 
-  it('lists the others with a 0–200 % slider, starting from the remembered volume', async () => {
-    setup({ peerVolumes: { дима: 150 } })
+  it('opens from «⋯» with a 0–200 % slider at the remembered volume', async () => {
+    const { user } = setup({ peerVolumes: { дима: 150 } })
+    await screen.findByText('Звук подключён')
+    const button = screen.getByRole('button', { name: 'Меню: Дима' })
+    expect(button.getAttribute('aria-expanded')).toBe('false')
 
-    expect(screen.getByRole('heading', { name: 'В комнате · 2' })).toBeTruthy()
+    const menu = await openMenu(user)
+
+    expect(button.getAttribute('aria-expanded')).toBe('true')
+    expect(slider().value).toBe('150')
+    expect(slider().max).toBe('200')
+    expect(document.activeElement).toBe(slider())
+    expect(within(menu).getByText('150%')).toBeTruthy()
+  })
+
+  it('shows a changed volume on the tile', async () => {
+    const { labels } = setup({ peerVolumes: { дима: 150 } })
     await vi.waitFor(() => {
-      expect(slider('Дима').value).toBe('150')
+      expect(labels()).toEqual(['Дима, громкость 150 %', 'Алексей (ты)'])
     })
-    expect(slider('Дима').min).toBe('0')
-    expect(slider('Дима').max).toBe('200')
-    expect(screen.getByText('150%')).toBeTruthy()
-    expect(screen.queryByRole('slider', { name: 'Громкость: Алексей' })).toBeNull()
   })
 
-  it('remembers a new volume by name when the slider is released', async () => {
-    const { api } = setup()
-    await screen.findByText('100%')
+  it('remembers a new volume by name when the slider is released, and resets to 100 %', async () => {
+    const { api, user } = setup()
+    await screen.findByText('Звук подключён')
+    const menu = await openMenu(user)
+    const reset = within(menu).getByRole<HTMLButtonElement>('button', {
+      name: 'Сбросить до 100 %',
+    })
+    expect(reset.disabled).toBe(true)
 
-    fireEvent.input(slider('Дима'), { target: { value: '60' } })
-    expect(screen.getByText('60%')).toBeTruthy()
+    fireEvent.input(slider(), { target: { value: '60' } })
+    expect(within(menu).getByText('60%')).toBeTruthy()
     expect(api.settings.update).not.toHaveBeenCalled()
-    fireEvent.change(slider('Дима'), { target: { value: '60' } })
-
+    fireEvent.change(slider(), { target: { value: '60' } })
     expect(api.settings.update).toHaveBeenCalledWith({ audio: { peerVolumes: { Дима: 60 } } })
+
+    await user.click(reset)
+    expect(api.settings.update).toHaveBeenLastCalledWith({
+      audio: { peerVolumes: { Дима: 100 } },
+    })
+    expect(slider().value).toBe('100')
   })
 
-  it('says when someone has the microphone off', () => {
-    setup({ mutedPeers: ['dima'] })
-    expect(screen.getByText('микрофон выкл.')).toBeTruthy()
+  it('closes with Esc and gives focus back to «⋯»', async () => {
+    const { user } = setup()
+    await screen.findByText('Звук подключён')
+    const button = screen.getByRole('button', { name: 'Меню: Дима' })
+    const menu = await openMenu(user)
+
+    menu.hidePopover()
+
+    expect(button.getAttribute('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(button)
   })
 
-  it('says when nobody else is here', () => {
+  it('offers the audio settings on your own tile', async () => {
+    const { user } = setup()
+    await screen.findByText('Звук подключён')
+    await user.click(screen.getByRole('button', { name: 'Меню: Алексей' }))
+    await user.click(screen.getByRole('button', { name: 'Настройки звука' }))
+    expect(screen.getByRole('dialog', { name: 'Настройки звука' })).toBeTruthy()
+  })
+
+  it('counts the people in the header', () => {
     const { api } = setup()
+    expect(screen.getByText('2 участника')).toBeTruthy()
     api.room.emitEvent({ type: 'peer-left', peerId: 'dima' })
-    expect(screen.getByText('Пока никого нет')).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'В комнате · 1' })).toBeTruthy()
+    expect(screen.getByText('1 участник')).toBeTruthy()
+    expect(peopleCount(5)).toBe('5 участников')
+    expect(peopleCount(21)).toBe('21 участник')
+  })
+
+  it('says in the tile label when someone has the microphone off', () => {
+    const { labels } = setup({ mutedPeers: ['dima'] })
+    expect(labels()).toEqual(['Дима, микрофон выключен', 'Алексей (ты)'])
   })
 })
 

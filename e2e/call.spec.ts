@@ -168,11 +168,16 @@ test('two app instances on one machine hear each other through the host', async 
 
         // Katya's speakers get Misha's voice; at 0 % they go quiet (PLAN #23).
         await expect.poll(() => outputLevel(katya.page), { timeout: 15_000 }).toBeGreaterThan(0.01)
-        const volume = katya.page.getByRole('slider', { name: 'Громкость: Миша' })
+        // The volume lives in the «⋯» menu on Misha's tile (#77).
+        await katya.page.getByRole('button', { name: 'Меню: Миша' }).click()
+        const menu = katya.page.getByRole('dialog', { name: 'Звук: Миша' })
+        const volume = menu.getByRole('slider', { name: 'Громкость: Миша' })
         await volume.fill('0')
-        await expect(katya.page.getByText('0%', { exact: true })).toBeVisible()
+        await expect(menu.getByText('0%', { exact: true })).toBeVisible()
         await expect.poll(() => outputLevel(katya.page), { timeout: 15_000 }).toBeLessThan(0.001)
-        await volume.fill('100')
+        await menu.getByRole('button', { name: 'Сбросить до 100 %' }).click()
+        await katya.page.keyboard.press('Escape')
+        await expect(menu).toBeHidden()
 
         // Katya switches microphones mid-call: Misha keeps hearing her, nobody reconnects (#24).
         await katya.page.getByRole('button', { name: 'Настройки' }).click()
