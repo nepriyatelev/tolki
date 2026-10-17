@@ -32,20 +32,22 @@ export const settingsSchema = z.object({
     .object({
       /** Chosen microphone; empty: the system default. */
       inputDeviceId: z.string().max(256),
+      /** Chosen speakers or headphones; empty: the system default. */
+      outputDeviceId: z.string().max(256).default(''),
       /**
        * Volume of each participant in percent (PLAN #23), keyed by `volumeKey(name)`: the same
        * friend keeps their volume in every room. Absent means 100 %.
        */
       peerVolumes: peerVolumesSchema.default({}),
     })
-    .default({ inputDeviceId: '', peerVolumes: {} }),
+    .default({ inputDeviceId: '', outputDeviceId: '', peerVolumes: {} }),
 })
 export type Settings = z.infer<typeof settingsSchema>
 
 export const DEFAULT_SETTINGS: Settings = {
   speedTest: { enabled: true },
   profile: { name: '' },
-  audio: { inputDeviceId: '', peerVolumes: {} },
+  audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: {} },
 }
 
 /** Partial update from the renderer; unknown keys are rejected. */
@@ -55,6 +57,7 @@ export const settingsPatchSchema = z.strictObject({
   audio: z
     .strictObject({
       inputDeviceId: z.string().max(256).optional(),
+      outputDeviceId: z.string().max(256).optional(),
       /** Merged into the saved volumes; 100 forgets the entry. */
       peerVolumes: z.record(z.string().trim().min(1).max(32), peerVolumeSchema).optional(),
     })

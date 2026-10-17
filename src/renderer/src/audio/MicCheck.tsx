@@ -7,6 +7,7 @@ import {
   type MicrophoneAccess,
   type MicrophoneProblem,
 } from './microphone'
+import './MicCheck.css'
 
 export const LEVEL_SEGMENTS = 20
 
@@ -16,10 +17,14 @@ const PROBLEMS: Record<MicrophoneProblem, string> = {
   unavailable: 'Микрофон сейчас недоступен — возможно, его заняла другая программа.',
 }
 
-/** Microphone picker with a live level meter (mockup 3). */
+/** Microphone picker with a live level meter (mockup 3, «Настройки звука»). */
 export function MicCheck(props: {
-  muted: boolean
-  onMutedChange: (muted: boolean) => void
+  /** The «join muted» checkbox, on the join screen only. */
+  muted?: boolean
+  onMutedChange?: (muted: boolean) => void
+  /** The user picked another microphone (already saved in settings). */
+  onDeviceChange?: (deviceId: string) => void
+  hint?: string
   access?: MicrophoneAccess
 }): JSX.Element {
   const access = (): MicrophoneAccess => props.access ?? browserMicrophone
@@ -63,6 +68,7 @@ export function MicCheck(props: {
   const choose = (id: string): void => {
     setDeviceId(id)
     void window.ratatosk.settings.update({ audio: { inputDeviceId: id } })
+    props.onDeviceChange?.(id)
   }
 
   const lit = () => Math.round(level() * LEVEL_SEGMENTS)
@@ -96,7 +102,9 @@ export function MicCheck(props: {
       </div>
       <Show
         when={problem()}
-        fallback={<p class="mic-hint">Скажи что-нибудь — полоска должна двигаться.</p>}
+        fallback={
+          <p class="mic-hint">{props.hint ?? 'Скажи что-нибудь — полоска должна двигаться.'}</p>
+        }
       >
         {(p) => (
           <p class="mic-hint mic-hint--problem" role="status">
@@ -104,13 +112,17 @@ export function MicCheck(props: {
           </p>
         )}
       </Show>
-      <Checkbox
-        label="Войти с выключенным микрофоном"
-        checked={props.muted}
-        onChange={(e) => {
-          props.onMutedChange(e.currentTarget.checked)
-        }}
-      />
+      <Show when={props.onMutedChange}>
+        {(onMutedChange) => (
+          <Checkbox
+            label="Войти с выключенным микрофоном"
+            checked={props.muted ?? false}
+            onChange={(e) => {
+              onMutedChange()(e.currentTarget.checked)
+            }}
+          />
+        )}
+      </Show>
     </div>
   )
 }

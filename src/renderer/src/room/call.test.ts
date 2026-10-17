@@ -113,6 +113,15 @@ describe('Call', () => {
     expect(host.methods().at(-1)).toBe('pauseProducer')
   })
 
+  it('swaps the microphone without new requests to the host', async () => {
+    const { call, host } = await start()
+    const before = host.request.mock.calls.length
+
+    await call.replaceMicrophone(fakeTrack())
+
+    expect(host.request.mock.calls.length).toBe(before)
+  })
+
   it('only listens without a microphone', async () => {
     const { call, host } = await start({ microphone: null })
 

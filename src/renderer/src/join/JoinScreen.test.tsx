@@ -5,7 +5,7 @@ import { buildInvite, parseInvite, type Invite } from '@shared/invite'
 import type { RoomPreview } from '@shared/room'
 import { installRatatoskMock } from '../../../test/ratatosk-mock'
 import { JoinScreen, peopleText } from './JoinScreen'
-import type { MicrophoneAccess } from './microphone'
+import type { MicrophoneAccess } from '../audio/microphone'
 
 const INVITE: Invite = {
   host: '203.0.113.5',
@@ -17,6 +17,7 @@ const INVITE: Invite = {
 
 const silentMic: MicrophoneAccess = {
   listInputs: () => Promise.resolve([]),
+  listOutputs: () => Promise.resolve([]),
   openMeter: () => Promise.resolve(() => undefined),
 }
 

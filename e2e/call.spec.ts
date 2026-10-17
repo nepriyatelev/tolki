@@ -124,6 +124,17 @@ test('two app instances on one machine hear each other through the host', async 
         await expect.poll(() => outputLevel(katya.page), { timeout: 15_000 }).toBeLessThan(0.001)
         await volume.fill('100')
 
+        // Katya switches microphones mid-call: Misha keeps hearing her, nobody reconnects (#24).
+        await katya.page.getByRole('button', { name: 'Настройки' }).click()
+        const dialog = katya.page.getByRole('dialog', { name: 'Настройки звука' })
+        const mic = dialog.getByLabel('Микрофон', { exact: true })
+        await expect.poll(() => mic.locator('option').count()).toBeGreaterThan(2)
+        await mic.selectOption({ index: 2 })
+        await dialog.getByRole('button', { name: 'Закрыть' }).click()
+        await expect(dialog).toBeHidden()
+        await expect(misha.page.locator('audio[data-peer-id]')).toHaveCount(1)
+        await expect.poll(() => heardLevel(misha.page), { timeout: 15_000 }).toBeGreaterThan(0.01)
+
         // Katya presses M: Misha sees her microphone is off and hears silence.
         await katya.page.keyboard.press('m')
         await expect(katya.page.getByRole('button', { name: 'Включить микрофон' })).toBeVisible()

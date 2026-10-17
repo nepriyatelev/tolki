@@ -54,6 +54,7 @@ function mergeAudio(
   const kept = [...volumes].slice(-MAX_REMEMBERED_VOLUMES)
   return {
     inputDeviceId: patch.inputDeviceId ?? current.inputDeviceId,
+    outputDeviceId: patch.outputDeviceId ?? current.outputDeviceId,
     peerVolumes: Object.fromEntries(kept),
   }
 }
