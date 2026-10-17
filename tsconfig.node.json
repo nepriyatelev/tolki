@@ -10,6 +10,7 @@
     "vitest.config.ts",
     "eslint.config.mjs",
     "src/main/**/*",
+    "src/host/**/*",
     "src/preload/**/*",
     "src/shared/**/*"
   ]
