@@ -41,11 +41,19 @@ export class ScreenCapture {
   async list(): Promise<ScreenSourcesResult> {
     if (this.usesSystemPicker) return { picker: 'system' }
     if (this.options.platform === 'darwin' && this.#denied()) return { picker: 'denied' }
-    const sources = await this.options.getSources({
-      types: ['screen', 'window'],
-      thumbnailSize: THUMBNAIL,
-      fetchWindowIcons: true,
-    })
+    // Two calls, not one: when window listing fails (seen on Linux without a window manager),
+    // a combined call returns nothing at all, screens included.
+    const [screens, windows] = await Promise.all([
+      this.options.getSources({
+        types: ['screen'],
+        thumbnailSize: THUMBNAIL,
+        fetchWindowIcons: false,
+      }),
+      this.options
+        .getSources({ types: ['window'], thumbnailSize: THUMBNAIL, fetchWindowIcons: true })
+        .catch(() => []),
+    ])
+    const sources = [...screens, ...windows]
     this.#listed = new Map(sources.map((source) => [source.id, source]))
     return { picker: 'app', sources: sources.map(toCaptureSource) }
   }

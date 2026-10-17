@@ -15,7 +15,11 @@ const SOURCES: DesktopSource[] = [
 ]
 
 function capture(options: Partial<ScreenCaptureOptions> = {}) {
-  const getSources = vi.fn<ScreenCaptureOptions['getSources']>(() => Promise.resolve(SOURCES))
+  const getSources = vi.fn<ScreenCaptureOptions['getSources']>(({ types }) =>
+    Promise.resolve(
+      SOURCES.filter((s) => types.includes(s.id.startsWith('screen:') ? 'screen' : 'window')),
+    ),
+  )
   return {
     getSources,
     screen: new ScreenCapture({
@@ -46,9 +50,24 @@ describe('ScreenCapture', () => {
         { id: 'window:7:0', name: 'Пусто', kind: 'window', thumbnail: '', icon: null },
       ],
     })
+    expect(getSources).toHaveBeenCalledWith(expect.objectContaining({ types: ['screen'] }))
     expect(getSources).toHaveBeenCalledWith(
-      expect.objectContaining({ types: ['screen', 'window'], fetchWindowIcons: true }),
+      expect.objectContaining({ types: ['window'], fetchWindowIcons: true }),
     )
+  })
+
+  it('still lists screens when windows cannot be listed', async () => {
+    const { screen, getSources } = capture()
+    getSources.mockImplementation(({ types }) =>
+      types.includes('window')
+        ? Promise.reject(new Error('no window manager'))
+        : Promise.resolve(SOURCES.slice(0, 1)),
+    )
+
+    expect(await screen.list()).toMatchObject({
+      picker: 'app',
+      sources: [{ id: 'screen:1:0', kind: 'screen' }],
+    })
   })
 
   it('hands getDisplayMedia only the source picked from the list, once', async () => {

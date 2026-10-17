@@ -59,9 +59,7 @@ test('the user picks a screen and sees what they are showing', async () => {
       // Right after start the display may not be listed yet (seen under xvfb): ask a few times.
       let hasScreen = false
       for (let attempt = 0; attempt < 20 && !hasScreen; attempt++) {
-        const started = Date.now()
         const sources = await page.evaluate(() => window.ratatosk.screen.listSources())
-        console.log(`listSources: ${sources.picker}, ${Date.now() - started} ms`)
         hasScreen = sources.picker === 'app' && sources.sources.some((s) => s.kind === 'screen')
         if (!hasScreen) await page.waitForTimeout(500)
       }
@@ -73,33 +71,6 @@ test('the user picks a screen and sees what they are showing', async () => {
       await tapPeerConnections(page)
       await page.getByLabel('Твоё имя').fill('Катя')
       await page.getByRole('button', { name: 'Войти в комнату' }).click()
-      const variants = await client.app.evaluate(async ({ desktopCapturer }) => {
-        const run = async (types: ('screen' | 'window')[], size: number) => {
-          const started = Date.now()
-          const list = await desktopCapturer.getSources({
-            types,
-            thumbnailSize: { width: size, height: size },
-          })
-          return `${types.join('+')}@${size}: ${list.length} in ${Date.now() - started} ms`
-        }
-        return [
-          await run(['screen'], 0),
-          await run(['window'], 0),
-          await run(['screen'], 150),
-          await run(['screen', 'window'], 150),
-        ]
-      })
-      console.log('main getSources after join:', variants.join(' | '))
-      for (const label of ['after join', 'after join +3s']) {
-        if (label.endsWith('3s')) await page.waitForTimeout(3000)
-        const started = Date.now()
-        const r = await page.evaluate(() => window.ratatosk.screen.listSources())
-        console.log(
-          `listSources ${label}:`,
-          r.picker === 'app' ? r.sources.map((x) => x.id).join(',') || 'EMPTY' : r.picker,
-          `${Date.now() - started} ms`,
-        )
-      }
       await page.getByRole('button', { name: 'Показать экран' }).click()
       const dialog = page.getByRole('dialog', { name: 'Что показать' })
       const firstSource = dialog.getByRole('radio').first()
@@ -110,11 +81,7 @@ test('the user picks a screen and sees what they are showing', async () => {
       )
       if (!listed) {
         console.log('picker before refresh:', await dialog.innerText())
-        await page.screenshot({ path: 'test-results/picker-before-refresh.png' })
         await dialog.getByRole('button', { name: 'Обновить список' }).click()
-        await page.waitForTimeout(5000)
-        await page.screenshot({ path: 'test-results/picker-after-refresh.png' })
-        console.log('picker after refresh:', await dialog.innerText())
       }
       await firstSource.click()
       await dialog.getByRole('button', { name: 'Показать' }).click()
