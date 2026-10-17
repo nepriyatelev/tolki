@@ -2,3 +2,5 @@
 allowBuilds:
   # Squirrel.Windows installer pulled in by electron-builder; we ship NSIS instead.
   electron-winstaller: false
+  # SFU worker: postinstall downloads the prebuilt mediasoup-worker binary for this OS.
+  mediasoup: true

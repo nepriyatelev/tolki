@@ -25,6 +25,7 @@
     "test:e2e": "electron-vite build && playwright test"
   },
   "dependencies": {
+    "mediasoup": "3.27.1",
     "selfsigned": "5.5.0",
     "ws": "8.22.0",
     "zod": "4.6.7"

@@ -204,3 +204,44 @@ test('quitting the app stops a running host', async () => {
   const reuse = await occupy(port)
   reuse.close()
 })
+
+test('the host runs the SFU: media transports share the room port', async () => {
+  const { app, page } = await launchApp()
+  try {
+    const port = await freePort()
+    await page.evaluate((p) => window.ratatosk.host.start({ port: p, portMapping: false }), port)
+    const { socket } = await connectWss(port)
+    const messages: { type: string; [key: string]: unknown }[] = []
+    const next = (type: string) =>
+      expect
+        .poll(() => messages.find((m) => m.type === type), { timeout: 5000 })
+        .toBeTruthy()
+        .then(() => messages.find((m) => m.type === type))
+    socket.on('message', (data) => {
+      messages.push(JSON.parse((data as Buffer).toString('utf8')) as (typeof messages)[number])
+    })
+
+    socket.send(JSON.stringify({ type: 'hello', protocolVersion: 1 }))
+    await next('challenge')
+    socket.send(JSON.stringify({ type: 'auth', name: 'Тест', hmac: null }))
+    expect(JSON.stringify(await next('welcome'))).toContain('audio/opus')
+
+    socket.send(
+      JSON.stringify({
+        type: 'request',
+        id: 1,
+        request: { method: 'createTransport', direction: 'recv' },
+      }),
+    )
+    const response = (await next('response')) as unknown as {
+      data: { iceCandidates: { protocol: string; port: number }[] }
+    }
+    expect(response.data.iceCandidates.map((c) => [c.protocol, c.port]).sort()).toEqual([
+      ['tcp', port],
+      ['udp', port],
+    ])
+    socket.close()
+  } finally {
+    await app.close()
+  }
+})

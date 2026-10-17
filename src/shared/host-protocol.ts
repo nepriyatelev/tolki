@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { UploadCapacity } from './upload-capacity'
 
 export const DEFAULT_HOST_PORT = 47000
 
@@ -35,7 +36,14 @@ export type PortMappingMethod = Extract<PortMappingState, { status: 'mapped' }>[
 export type HostState =
   | { status: 'stopped'; lastError?: HostStartFailure }
   | { status: 'starting' | 'stopping'; port: number }
-  | { status: 'running'; port: number; fingerprint: string; portMapping: PortMappingState }
+  | {
+      status: 'running'
+      port: number
+      fingerprint: string
+      portMapping: PortMappingState
+      /** Live estimate from mediasoup's statistics, once people are in the call. */
+      callUpload?: UploadCapacity
+    }
 
 /** Messages from main to the `host` utility process. */
 export type MainToHostMessage =
@@ -66,6 +74,15 @@ export const hostToMainMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('port-mapping'), state: portMappingStateSchema }),
   /** Answer to `check`; the process exits right after. */
   z.object({ type: z.literal('check-result'), portMapping: portMappingStateSchema }),
+  /** Upload capacity during the call (PLAN #10), every few seconds while media flows. */
+  z.object({
+    type: z.literal('call-upload'),
+    capacity: z.object({
+      uploadMbps: z.number().min(0),
+      participants: z.number().int().min(1),
+      screen: z.enum(['1080p', '720p', '360p']).nullable(),
+    }),
+  }),
   /** Sent right before the process exits on an unrecoverable error. */
   z.object({ type: z.literal('fatal'), message: z.string() }),
 ])
