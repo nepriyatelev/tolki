@@ -45,6 +45,41 @@ function heardLevel(page: Page): Promise<number> {
   })
 }
 
+/** Records the app's gain nodes, so the test can listen to what actually reaches the speakers. */
+function tapOutput(page: Page): Promise<void> {
+  return page.evaluate(() => {
+    const prototype = AudioContext.prototype
+    const createGain = Object.getOwnPropertyDescriptor(BaseAudioContext.prototype, 'createGain')
+      ?.value as (this: BaseAudioContext) => GainNode
+    const gains: GainNode[] = []
+    Object.assign(window, { gains })
+    prototype.createGain = function (this: AudioContext) {
+      const node = createGain.call(this)
+      gains.push(node)
+      return node
+    }
+  })
+}
+
+/** Loudest level at the app's output (after the volume and the deafen gain). */
+function outputLevel(page: Page): Promise<number> {
+  return page.evaluate(async () => {
+    const master = (window as unknown as { gains: GainNode[] }).gains[0]
+    if (!master) return 0
+    const analyser = master.context.createAnalyser()
+    master.connect(analyser)
+    const samples = new Float32Array(analyser.fftSize)
+    let loudest = 0
+    for (let i = 0; i < 30; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      analyser.getFloatTimeDomainData(samples)
+      for (const s of samples) loudest = Math.max(loudest, Math.abs(s))
+    }
+    master.disconnect(analyser)
+    return loudest
+  })
+}
+
 test('two app instances on one machine hear each other through the host', async () => {
   const host = await launchApp()
   try {
@@ -64,6 +99,7 @@ test('two app instances on one machine hear each other through the host', async 
 
     const katya = await launchApp({ args: [FAKE_MEDIA, link] })
     try {
+      await tapOutput(katya.page)
       await joinByUi(katya.page, 'Катя')
       const misha = await launchApp({ args: [FAKE_MEDIA, link] })
       try {
@@ -79,6 +115,14 @@ test('two app instances on one machine hear each other through the host', async 
         await expect(misha.page.locator('.call-tile--speaking').first()).toBeVisible({
           timeout: 15_000,
         })
+
+        // Katya's speakers get Misha's voice; at 0 % they go quiet (PLAN #23).
+        await expect.poll(() => outputLevel(katya.page), { timeout: 15_000 }).toBeGreaterThan(0.01)
+        const volume = katya.page.getByRole('slider', { name: 'Громкость: Миша' })
+        await volume.fill('0')
+        await expect(katya.page.getByText('0%', { exact: true })).toBeVisible()
+        await expect.poll(() => outputLevel(katya.page), { timeout: 15_000 }).toBeLessThan(0.001)
+        await volume.fill('100')
 
         // Katya presses M: Misha sees her microphone is off and hears silence.
         await katya.page.keyboard.press('m')

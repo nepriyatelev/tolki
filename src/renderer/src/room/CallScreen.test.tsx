@@ -15,8 +15,15 @@ const RESULT: Extract<JoinResult, { ok: true }> = {
   mutedPeers: [],
 }
 
-function setup(options: { muted?: boolean; sending?: boolean; mutedPeers?: string[] } = {}) {
-  const api = installRatatoskMock()
+function setup(
+  options: {
+    muted?: boolean
+    sending?: boolean
+    mutedPeers?: string[]
+    peerVolumes?: Record<string, number>
+  } = {},
+) {
+  const api = installRatatoskMock({ peerVolumes: options.peerVolumes ?? {} })
   const close = vi.fn()
   const setMuted = vi.fn<(muted: boolean) => Promise<void>>(() => Promise.resolve())
   const onLeft = vi.fn()
@@ -164,6 +171,11 @@ describe('microphone and sound (#22)', () => {
     await user.keyboard('d')
     expect(sound().getAttribute('aria-pressed')).toBe('true')
     input.remove()
+
+    // A focused volume slider does not swallow the hotkeys.
+    screen.getByRole('slider', { name: 'Громкость: Дима' }).focus()
+    await user.keyboard('d')
+    expect(sound().getAttribute('aria-pressed')).toBe('false')
   })
 
   it('cannot unmute without a microphone', async () => {
@@ -182,5 +194,47 @@ describe('microphone and sound (#22)', () => {
     expect(badge()).toBeNull()
     api.room.emitEvent({ type: 'peer-muted', peerId: 'dima', muted: true })
     expect(badge()).not.toBeNull()
+  })
+})
+
+describe('volume of each participant (#23)', () => {
+  const slider = (name: string) =>
+    screen.getByRole<HTMLInputElement>('slider', { name: `Громкость: ${name}` })
+
+  it('lists the others with a 0–200 % slider, starting from the remembered volume', async () => {
+    setup({ peerVolumes: { дима: 150 } })
+
+    expect(screen.getByRole('heading', { name: 'В комнате · 2' })).toBeTruthy()
+    await vi.waitFor(() => {
+      expect(slider('Дима').value).toBe('150')
+    })
+    expect(slider('Дима').min).toBe('0')
+    expect(slider('Дима').max).toBe('200')
+    expect(screen.getByText('150%')).toBeTruthy()
+    expect(screen.queryByRole('slider', { name: 'Громкость: Алексей' })).toBeNull()
+  })
+
+  it('remembers a new volume by name when the slider is released', async () => {
+    const { api } = setup()
+    await screen.findByText('100%')
+
+    fireEvent.input(slider('Дима'), { target: { value: '60' } })
+    expect(screen.getByText('60%')).toBeTruthy()
+    expect(api.settings.update).not.toHaveBeenCalled()
+    fireEvent.change(slider('Дима'), { target: { value: '60' } })
+
+    expect(api.settings.update).toHaveBeenCalledWith({ audio: { peerVolumes: { Дима: 60 } } })
+  })
+
+  it('says when someone has the microphone off', () => {
+    setup({ mutedPeers: ['dima'] })
+    expect(screen.getByText('микрофон выкл.')).toBeTruthy()
+  })
+
+  it('says when nobody else is here', () => {
+    const { api } = setup()
+    api.room.emitEvent({ type: 'peer-left', peerId: 'dima' })
+    expect(screen.getByText('Пока никого нет')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'В комнате · 1' })).toBeTruthy()
   })
 })

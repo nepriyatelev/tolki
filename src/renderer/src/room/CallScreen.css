@@ -19,7 +19,15 @@
   font-weight: 600;
 }
 
+.call-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+}
+
 .call-tiles {
+  flex: 999 1 520px;
+  min-width: 0;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 14px;
@@ -85,6 +93,76 @@
 .call-tile-muted svg {
   width: 16px;
   height: 16px;
+}
+
+.call-side {
+  display: flex;
+  flex: 1 1 260px;
+  flex-direction: column;
+  gap: 18px;
+  align-self: flex-start;
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+}
+
+.call-side h2 {
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.call-side-alone {
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.call-volumes {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.call-volume {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.call-volume-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.call-volume-name {
+  flex-grow: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.call-volume-value,
+.call-volume-muted {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.call-volume-muted {
+  color: var(--color-danger-text);
+}
+
+.call-volume-slider {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--color-accent);
 }
 
 .call-sound {

@@ -5,6 +5,7 @@ import Mic from 'lucide-solid/icons/mic'
 import MicOff from 'lucide-solid/icons/mic-off'
 import { createSignal, For, Match, onCleanup, onMount, Show, Switch, type JSX } from 'solid-js'
 import type { JoinResult } from '@shared/room'
+import { volumeKey } from '@shared/settings'
 import type { Peer } from '@shared/signaling'
 import { Avatar, Button } from '../ui'
 import { createEventBuffer, type RemoteAudio as Voice, type RoomEventSource } from './call'
@@ -39,6 +40,21 @@ export function CallScreen(props: {
   const [deafened, setDeafened] = createSignal(false)
   /** Whether the microphone was on before deafening: undeafening turns it back on. */
   let mutedBeforeDeafen = false
+  /** Remembered volumes by name (PLAN #23); loaded from settings. */
+  const [volumes, setVolumes] = createSignal<Record<string, number>>({})
+  const volumeOfName = (peerName: string): number => volumes()[volumeKey(peerName)] ?? 100
+  const volumeOf = (peerId: string): number => {
+    const peer = peers().find((p) => p.id === peerId)
+    return peer ? volumeOfName(peer.name) : 100
+  }
+  /** While dragging: the gain follows at once, the setting is saved on release. */
+  const previewVolume = (peerName: string, volume: number): void => {
+    setVolumes((all) => ({ ...all, [volumeKey(peerName)]: volume }))
+  }
+  const saveVolume = (peerName: string, volume: number): void => {
+    previewVolume(peerName, volume)
+    void window.ratatosk.settings.update({ audio: { peerVolumes: { [peerName]: volume } } })
+  }
   const [speaking, setSpeaking] = createSignal<ReadonlySet<string>>(new Set())
   const [voices, setVoices] = createSignal<Voice[]>([])
   const [sound, setSound] = createSignal<Sound>('connecting')
@@ -75,6 +91,9 @@ export function CallScreen(props: {
   })
 
   onMount(() => {
+    void window.ratatosk.settings.get().then((settings) => {
+      setVolumes((current) => ({ ...settings.audio.peerVolumes, ...current }))
+    })
     void (props.startCall ?? startRealCall)({
       routerRtpCapabilities: result.routerRtpCapabilities,
       events: callEvents,
@@ -131,13 +150,7 @@ export function CallScreen(props: {
   // Hotkeys work while the window has focus, but not while typing.
   const onKeyDown = (event: KeyboardEvent): void => {
     if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return
-    const target = event.target
-    if (
-      target instanceof HTMLElement &&
-      (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
-    ) {
-      return
-    }
+    if (isTyping(event.target)) return
     // event.code: the same physical keys on the Russian layout (Ь and В).
     if (event.code === 'KeyM') toggleMic()
     else if (event.code === 'KeyD') toggleSound()
@@ -178,34 +191,75 @@ export function CallScreen(props: {
           Выйти
         </Button>
       </header>
-      <ul class="call-tiles" aria-label="Участники">
-        <For each={everyone()}>
-          {(person) => {
-            const isSpeaking = (): boolean => speaking().has(person.id)
-            return (
-              <li
-                class="call-tile"
-                classList={{ 'call-tile--speaking': isSpeaking() }}
-                data-peer-id={person.id}
-                aria-label={`${person.name}${person.me ? ' (ты)' : ''}${isSpeaking() ? ', говорит' : ''}`}
-              >
-                <Avatar name={person.name} size="xl" speaking={isSpeaking()} />
-                <span class="call-tile-name">
-                  {person.name}
-                  <Show when={person.me}>
-                    <span class="call-tile-you">ты</span>
-                  </Show>
-                </span>
-                <Show when={person.me ? muted() : mutedPeers().has(person.id)}>
-                  <span class="call-tile-muted" role="img" aria-label="Микрофон выключен">
-                    <MicOff />
+      <div class="call-body">
+        <ul class="call-tiles" aria-label="Участники">
+          <For each={everyone()}>
+            {(person) => {
+              const isSpeaking = (): boolean => speaking().has(person.id)
+              return (
+                <li
+                  class="call-tile"
+                  classList={{ 'call-tile--speaking': isSpeaking() }}
+                  data-peer-id={person.id}
+                  aria-label={`${person.name}${person.me ? ' (ты)' : ''}${isSpeaking() ? ', говорит' : ''}`}
+                >
+                  <Avatar name={person.name} size="xl" speaking={isSpeaking()} />
+                  <span class="call-tile-name">
+                    {person.name}
+                    <Show when={person.me}>
+                      <span class="call-tile-you">ты</span>
+                    </Show>
                   </span>
-                </Show>
-              </li>
-            )
-          }}
-        </For>
-      </ul>
+                  <Show when={person.me ? muted() : mutedPeers().has(person.id)}>
+                    <span class="call-tile-muted" role="img" aria-label="Микрофон выключен">
+                      <MicOff />
+                    </span>
+                  </Show>
+                </li>
+              )
+            }}
+          </For>
+        </ul>
+        <aside class="call-side" aria-labelledby="call-side-title">
+          <h2 id="call-side-title">В комнате · {everyone().length}</h2>
+          <Show when={peers().length > 0} fallback={<p class="call-side-alone">Пока никого нет</p>}>
+            <ul class="call-volumes">
+              <For each={peers()}>
+                {(peer) => (
+                  <li class="call-volume">
+                    <div class="call-volume-head">
+                      <Avatar name={peer.name} size="sm" speaking={speaking().has(peer.id)} />
+                      <span class="call-volume-name">{peer.name}</span>
+                      <Show
+                        when={!mutedPeers().has(peer.id)}
+                        fallback={<span class="call-volume-muted">микрофон выкл.</span>}
+                      >
+                        <span class="call-volume-value">{volumeOfName(peer.name)}%</span>
+                      </Show>
+                    </div>
+                    <input
+                      type="range"
+                      class="call-volume-slider"
+                      min="0"
+                      max="200"
+                      step="5"
+                      value={volumeOfName(peer.name)}
+                      aria-label={`Громкость: ${peer.name}`}
+                      aria-valuetext={`${volumeOfName(peer.name)} %`}
+                      onInput={(e) => {
+                        previewVolume(peer.name, e.currentTarget.valueAsNumber)
+                      }}
+                      onChange={(e) => {
+                        saveVolume(peer.name, e.currentTarget.valueAsNumber)
+                      }}
+                    />
+                  </li>
+                )}
+              </For>
+            </ul>
+          </Show>
+        </aside>
+      </div>
       <p class="call-sound" classList={{ 'call-sound--failed': sound() === 'failed' }}>
         <Switch>
           <Match when={sound() === 'connecting'}>Подключаем звук…</Match>
@@ -244,7 +298,18 @@ export function CallScreen(props: {
       <p class="call-hotkeys">
         <kbd>M</kbd> — микрофон · <kbd>D</kbd> — звук
       </p>
-      <RemoteAudio voices={voices()} deafened={deafened()} />
+      <RemoteAudio voices={voices()} deafened={deafened()} volumeOf={volumeOf} />
     </main>
+  )
+}
+
+/** Text fields keep their letters; sliders, checkboxes and buttons let the hotkeys through. */
+function isTyping(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  if (target.isContentEditable || target instanceof HTMLTextAreaElement) return true
+  if (target instanceof HTMLSelectElement) return true
+  return (
+    target instanceof HTMLInputElement &&
+    !['range', 'checkbox', 'radio', 'button', 'submit', 'reset'].includes(target.type)
   )
 }
