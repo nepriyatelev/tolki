@@ -59,7 +59,9 @@ test('the user picks a screen and sees what they are showing', async () => {
       // Right after start the display may not be listed yet (seen under xvfb): ask a few times.
       let hasScreen = false
       for (let attempt = 0; attempt < 20 && !hasScreen; attempt++) {
+        const started = Date.now()
         const sources = await page.evaluate(() => window.ratatosk.screen.listSources())
+        console.log(`listSources: ${sources.picker}, ${Date.now() - started} ms`)
         hasScreen = sources.picker === 'app' && sources.sources.some((s) => s.kind === 'screen')
         if (!hasScreen) await page.waitForTimeout(500)
       }
