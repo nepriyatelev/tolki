@@ -39,7 +39,10 @@ export type HostState =
 
 /** Messages from main to the `host` utility process. */
 export type MainToHostMessage =
-  { type: 'start'; port: number; dataDir: string; portMapping: boolean } | { type: 'shutdown' }
+  | { type: 'start'; port: number; dataDir: string; portMapping: boolean }
+  /** One-shot network check: try to forward the port, report, remove the mapping, exit. */
+  | { type: 'check'; port: number }
+  | { type: 'shutdown' }
 
 /** Messages from the `host` utility process to main. */
 export const hostToMainMessageSchema = z.discriminatedUnion('type', [
@@ -53,6 +56,8 @@ export const hostToMainMessageSchema = z.discriminatedUnion('type', [
   }),
   /** Result of automatic port forwarding, sent after `ready`. */
   z.object({ type: z.literal('port-mapping'), state: portMappingStateSchema }),
+  /** Answer to `check`; the process exits right after. */
+  z.object({ type: z.literal('check-result'), portMapping: portMappingStateSchema }),
   /** Sent right before the process exits on an unrecoverable error. */
   z.object({ type: z.literal('fatal'), message: z.string() }),
 ])

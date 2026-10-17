@@ -38,7 +38,7 @@ test('renderer has no Node APIs, only the typed bridge', async () => {
       process: 'undefined',
       module: 'undefined',
       Buffer: 'undefined',
-      bridge: ['app', 'host'],
+      bridge: ['app', 'host', 'network'],
       hostApi: ['getState', 'onState', 'start', 'stop'],
     })
 

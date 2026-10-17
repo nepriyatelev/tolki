@@ -39,6 +39,9 @@ const api: RatatoskApi = {
     getState: () => invoke('host:get-state'),
     onState: (listener) => subscribe('host:state', listener),
   },
+  network: {
+    check: (options = {}) => invoke('network:check', options),
+  },
 }
 
 contextBridge.exposeInMainWorld('ratatosk', api)

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { hostPortSchema, type HostState } from './host-protocol'
+import type { NetworkCheckResult } from './network'
 
 export interface AppInfo {
   name: string
@@ -14,6 +15,12 @@ export interface InvokeContract {
   'host:start': { args: [options: HostStartRequest]; result: HostState }
   'host:stop': { args: []; result: HostState }
   'host:get-state': { args: []; result: HostState }
+  /** Can this computer host? Cached for a few minutes unless `force`. */
+  'network:check': { args: [options: NetworkCheckRequest]; result: NetworkCheckResult }
+}
+
+export interface NetworkCheckRequest {
+  force?: boolean | undefined
 }
 
 export interface HostStartRequest {
@@ -41,6 +48,7 @@ export const invokeArgsSchemas: {
   ]),
   'host:stop': z.tuple([]),
   'host:get-state': z.tuple([]),
+  'network:check': z.tuple([z.strictObject({ force: z.boolean().optional() })]),
 }
 
 /** The API the preload script exposes to the renderer as `window.ratatosk`. */
@@ -54,5 +62,8 @@ export interface RatatoskApi {
     getState(): Promise<HostState>
     /** Returns an unsubscribe function. */
     onState(listener: (state: HostState) => void): () => void
+  }
+  network: {
+    check(options?: NetworkCheckRequest): Promise<NetworkCheckResult>
   }
 }

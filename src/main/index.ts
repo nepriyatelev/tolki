@@ -4,6 +4,7 @@ import { app, BrowserWindow, session, utilityProcess } from 'electron'
 import { APP_NAME } from '@shared/app'
 import { DEFAULT_HOST_PORT } from '@shared/host-protocol'
 import { HostProcess, HostStartError } from './host-process'
+import { NetworkChecker } from './network-check'
 import { registerIpcHandlers } from './ipc'
 import { isTrustedRendererUrl } from './trusted-url'
 import { mainWindowOptions } from './window-options'
@@ -20,9 +21,17 @@ const isTrustedUrl = (url: string): boolean =>
     indexFileUrl: pathToFileURL(rendererIndexPath).href,
   })
 
-const host = new HostProcess({
+// RATATOSK_PORT_MAPPING=off never touches the router (e2e tests, manual port forwarding).
+const portMappingEnabled = process.env['RATATOSK_PORT_MAPPING'] !== 'off'
+
+const spawnHost = () =>
+  utilityProcess.fork(join(__dirname, 'host.js'), [], { serviceName: 'Ratatosk Host' })
+const host = new HostProcess({ spawn: spawnHost })
+const network = new NetworkChecker({
+  host,
+  portMappingEnabled,
   spawn: () =>
-    utilityProcess.fork(join(__dirname, 'host.js'), [], { serviceName: 'Ratatosk Host' }),
+    utilityProcess.fork(join(__dirname, 'host.js'), [], { serviceName: 'Ratatosk Network Check' }),
 })
 
 function createMainWindow(): BrowserWindow {
@@ -67,7 +76,7 @@ registerIpcHandlers(
       try {
         return await host.start({
           port: port ?? DEFAULT_HOST_PORT,
-          portMapping: portMapping ?? true,
+          portMapping: portMappingEnabled && (portMapping ?? true),
           dataDir: app.getPath('userData'),
         })
       } catch (error) {
@@ -77,6 +86,7 @@ registerIpcHandlers(
     },
     'host:stop': () => host.stop(),
     'host:get-state': () => host.state,
+    'network:check': ({ force }) => network.check(DEFAULT_HOST_PORT, { force: force ?? false }),
   },
   isTrustedUrl,
 )
