@@ -12,14 +12,34 @@ export type HostStatus = z.infer<typeof hostStatusSchema>
 /** Why the host could not start; shown to the user in plain words. */
 export type HostStartFailure = 'port-in-use' | 'port-forbidden' | 'timeout' | 'crashed' | 'unknown'
 
+export const portMappingStateSchema = z.discriminatedUnion('status', [
+  /** The user turned automatic forwarding off (e.g. they forwarded the port by hand). */
+  z.object({ status: z.literal('disabled') }),
+  z.object({ status: z.literal('pending') }),
+  z.object({
+    status: z.literal('mapped'),
+    method: z.enum(['pcp', 'nat-pmp', 'upnp']),
+    externalAddress: z.string(),
+    externalPort: z.number().int(),
+    externalUdpPort: z.number().int(),
+  }),
+  z.object({
+    status: z.literal('failed'),
+    reason: z.enum(['no-gateway', 'unsupported', 'refused']),
+    detail: z.string(),
+  }),
+])
+export type PortMappingState = z.infer<typeof portMappingStateSchema>
+export type PortMappingMethod = Extract<PortMappingState, { status: 'mapped' }>['method']
+
 export type HostState =
   | { status: 'stopped'; lastError?: HostStartFailure }
   | { status: 'starting' | 'stopping'; port: number }
-  | { status: 'running'; port: number; fingerprint: string }
+  | { status: 'running'; port: number; fingerprint: string; portMapping: PortMappingState }
 
 /** Messages from main to the `host` utility process. */
 export type MainToHostMessage =
-  { type: 'start'; port: number; dataDir: string } | { type: 'shutdown' }
+  { type: 'start'; port: number; dataDir: string; portMapping: boolean } | { type: 'shutdown' }
 
 /** Messages from the `host` utility process to main. */
 export const hostToMainMessageSchema = z.discriminatedUnion('type', [
@@ -31,6 +51,8 @@ export const hostToMainMessageSchema = z.discriminatedUnion('type', [
     reason: z.enum(['port-in-use', 'port-forbidden', 'unknown']),
     message: z.string(),
   }),
+  /** Result of automatic port forwarding, sent after `ready`. */
+  z.object({ type: z.literal('port-mapping'), state: portMappingStateSchema }),
   /** Sent right before the process exits on an unrecoverable error. */
   z.object({ type: z.literal('fatal'), message: z.string() }),
 ])

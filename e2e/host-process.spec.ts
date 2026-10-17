@@ -7,6 +7,9 @@ import { expect, test, type ElectronApplication } from '@playwright/test'
 import { WebSocket } from 'ws'
 import { launchApp } from './app'
 
+// Port mapping is off in e2e: it would touch the real router of whoever runs the tests.
+// Mapping logic is covered by unit tests against a fake PCP server (src/host/nat).
+
 function hostProcessCount(app: ElectronApplication): Promise<number> {
   return app.evaluate(
     ({ app: electronApp }) =>
@@ -78,8 +81,11 @@ test('main starts the host with a WSS server on the given port and stops it', as
         }),
     )
 
-    const state = await page.evaluate((p) => window.ratatosk.host.start({ port: p }), port)
-    expect(state).toMatchObject({ status: 'running', port })
+    const state = await page.evaluate(
+      (p) => window.ratatosk.host.start({ port: p, portMapping: false }),
+      port,
+    )
+    expect(state).toMatchObject({ status: 'running', port, portMapping: { status: 'disabled' } })
     const fingerprint = state.status === 'running' ? state.fingerprint : ''
     expect(fingerprint).toMatch(/^[A-Za-z0-9_-]{43}$/)
     await expect.poll(() => hostProcessCount(app)).toBe(1)
@@ -108,7 +114,7 @@ test('main starts the host with a WSS server on the given port and stops it', as
 test('defaults to port 47000', async () => {
   const { app, page } = await launchApp()
   try {
-    const state = await page.evaluate(() => window.ratatosk.host.start())
+    const state = await page.evaluate(() => window.ratatosk.host.start({ portMapping: false }))
 
     expect(state).toMatchObject({ status: 'running', port: 47000 })
   } finally {
@@ -121,7 +127,10 @@ test('the certificate is created once per installation and kept in userData', as
   const port = await freePort()
   let fingerprint: string
   try {
-    const state = await first.page.evaluate((p) => window.ratatosk.host.start({ port: p }), port)
+    const state = await first.page.evaluate(
+      (p) => window.ratatosk.host.start({ port: p, portMapping: false }),
+      port,
+    )
     fingerprint = state.status === 'running' ? state.fingerprint : ''
     expect(existsSync(join(first.userDataDir, 'host-certificate.json'))).toBe(true)
   } finally {
@@ -130,7 +139,10 @@ test('the certificate is created once per installation and kept in userData', as
 
   const second = await launchApp({ userDataDir: first.userDataDir })
   try {
-    const state = await second.page.evaluate((p) => window.ratatosk.host.start({ port: p }), port)
+    const state = await second.page.evaluate(
+      (p) => window.ratatosk.host.start({ port: p, portMapping: false }),
+      port,
+    )
     expect(state).toMatchObject({ status: 'running', fingerprint })
   } finally {
     await second.app.close()
@@ -142,7 +154,10 @@ test('a busy port is reported, not thrown', async () => {
   const port = await freePort()
   const blocker = await occupy(port)
   try {
-    const state = await page.evaluate((p) => window.ratatosk.host.start({ port: p }), port)
+    const state = await page.evaluate(
+      (p) => window.ratatosk.host.start({ port: p, portMapping: false }),
+      port,
+    )
 
     expect(state).toEqual({ status: 'stopped', lastError: 'port-in-use' })
     await expect.poll(() => hostProcessCount(app)).toBe(0)
@@ -172,7 +187,9 @@ test('quitting the app stops a running host', async () => {
   const { app, page } = await launchApp()
   const port = await freePort()
 
-  expect(await page.evaluate((p) => window.ratatosk.host.start({ port: p }), port)).toMatchObject({
+  expect(
+    await page.evaluate((p) => window.ratatosk.host.start({ port: p, portMapping: false }), port),
+  ).toMatchObject({
     status: 'running',
   })
   const pid = await app.evaluate(

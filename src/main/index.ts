@@ -63,10 +63,11 @@ registerIpcHandlers(
       version: app.getVersion(),
       platform: process.platform,
     }),
-    'host:start': async ({ port }) => {
+    'host:start': async ({ port, portMapping }) => {
       try {
         return await host.start({
           port: port ?? DEFAULT_HOST_PORT,
+          portMapping: portMapping ?? true,
           dataDir: app.getPath('userData'),
         })
       } catch (error) {

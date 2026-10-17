@@ -15,6 +15,7 @@ export interface HostChild {
 
 export interface HostStartOptions {
   port: number
+  portMapping: boolean
   /** Where the host keeps its certificate (Electron userData). */
   dataDir: string
 }
@@ -43,6 +44,7 @@ export class HostProcess {
   #state: HostState = { status: 'stopped' }
   #child: HostChild | null = null
   #pending: Promise<HostState> | null = null
+  #portMapping = true
   readonly #listeners = new Set<(state: HostState) => void>()
   readonly #spawn: () => HostChild
   readonly #readyTimeoutMs: number
@@ -67,7 +69,9 @@ export class HostProcess {
   async start(options: HostStartOptions): Promise<HostState> {
     if (this.#pending) await this.#pending.catch(() => undefined)
     if (this.#state.status === 'running') {
-      if (this.#state.port === options.port) return this.#state
+      if (this.#state.port === options.port && this.#portMapping === options.portMapping) {
+        return this.#state
+      }
       await this.stop()
     }
 
@@ -88,6 +92,7 @@ export class HostProcess {
   }
 
   #doStart(options: HostStartOptions): Promise<HostState> {
+    this.#portMapping = options.portMapping
     this.#setState({ status: 'starting', port: options.port })
     const child = this.#spawn()
     this.#child = child
@@ -116,8 +121,14 @@ export class HostProcess {
               status: 'running',
               port: message.data.port,
               fingerprint: message.data.fingerprint,
+              portMapping: options.portMapping ? { status: 'pending' } : { status: 'disabled' },
             })
             resolve(this.#state)
+            return
+          case 'port-mapping':
+            if (this.#state.status === 'running') {
+              this.#setState({ ...this.#state, portMapping: message.data.state })
+            }
             return
           case 'start-failed':
             failure = new HostStartError(message.data.reason, message.data.message)
@@ -140,7 +151,12 @@ export class HostProcess {
         }
       })
 
-      child.postMessage({ type: 'start', port: options.port, dataDir: options.dataDir })
+      child.postMessage({
+        type: 'start',
+        port: options.port,
+        dataDir: options.dataDir,
+        portMapping: options.portMapping,
+      })
     })
   }
 
