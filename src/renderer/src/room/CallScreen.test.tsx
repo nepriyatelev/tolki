@@ -489,6 +489,17 @@ describe('showing your screen: picking the source (#26)', () => {
     })
   })
 
+  it('refreshes the list on request', async () => {
+    const { screen: capture, dialog, user } = await openPicker()
+    await within(dialog).findByRole('radio', { name: 'Экран 1' })
+
+    await user.click(within(dialog).getByRole('button', { name: 'Обновить список' }))
+
+    await vi.waitFor(() => {
+      expect(capture.access.listSources).toHaveBeenCalledTimes(2)
+    })
+  })
+
   it('explains the missing permission on macOS', async () => {
     const ctx = setup({ screenSources: { picker: 'denied' } })
     await screen.findByText('Звук подключён')

@@ -73,7 +73,17 @@ test('the user picks a screen and sees what they are showing', async () => {
       await page.getByRole('button', { name: 'Войти в комнату' }).click()
       await page.getByRole('button', { name: 'Показать экран' }).click()
       const dialog = page.getByRole('dialog', { name: 'Что показать' })
-      await dialog.getByRole('radio').first().click()
+      const firstSource = dialog.getByRole('radio').first()
+      // The virtual display is sometimes listed late: refresh once, and say what was shown.
+      const listed = await firstSource.waitFor({ timeout: 10_000 }).then(
+        () => true,
+        () => false,
+      )
+      if (!listed) {
+        console.log('picker before refresh:', await dialog.innerText())
+        await dialog.getByRole('button', { name: 'Обновить список' }).click()
+      }
+      await firstSource.click()
       await dialog.getByRole('button', { name: 'Показать' }).click()
 
       const preview = page.getByRole('listitem', { name: 'Твой экран' }).locator('video')
