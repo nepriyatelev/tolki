@@ -1,10 +1,14 @@
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { app, BrowserWindow, session, utilityProcess } from 'electron'
+import { app, BrowserWindow, net, session, utilityProcess } from 'electron'
+import Store from 'electron-store'
 import { APP_NAME } from '@shared/app'
 import { DEFAULT_HOST_PORT } from '@shared/host-protocol'
 import { HostProcess, HostStartError } from './host-process'
 import { NetworkChecker } from './network-check'
+import { SettingsStore } from './settings'
+import { measureUpload } from './speed-test'
+import { UploadEstimator } from './upload-estimator'
 import { registerIpcHandlers } from './ipc'
 import { isTrustedRendererUrl } from './trusted-url'
 import { mainWindowOptions } from './window-options'
@@ -23,6 +27,22 @@ const isTrustedUrl = (url: string): boolean =>
 
 // RATATOSK_PORT_MAPPING=off never touches the router (e2e tests, manual port forwarding).
 const portMappingEnabled = process.env['RATATOSK_PORT_MAPPING'] !== 'off'
+
+// RATATOSK_SPEED_TEST=off never contacts speed.cloudflare.com (e2e tests).
+const speedTestAllowed = process.env['RATATOSK_SPEED_TEST'] !== 'off'
+
+const store = new Store({ name: 'settings' })
+const settings = new SettingsStore({
+  read: () => store.store,
+  write: (value) => {
+    store.store = value
+  },
+})
+const upload = new UploadEstimator({
+  isEnabled: () => speedTestAllowed && settings.get().speedTest.enabled,
+  // net.fetch uses Chromium's network stack, so system proxy settings apply.
+  measure: () => measureUpload({ fetch: (url, init) => net.fetch(url, init) }),
+})
 
 const spawnHost = () =>
   utilityProcess.fork(join(__dirname, 'host.js'), [], { serviceName: 'Ratatosk Host' })
@@ -87,6 +107,9 @@ registerIpcHandlers(
     'host:stop': () => host.stop(),
     'host:get-state': () => host.state,
     'network:check': ({ force }) => network.check(DEFAULT_HOST_PORT, { force: force ?? false }),
+    'network:measure-upload': ({ force }) => upload.measure({ force: force ?? false }),
+    'settings:get': () => settings.get(),
+    'settings:update': (patch) => settings.update(patch),
   },
   isTrustedUrl,
 )

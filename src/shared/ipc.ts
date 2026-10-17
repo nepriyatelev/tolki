@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { hostPortSchema, type HostState } from './host-protocol'
 import type { NetworkCheckResult } from './network'
+import { settingsPatchSchema, type Settings, type SettingsPatch } from './settings'
+import type { UploadMeasurement } from './upload-capacity'
 
 export interface AppInfo {
   name: string
@@ -17,6 +19,10 @@ export interface InvokeContract {
   'host:get-state': { args: []; result: HostState }
   /** Can this computer host? Cached for a few minutes unless `force`. */
   'network:check': { args: [options: NetworkCheckRequest]; result: NetworkCheckResult }
+  /** Upload speed via speed.cloudflare.com; `disabled` when turned off in settings. */
+  'network:measure-upload': { args: [options: NetworkCheckRequest]; result: UploadMeasurement }
+  'settings:get': { args: []; result: Settings }
+  'settings:update': { args: [patch: SettingsPatch]; result: Settings }
 }
 
 export interface NetworkCheckRequest {
@@ -49,6 +55,9 @@ export const invokeArgsSchemas: {
   'host:stop': z.tuple([]),
   'host:get-state': z.tuple([]),
   'network:check': z.tuple([z.strictObject({ force: z.boolean().optional() })]),
+  'network:measure-upload': z.tuple([z.strictObject({ force: z.boolean().optional() })]),
+  'settings:get': z.tuple([]),
+  'settings:update': z.tuple([settingsPatchSchema]),
 }
 
 /** The API the preload script exposes to the renderer as `window.ratatosk`. */
@@ -65,5 +74,10 @@ export interface RatatoskApi {
   }
   network: {
     check(options?: NetworkCheckRequest): Promise<NetworkCheckResult>
+    measureUpload(options?: NetworkCheckRequest): Promise<UploadMeasurement>
+  }
+  settings: {
+    get(): Promise<Settings>
+    update(patch: SettingsPatch): Promise<Settings>
   }
 }
