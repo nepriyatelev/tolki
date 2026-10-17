@@ -1,0 +1,121 @@
+name: Release
+
+# Tag vX.Y.Z → installers for every OS → GitHub release in the public ratatosk-releases repo.
+# The version comes from the tag; package.json keeps 0.0.0 for development builds.
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RELEASES_REPO: nepriyatelev/ratatosk-releases
+
+jobs:
+  build:
+    name: build ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: windows-x64
+            os: windows-latest
+            builder: --win nsis --x64
+            app: release/win-unpacked/Ratatosk.exe
+          - name: macos-arm64
+            os: macos-26
+            builder: --mac dmg --arm64
+            app: release/mac-arm64/Ratatosk.app/Contents/MacOS/Ratatosk
+          - name: macos-x64
+            os: macos-26-intel
+            builder: --mac dmg --x64
+            app: release/mac/Ratatosk.app/Contents/MacOS/Ratatosk
+          - name: linux-x64
+            os: ubuntu-latest
+            builder: --linux AppImage deb --x64
+            app: release/linux-unpacked/ratatosk
+    env:
+      # No Developer ID yet: ad-hoc signing only (electron-builder.yml), no keychain lookup.
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          runtime: node@24
+          cache: true
+          require-lockfile: true
+
+      - name: Build installers
+        shell: bash
+        run: |
+          pnpm exec electron-vite build
+          pnpm exec electron-builder ${{ matrix.builder }} --publish never \
+            -c.extraMetadata.version="${GITHUB_REF_NAME#v}"
+
+      # Smoke test: the packaged app starts and passes the e2e suite on its own OS.
+      - if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Test packaged app
+        shell: bash
+        env:
+          E2E_EXECUTABLE: ${{ matrix.app }}
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            xvfb-run --auto-servernum pnpm exec playwright test
+          else
+            pnpm exec playwright test
+          fi
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: installers-${{ matrix.name }}
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.AppImage
+            release/*.deb
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: publish to ratatosk-releases
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: installers-*
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum -- * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Release notes
+        run: .github/release-notes.sh "$GITHUB_REF_NAME" > notes.md && cat notes.md
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$RELEASES_REPO" \
+            --title "Ratatosk ${GITHUB_REF_NAME#v}" \
+            --notes-file notes.md

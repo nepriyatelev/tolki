@@ -1,5 +1,43 @@
 # Релизы
 
+## Как выпустить релиз
+
+1. Убедиться, что `main` зелёный и в нём всё, что должно войти в релиз.
+2. Поставить тег и отправить его:
+   ```bash
+   git switch main && git pull
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+   Версию берём из тега: `package.json` не меняется (в нём `0.0.0` для dev-сборок).
+3. Workflow [Release](https://github.com/nepriyatelev/ratatosk/actions/workflows/release.yml):
+   - собирает установщики на четырёх раннерах (Windows x64, macOS arm64, macOS x64, Linux x64);
+   - на каждой ОС запускает e2e-набор на собранном приложении;
+   - публикует релиз в [ratatosk-releases](https://github.com/nepriyatelev/ratatosk-releases/releases):
+     5 установщиков, `SHA256SUMS.txt` и release notes на русском.
+4. Release notes собираются скриптом `.github/release-notes.sh`: таблица файлов, подсказки
+   по первому запуску и список коммитов с прошлого тега (без `chore`, `ci`, `test`, `docs`,
+   `style`). Текст можно поправить после публикации на странице релиза.
+
+Следить за прогоном: `gh run watch -R nepriyatelev/ratatosk`.
+
+### Если релиз не получился
+
+- Упала сборка или тест — релиз не создаётся. Исправить в PR, удалить тег и поставить заново:
+  ```bash
+  git push origin :refs/tags/v0.1.0 && git tag -d v0.1.0
+  ```
+- Упала только публикация (например, токен) — исправить причину и перезапустить
+  упавший job: `gh run rerun <run-id> --failed`.
+- Удалить ошибочный релиз:
+  `gh release delete v0.1.0 -R nepriyatelev/ratatosk-releases --cleanup-tag`.
+
+### Минуты GitHub Actions
+
+Репозиторий закрытый: macOS-минуты считаются с множителем ×10, Windows — ×2. Один релиз
+занимает порядка 100–150 минут из бесплатного месячного лимита, поэтому сборка запускается
+только по тегу.
+
 ## Токен `RELEASES_TOKEN`
 
 ### Зачем он нужен
