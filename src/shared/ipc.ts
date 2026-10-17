@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { hostPortSchema, type HostState } from './host-protocol'
 import type { Invite, InviteParseResult } from './invite'
 import type { NetworkCheckResult } from './network'
+import type { RecentRoom, RecentStatus } from './recent'
 import type { JoinResult } from './room'
 import { peerNameSchema } from './signaling'
 import { settingsPatchSchema, type Settings, type SettingsPatch } from './settings'
@@ -31,13 +32,19 @@ export interface InvokeContract {
   /** Connect to a host and authenticate; replaces any current connection. */
   'room:join': { args: [request: JoinRoomRequest]; result: JoinResult }
   'room:leave': { args: []; result: null }
+  'recent:list': { args: []; result: RecentRoom[] }
+  /** Light check of every recent room: only the number of people, no authentication. */
+  'recent:probe': { args: []; result: Record<string, RecentStatus> }
+  'recent:remove': { args: [id: string]; result: RecentRoom[] }
 }
 
 export interface JoinRoomRequest {
   invite: Invite
   name: string
-  /** Typed by the user; the invite's embedded password is used when this is absent. */
+  /** Typed by the user; the invite's embedded or the saved password is used when absent. */
   password?: string | undefined
+  /** Joining from the recent rooms list: lets main use the saved password. */
+  recentId?: string | undefined
 }
 
 export interface NetworkCheckRequest {
@@ -96,9 +103,13 @@ export const invokeArgsSchemas: {
       }),
       name: peerNameSchema,
       password: z.string().max(128).optional(),
+      recentId: z.string().max(64).optional(),
     }),
   ]),
   'room:leave': z.tuple([]),
+  'recent:list': z.tuple([]),
+  'recent:probe': z.tuple([]),
+  'recent:remove': z.tuple([z.string().max(64)]),
 }
 
 /** The API the preload script exposes to the renderer as `window.ratatosk`. */
@@ -124,6 +135,11 @@ export interface RatatoskApi {
   room: {
     join(request: JoinRoomRequest): Promise<JoinResult>
     leave(): Promise<null>
+  }
+  recent: {
+    list(): Promise<RecentRoom[]>
+    probe(): Promise<Record<string, RecentStatus>>
+    remove(id: string): Promise<RecentRoom[]>
   }
   invite: {
     takePending(): Promise<InviteParseResult | null>

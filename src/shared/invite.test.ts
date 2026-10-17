@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildInvite,
+  inviteAddress,
   inviteErrorMessage,
   parseInvite,
   type Invite,
@@ -222,6 +223,18 @@ describe('inviteErrorMessage', () => {
   it('asks for a fresh link when it is damaged', () => {
     expect(inviteErrorMessage({ code: 'invalid-port', param: 'p' })).toContain(
       'Ссылка-приглашение повреждена',
+    )
+  })
+})
+
+describe('inviteAddress', () => {
+  it('formats host and port, with IPv6 in brackets', () => {
+    expect(inviteAddress(BASE)).toBe('203.0.113.5:47000')
+    expect(inviteAddress({ host: '2a02:6b8::1', hostKind: 'ipv6', port: 1 })).toBe(
+      '[2a02:6b8::1]:1',
+    )
+    expect(inviteAddress({ host: 'alexey.ddns.net', hostKind: 'dns', port: 47000 })).toBe(
+      'alexey.ddns.net:47000',
     )
   })
 })

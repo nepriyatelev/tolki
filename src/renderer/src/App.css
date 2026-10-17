@@ -74,3 +74,34 @@
   background: var(--color-accent-soft);
   color: var(--color-accent);
 }
+
+.home-greeting {
+  margin-bottom: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.home-link-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+/* The button lines up with the input, below the field label. */
+.home-link-form > .rt-button {
+  margin-top: calc(var(--text-md) * 1.45 + var(--space-2));
+  min-height: var(--control-height-lg);
+}
+
+.app-user {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+  padding: var(--space-1) var(--space-4) var(--space-1) var(--space-1);
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: var(--text-base);
+}

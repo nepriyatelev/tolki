@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto'
+import type { IncomingMessage } from 'node:http'
 import type { TLSSocket } from 'node:tls'
 import { WebSocket, type RawData } from 'ws'
 import { computeAuthHmac } from '@shared/auth'
 import type { Invite } from '@shared/invite'
+import type { RecentStatus } from '@shared/recent'
 import type { JoinResult } from '@shared/room'
 import {
   hostMessageSchema,
@@ -32,13 +34,7 @@ export interface RoomConnection {
  */
 export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
   const { invite } = request
-  const host = invite.hostKind === 'ipv6' ? `[${invite.host}]` : invite.host
-  // The CA check is replaced by the fingerprint comparison below, before anything is sent.
-  const socket = new WebSocket(`wss://${host}:${invite.port}/`, {
-    rejectUnauthorized: false,
-    handshakeTimeout: request.timeoutMs ?? 10_000,
-    perMessageDeflate: false,
-  })
+  const socket = openSocket(invite, request.timeoutMs ?? 10_000)
 
   return new Promise((resolve) => {
     let settled = false
@@ -63,11 +59,9 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
     }
 
     socket.once('upgrade', (response) => {
-      const peer = (response.socket as TLSSocket).getPeerX509Certificate()
-      const fingerprint = peer
-        ? createHash('sha256').update(peer.raw).digest('base64url')
-        : undefined
-      if (fingerprint !== invite.fingerprint) finish({ ok: false, error: 'certificate-mismatch' })
+      if (presentedFingerprint(response) !== invite.fingerprint) {
+        finish({ ok: false, error: 'certificate-mismatch' })
+      }
     })
 
     socket.once('open', () => {
@@ -117,6 +111,71 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
       finish({ ok: false, error: 'unreachable' })
     })
   })
+}
+
+/**
+ * Light check for the recent rooms list (PLAN #15): hello → challenge, then disconnect without
+ * authenticating. The challenge carries only the number of people inside. Never throws.
+ */
+export function probeRoom(
+  invite: Omit<Invite, 'password'>,
+  timeoutMs = 4000,
+): Promise<RecentStatus> {
+  const socket = openSocket(invite, timeoutMs)
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (status: RecentStatus): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      socket.terminate()
+      resolve(status)
+    }
+    const timer = setTimeout(() => {
+      finish({ status: 'offline' })
+    }, timeoutMs)
+
+    socket.once('upgrade', (response) => {
+      if (presentedFingerprint(response) !== invite.fingerprint) {
+        finish({ status: 'certificate-changed' })
+      }
+    })
+    socket.once('open', () => {
+      if (!settled) {
+        const hello: ClientMessage = { type: 'hello', protocolVersion: PROTOCOL_VERSION }
+        socket.send(JSON.stringify(hello))
+      }
+    })
+    socket.on('message', (data, isBinary) => {
+      const message = isBinary ? null : parseMessage(hostMessageSchema, frameText(data))
+      finish(
+        message?.type === 'challenge'
+          ? { status: 'live', peerCount: message.room.peerCount }
+          : { status: 'offline' },
+      )
+    })
+    socket.once('error', () => {
+      finish({ status: 'offline' })
+    })
+    socket.once('close', () => {
+      finish({ status: 'offline' })
+    })
+  })
+}
+
+/** WSS to the host. The CA check is replaced by comparing fingerprints before sending anything. */
+function openSocket(invite: Omit<Invite, 'password'>, timeoutMs: number): WebSocket {
+  const host = invite.hostKind === 'ipv6' ? `[${invite.host}]` : invite.host
+  return new WebSocket(`wss://${host}:${invite.port}/`, {
+    rejectUnauthorized: false,
+    handshakeTimeout: timeoutMs,
+    perMessageDeflate: false,
+  })
+}
+
+function presentedFingerprint(response: IncomingMessage): string | undefined {
+  const peer = (response.socket as TLSSocket).getPeerX509Certificate()
+  return peer ? createHash('sha256').update(peer.raw).digest('base64url') : undefined
 }
 
 /** Text of a ws frame (ws hands out Buffer, ArrayBuffer or fragments). */

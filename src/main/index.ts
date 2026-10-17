@@ -1,7 +1,7 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { app, BrowserWindow, net, session, utilityProcess } from 'electron'
+import { app, BrowserWindow, net, safeStorage, session, utilityProcess } from 'electron'
 import Store from 'electron-store'
 import { APP_NAME } from '@shared/app'
 import { DEFAULT_HOST_PORT } from '@shared/host-protocol'
@@ -10,7 +10,8 @@ import { integrateAppImage } from './appimage-integration'
 import { HostProcess, HostStartError } from './host-process'
 import { findInviteLink, InviteLinks } from './invite-links'
 import { NetworkChecker } from './network-check'
-import { joinRoom, type RoomConnection } from './room-client'
+import { RecentRooms } from './recent-rooms'
+import { joinRoom, probeRoom, type RoomConnection } from './room-client'
 import { SettingsStore } from './settings'
 import { measureUpload } from './speed-test'
 import { UploadEstimator } from './upload-estimator'
@@ -92,6 +93,33 @@ app.on('open-url', (event, url) => {
   inviteLinks.receive(url)
   focusMainWindow()
 })
+
+// Created on first use: safeStorage needs the app to be ready on Linux.
+let recentRoomsStore: RecentRooms | null = null
+function recentRooms(): RecentRooms {
+  if (!recentRoomsStore) {
+    const file = new Store({ name: 'recent-rooms' })
+    recentRoomsStore = new RecentRooms(
+      {
+        read: () => file.get('rooms'),
+        write: (rooms) => {
+          file.set('rooms', rooms)
+        },
+      },
+      {
+        // On Linux without a keyring safeStorage falls back to a fixed key: treat as unavailable.
+        available:
+          safeStorage.isEncryptionAvailable() &&
+          !(
+            process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text'
+          ),
+        encrypt: (plain) => safeStorage.encryptString(plain).toString('base64'),
+        decrypt: (encrypted) => safeStorage.decryptString(Buffer.from(encrypted, 'base64')),
+      },
+    )
+  }
+  return recentRoomsStore
+}
 
 // The room this app is a client of (also when the host user joins their own room).
 let roomConnection: RoomConnection | null = null
@@ -177,7 +205,7 @@ registerIpcHandlers(
     'settings:get': () => settings.get(),
     'settings:update': (patch) => settings.update(patch),
     'invite:take-pending': () => inviteLinks.takePending(),
-    'room:join': async ({ invite, name, password }) => {
+    'room:join': async ({ invite, name, password, recentId }) => {
       // Re-validate: the renderer's invite must survive the strict parser like a link would.
       let checked
       try {
@@ -187,18 +215,38 @@ registerIpcHandlers(
       }
       if (!checked.ok) throw new Error('Invalid invite')
       leaveRoom()
-      const connection = await joinRoom({
-        invite: checked.invite,
-        name,
-        password: password ?? checked.invite.password,
-      })
-      if (connection.result.ok) roomConnection = connection
-      return connection.result
+      const saved =
+        password === undefined && recentId ? recentRooms().password(recentId) : undefined
+      const used = password ?? checked.invite.password ?? saved
+      const connection = await joinRoom({ invite: checked.invite, name, password: used })
+      const { result } = connection
+      if (result.ok) {
+        roomConnection = connection
+        recentRooms().remember(
+          checked.invite,
+          result.room.name,
+          result.room.hasPassword ? used : '',
+        )
+        settings.update({ profile: { name } })
+      } else if (result.error === 'WRONG_PASSWORD' && saved !== undefined && recentId) {
+        // The host changed the password: stop using the saved one.
+        recentRooms().forgetPassword(recentId)
+      }
+      return result
     },
     'room:leave': () => {
       leaveRoom()
       return null
     },
+    'recent:list': () => recentRooms().list(),
+    'recent:probe': async () => {
+      const rooms = recentRooms().list()
+      const statuses = await Promise.all(rooms.map((room) => probeRoom(room.invite)))
+      return Object.fromEntries(
+        rooms.map((room, i) => [room.id, statuses[i] ?? { status: 'offline' }]),
+      )
+    },
+    'recent:remove': (id) => recentRooms().remove(id),
   },
   isTrustedUrl,
 )

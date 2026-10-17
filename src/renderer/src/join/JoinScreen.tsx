@@ -1,14 +1,29 @@
 import ArrowLeft from 'lucide-solid/icons/arrow-left'
 import { createSignal, Match, Show, Switch, type JSX } from 'solid-js'
-import { inviteErrorMessage, type Invite, type InviteParseResult } from '@shared/invite'
+import {
+  inviteAddress,
+  inviteErrorMessage,
+  type Invite,
+  type InviteParseResult,
+} from '@shared/invite'
 import type { JoinError, JoinResult } from '@shared/room'
 import { Button, Card, Input } from '../ui'
 import { describeJoinError } from './join-errors'
 import './JoinScreen.css'
 
-export function inviteAddress(invite: Invite): string {
-  const host = invite.hostKind === 'ipv6' ? `[${invite.host}]` : invite.host
-  return `${host}:${invite.port}`
+/** Set when the screen is opened from the recent rooms list. */
+export interface RecentContext {
+  id: string
+  passwordSaved: boolean
+}
+
+export interface JoinScreenProps {
+  result: InviteParseResult
+  onBack: () => void
+  recent?: RecentContext | undefined
+  /** Prefills the name field. */
+  profileName?: string
+  onJoined?: () => void
 }
 
 /**
@@ -16,7 +31,7 @@ export function inviteAddress(invite: Invite): string {
  * enter the room with a name and, if needed, the password (issues #12, #13). The full screen
  * with the microphone check is issue #17.
  */
-export function JoinScreen(props: { result: InviteParseResult; onBack: () => void }): JSX.Element {
+export function JoinScreen(props: JoinScreenProps): JSX.Element {
   const back = (): void => {
     props.onBack()
   }
@@ -34,14 +49,26 @@ export function JoinScreen(props: { result: InviteParseResult; onBack: () => voi
                   <dt>Комната</dt>
                   <dd class="join-mono">{invite().roomId}</dd>
                   <dt>Пароль</dt>
-                  <dd>{invite().password !== undefined ? 'вшит в ссылку' : 'спроси у хоста'}</dd>
+                  <dd>
+                    {invite().password !== undefined
+                      ? 'вшит в ссылку'
+                      : props.recent?.passwordSaved
+                        ? 'сохранён'
+                        : 'спроси у хоста'}
+                  </dd>
                   <dt>Сертификат</dt>
                   <dd>
                     <span class="join-mono">{invite().fingerprint.slice(0, 12)}…</span> — сверим при
                     подключении
                   </dd>
                 </dl>
-                <JoinForm invite={invite()} onBack={back} />
+                <JoinForm
+                  invite={invite()}
+                  onBack={back}
+                  recent={props.recent}
+                  profileName={props.profileName ?? ''}
+                  onJoined={() => props.onJoined?.()}
+                />
               </>
             )}
           </Match>
@@ -68,8 +95,19 @@ type Status =
   | { kind: 'joined'; result: Extract<JoinResult, { ok: true }> }
   | { kind: 'failed'; error: JoinError }
 
-function JoinForm(props: { invite: Invite; onBack: () => void }): JSX.Element {
-  const [name, setName] = createSignal('')
+function JoinForm(props: {
+  invite: Invite
+  onBack: () => void
+  recent: RecentContext | undefined
+  profileName: string
+  onJoined: () => void
+}): JSX.Element {
+  // eslint-disable-next-line solid/reactivity -- the initial value only; the user edits it
+  const [name, setName] = createSignal(props.profileName)
+  // A saved password is used until the host rejects it; then the field appears.
+  // eslint-disable-next-line solid/reactivity -- the initial value only
+  const [useSaved, setUseSaved] = createSignal(props.recent?.passwordSaved === true)
+  const askPassword = () => props.invite.password === undefined && !useSaved()
   const [password, setPassword] = createSignal('')
   const [nameError, setNameError] = createSignal<string | undefined>(undefined)
   const [status, setStatus] = createSignal<Status>({ kind: 'idle' })
@@ -94,9 +132,12 @@ function JoinForm(props: { invite: Invite; onBack: () => void }): JSX.Element {
     const result = await window.ratatosk.room.join({
       invite: props.invite,
       name: name().trim(),
-      ...(props.invite.password === undefined ? { password: password() } : {}),
+      ...(askPassword() ? { password: password() } : {}),
+      ...(props.recent ? { recentId: props.recent.id } : {}),
     })
+    if (!result.ok && result.error === 'WRONG_PASSWORD') setUseSaved(false)
     setStatus(result.ok ? { kind: 'joined', result } : { kind: 'failed', error: result.error })
+    if (result.ok) props.onJoined()
   }
 
   const leave = async (): Promise<void> => {
@@ -118,7 +159,7 @@ function JoinForm(props: { invite: Invite; onBack: () => void }): JSX.Element {
             onInput={(e) => setName(e.currentTarget.value)}
             error={nameError()}
           />
-          <Show when={props.invite.password === undefined}>
+          <Show when={askPassword()}>
             <Input
               label="Пароль комнаты"
               type="password"

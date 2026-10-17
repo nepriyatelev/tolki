@@ -96,4 +96,44 @@ describe('join form', () => {
     expect(api.room.leave).toHaveBeenCalledOnce()
     expect(await screen.findByRole('button', { name: 'Войти в комнату' })).toBeTruthy()
   })
+
+  it('prefills the remembered name', () => {
+    installRatatoskMock()
+    render(() => (
+      <JoinScreen
+        result={parseInvite(buildInvite(INVITE))}
+        onBack={() => undefined}
+        profileName="Алексей"
+      />
+    ))
+
+    expect(screen.getByLabelText<HTMLInputElement>('Твоё имя').value).toBe('Алексей')
+  })
+
+  it('uses the saved password of a recent room, and asks again if the host rejects it', async () => {
+    const user = userEvent.setup()
+    const api = installRatatoskMock({
+      join: () => Promise.resolve({ ok: false, error: 'WRONG_PASSWORD' }),
+    })
+    render(() => (
+      <JoinScreen
+        result={parseInvite(buildInvite(INVITE))}
+        onBack={() => undefined}
+        profileName="Алексей"
+        recent={{ id: 'recent-1', passwordSaved: true }}
+      />
+    ))
+    expect(screen.getByText('сохранён')).toBeTruthy()
+    expect(screen.queryByLabelText('Пароль комнаты')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Войти в комнату' }))
+
+    expect(api.room.join).toHaveBeenCalledWith({
+      invite: { ...INVITE, password: undefined },
+      name: 'Алексей',
+      recentId: 'recent-1',
+    })
+    expect(await screen.findByLabelText('Пароль комнаты')).toBeTruthy()
+    expect(screen.getByText('Неверный пароль')).toBeTruthy()
+  })
 })

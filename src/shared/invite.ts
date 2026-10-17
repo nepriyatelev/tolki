@@ -136,6 +136,12 @@ export function parseInvite(link: string): InviteParseResult {
   }
 }
 
+/** "203.0.113.5:47000", "[2a02:6b8::1]:47000", "alexey.ddns.net:47000" */
+export function inviteAddress(invite: Pick<Invite, 'host' | 'hostKind' | 'port'>): string {
+  const host = invite.hostKind === 'ipv6' ? `[${invite.host}]` : invite.host
+  return `${host}:${invite.port}`
+}
+
 /** Plain-words explanation for the join screen and deep-link errors. */
 export function inviteErrorMessage(error: InviteError): string {
   switch (error.code) {

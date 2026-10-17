@@ -8,6 +8,8 @@ export interface AvatarProps {
   size?: AvatarSize
   /** Mint ring around the active speaker. */
   speaking?: boolean
+  /** Rounded square for rooms, circle for people. */
+  shape?: 'round' | 'square'
   /**
    * Avatars usually sit next to the visible name and are hidden from assistive tech.
    * Set to false when the avatar is shown alone; the name becomes its label.
@@ -36,7 +38,10 @@ export function Avatar(props: AvatarProps): JSX.Element {
   return (
     <span
       class={`rt-avatar rt-avatar--${props.size ?? 'md'} rt-avatar--color-${avatarColorIndex(props.name)}`}
-      classList={{ 'rt-avatar--speaking': props.speaking === true }}
+      classList={{
+        'rt-avatar--speaking': props.speaking === true,
+        'rt-avatar--square': props.shape === 'square',
+      }}
       role={decorative() ? undefined : 'img'}
       aria-label={decorative() ? undefined : props.name}
       aria-hidden={decorative() ? 'true' : undefined}
