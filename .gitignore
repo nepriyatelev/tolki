@@ -9,6 +9,7 @@ out/
 dist/
 release/
 coverage/
+*.tsbuildinfo
 
 # Tooling
 .playwright-mcp/

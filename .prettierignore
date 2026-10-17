@@ -1,0 +1,7 @@
+out/
+dist/
+release/
+coverage/
+build/
+docs/
+pnpm-lock.yaml
