@@ -44,5 +44,9 @@ export default defineConfig({
   renderer: {
     resolve: { alias: { '@shared': shared } },
     plugins: [solid(), csp()],
+    build: {
+      // Fonts must stay files: the CSP allows font-src 'self' but not data: URIs.
+      assetsInlineLimit: (file) => (file.endsWith('.woff2') ? false : undefined),
+    },
   },
 })

@@ -1,0 +1,94 @@
+/*
+ * Design tokens (PLAN.md §7, values measured from docs/design/ratatosk-screens.html).
+ * Text/background pairs are checked for WCAG contrast in tokens.test.ts — keep it in sync.
+ */
+:root {
+  /* Surfaces, darkest to lightest */
+  --color-bg: #111315;
+  --color-sunken: #0b0c0e;
+  --color-surface: #1a1d21;
+  --color-panel: #15181b;
+  --color-chip: #23272d;
+  --color-raised: #2a2f36;
+  --color-raised-hover: #333941;
+  --color-overlay: rgb(26 29 33 / 92%);
+
+  /* Lines */
+  --color-border: #2a2e35;
+  --color-border-control: #2e333a;
+  --color-border-subtle: #23272d;
+
+  /* Text */
+  --color-text: #eceef0;
+  --color-text-soft: #c9cfd6;
+  --color-text-muted: #9aa3ad;
+  --color-text-placeholder: #848d98;
+
+  /* Accent (mint) */
+  --color-accent: #7fd1ae;
+  --color-accent-hover: #93dbbc;
+  --color-on-accent: #0e1f18;
+  --color-accent-soft: #1f3a30;
+  --color-accent-soft-text: #a6e3c8;
+  --color-accent-selected: #1b2a25;
+
+  /* Danger */
+  --color-danger: #d9363e;
+  --color-danger-hover: #c62f37;
+  --color-on-danger: #ffffff;
+  --color-danger-soft: #3a1d20;
+  --color-danger-text: #f0777d;
+
+  --color-focus: var(--color-accent);
+
+  /* Avatar palette (white initials) */
+  --color-avatar-1: #3b6b5a;
+  --color-avatar-2: #5a3b6b;
+  --color-avatar-3: #6b5a3b;
+  --color-avatar-4: #3b4a6b;
+  --color-avatar-5: #6b3b47;
+  --color-avatar-6: #3b636b;
+
+  /* Typography */
+  --font-sans: 'Onest Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-base: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 22px;
+  --text-3xl: 30px;
+  --text-4xl: 40px;
+  --tracking-tight: -0.02em;
+
+  /* Shape */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 18px;
+  --radius-2xl: 20px;
+  --radius-full: 999px;
+
+  /* Spacing (4px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  /* Controls */
+  --control-height: 44px;
+  --control-height-lg: 48px;
+  --call-button-size: 60px;
+
+  /* Motion */
+  --duration-fast: 120ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+}

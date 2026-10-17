@@ -1,0 +1,69 @@
+.rt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 28px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.rt-chip--sm {
+  height: 20px;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.rt-chip svg {
+  width: 14px;
+  height: 14px;
+}
+
+.rt-chip--mono {
+  font-family: var(--font-mono);
+}
+
+.rt-chip--neutral {
+  background: var(--color-chip);
+  color: var(--color-text-muted);
+}
+
+.rt-chip--sm.rt-chip--neutral {
+  background: var(--color-raised);
+  color: var(--color-text-soft);
+}
+
+.rt-chip--accent {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-soft-text);
+}
+
+.rt-chip--danger {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+}
+
+.rt-chip--overlay {
+  background: var(--color-overlay);
+  color: var(--color-text);
+  border-radius: var(--radius-sm);
+}
+
+.rt-chip__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: currentcolor;
+}
+
+.rt-chip--neutral .rt-chip__dot {
+  background: var(--color-text-placeholder);
+}
+
+.rt-chip--accent .rt-chip__dot {
+  background: var(--color-accent);
+}

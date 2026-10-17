@@ -1,0 +1,23 @@
+.rt-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2xl);
+}
+
+.rt-card--inset {
+  background: var(--color-panel);
+  border-color: var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.rt-card--pad-none {
+  padding: 0;
+}
+
+.rt-card--pad-md {
+  padding: var(--space-5);
+}
+
+.rt-card--pad-lg {
+  padding: var(--space-7);
+}

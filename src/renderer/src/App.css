@@ -1,0 +1,68 @@
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-8);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.app-logo {
+  border-radius: var(--radius-sm);
+}
+
+.app-name {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.home {
+  max-width: 1056px;
+  margin: 0 auto;
+  padding: var(--space-12) var(--space-8);
+}
+
+.home h1 {
+  margin-bottom: var(--space-8);
+  font-size: var(--text-4xl);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+}
+
+.home-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-5);
+}
+
+.home-cards .rt-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.home-cards h2 {
+  margin-top: var(--space-5);
+  font-size: var(--text-2xl);
+  font-weight: 600;
+}
+
+.home-cards p {
+  margin-bottom: var(--space-5);
+  color: var(--color-text-muted);
+}
+
+.home-card-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-md);
+  background: var(--color-raised);
+  color: var(--color-text-soft);
+}
+
+.home-card-icon--accent {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}

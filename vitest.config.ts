@@ -11,5 +11,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['src/**/*.test.{ts,tsx}'],
+    setupFiles: ['src/test/setup.ts'],
+    // tokens.test.ts reads tokens.css?raw; other CSS stays stubbed out.
+    css: { include: [/tokens\.css/] },
   },
 })
