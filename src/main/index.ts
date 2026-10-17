@@ -5,6 +5,7 @@ import { app, BrowserWindow, clipboard, net, safeStorage, session, utilityProces
 import Store from 'electron-store'
 import { APP_NAME } from '@shared/app'
 import { DEFAULT_HOST_PORT } from '@shared/host-protocol'
+import type { RecentStatus } from '@shared/recent'
 import { buildInvite, parseInvite } from '@shared/invite'
 import { loadOrCreateCertificate } from '../host/certificate'
 import { integrateAppImage } from './appimage-integration'
@@ -17,7 +18,7 @@ import { SettingsStore } from './settings'
 import { measureUpload } from './speed-test'
 import { UploadEstimator } from './upload-estimator'
 import { registerIpcHandlers } from './ipc'
-import { isTrustedRendererUrl } from './trusted-url'
+import { isTrustedRendererOrigin, isTrustedRendererUrl } from './trusted-url'
 import { mainWindowOptions } from './window-options'
 
 // Lets e2e tests isolate the certificate and settings from the real profile.
@@ -246,10 +247,14 @@ registerIpcHandlers(
       leaveRoom()
       return null
     },
+    'room:preview': (invite) => probeRoom(invite),
     'recent:list': () => recentRooms().list(),
     'recent:probe': async () => {
       const rooms = recentRooms().list()
-      const statuses = await Promise.all(rooms.map((room) => probeRoom(room.invite)))
+      const previews = await Promise.all(rooms.map((room) => probeRoom(room.invite)))
+      const statuses = previews.map((p): RecentStatus =>
+        p.status === 'live' ? { status: 'live', peerCount: p.room.peerCount } : p,
+      )
       return Object.fromEntries(
         rooms.map((room, i) => [room.id, statuses[i] ?? { status: 'offline' }]),
       )
@@ -263,10 +268,19 @@ void app.whenReady().then(() => {
   if (!isPrimaryInstance) return
   registerInviteScheme()
 
-  // Deny every permission until a feature needs one (microphone arrives with issue #17).
-  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => {
-    callback(false)
+  // Only our own window may use the microphone; every other permission stays denied.
+  session.defaultSession.setPermissionRequestHandler((_contents, permission, callback, details) => {
+    callback(
+      permission === 'media' &&
+        isTrustedUrl(details.requestingUrl) &&
+        'mediaTypes' in details &&
+        (details.mediaTypes ?? []).every((type) => type === 'audio'),
+    )
   })
+  session.defaultSession.setPermissionCheckHandler(
+    (_contents, permission, requestingOrigin) =>
+      permission === 'media' && isTrustedRendererOrigin(requestingOrigin, { devServerUrl }),
+  )
 
   createMainWindow()
 

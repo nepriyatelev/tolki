@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isTrustedRendererUrl } from './trusted-url'
+import { isTrustedRendererOrigin, isTrustedRendererUrl } from './trusted-url'
 
 const indexFileUrl =
   'file:///Applications/Ratatosk.app/Contents/Resources/app.asar/out/renderer/index.html'
@@ -39,5 +39,23 @@ describe('isTrustedRendererUrl', () => {
       expect(isTrustedRendererUrl('http://127.0.0.1:5173/', renderer)).toBe(false)
       expect(isTrustedRendererUrl(indexFileUrl, renderer)).toBe(false)
     })
+  })
+})
+
+describe('isTrustedRendererOrigin', () => {
+  it('accepts the file:// origin in production only', () => {
+    expect(isTrustedRendererOrigin('file://', {})).toBe(true)
+    expect(isTrustedRendererOrigin('file:///', {})).toBe(true)
+    expect(isTrustedRendererOrigin('https://example.com', {})).toBe(false)
+    expect(isTrustedRendererOrigin('file://', { devServerUrl: 'http://localhost:5173/' })).toBe(
+      false,
+    )
+  })
+
+  it('accepts the dev server origin in development', () => {
+    const renderer = { devServerUrl: 'http://localhost:5173/' }
+    expect(isTrustedRendererOrigin('http://localhost:5173', renderer)).toBe(true)
+    expect(isTrustedRendererOrigin('http://localhost:5174', renderer)).toBe(false)
+    expect(isTrustedRendererOrigin('x', { devServerUrl: 'not a url' })).toBe(false)
   })
 })
