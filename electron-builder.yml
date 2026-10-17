@@ -1,0 +1,69 @@
+# Installers: `pnpm dist` builds for the current OS into release/.
+# appId must never change after the first release (NSIS registry key, macOS bundle id).
+appId: io.github.nepriyatelev.ratatosk
+productName: Ratatosk
+copyright: Copyright © 2026 Ratatosk contributors
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - out/**/*
+  - package.json
+  - '!**/*.map'
+
+# Native binaries cannot be executed from inside app.asar.
+asarUnpack:
+  - '**/node_modules/mediasoup/worker/out/Release/mediasoup-worker*'
+
+# Shown in "About" (fonts and icons are open-licensed, see docs/PLAN.md §3).
+extraResources:
+  - from: build/licenses
+    to: licenses
+
+# Only the UI languages we ship; trims ~40 MB of Chromium locales.
+electronLanguages:
+  - ru
+  - en-US
+
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+
+mac:
+  target: dmg
+  icon: build/icons/ratatosk-1024.png
+  category: public.app-category.social-networking
+  # Ad-hoc signature: required on Apple Silicon, no Developer ID yet (PLAN.md §8).
+  identity: '-'
+  hardenedRuntime: false
+  extendInfo:
+    NSMicrophoneUsageDescription: Ratatosk использует микрофон для голосовых звонков.
+
+dmg:
+  title: ${productName} ${version}
+
+win:
+  target: nsis
+  icon: build/icons/ratatosk-256.png
+
+nsis:
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: true
+  shortcutName: Ratatosk
+
+linux:
+  target:
+    - AppImage
+    - deb
+  icon: build/icons/ratatosk-512.png
+  category: Network
+  # Window ↔ .desktop association (app_id / WM_CLASS), also needed for deep links.
+  syncDesktopName: true
+  synopsis: Голосовые звонки и демонстрация экрана для друзей
+  maintainer: Ratatosk contributors
+
+deb:
+  packageCategory: net
+
+publish: null

@@ -1,0 +1,4 @@
+# Single-package repo: this file only holds pnpm settings.
+allowBuilds:
+  # Squirrel.Windows installer pulled in by electron-builder; we ship NSIS instead.
+  electron-winstaller: false
