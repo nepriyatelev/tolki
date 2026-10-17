@@ -25,7 +25,15 @@ function setup(invite: Invite, result: JoinResult, startCall?: StartCall) {
       result={parseInvite(buildInvite(invite))}
       onBack={() => undefined}
       onError={onError}
-      startCall={startCall ?? (() => Promise.resolve({ sending: true, close: () => undefined }))}
+      startCall={
+        startCall ??
+        (() =>
+          Promise.resolve({
+            sending: true,
+            setMuted: () => Promise.resolve(),
+            close: () => undefined,
+          }))
+      }
     />
   ))
   return { api, onError, user: userEvent.setup() }
@@ -37,6 +45,7 @@ const ok: JoinResult = {
   peers: [{ id: '1', name: 'Дима' }],
   room: { name: 'Вечерний созвон', peerCount: 1, hasPassword: true },
   routerRtpCapabilities: {},
+  mutedPeers: [],
 }
 
 describe('join form', () => {
@@ -162,7 +171,9 @@ describe('join form', () => {
 describe('the call after joining', () => {
   it('starts with the router capabilities and the «join muted» choice, and ends on leave', async () => {
     const close = vi.fn()
-    const startCall = vi.fn<StartCall>(() => Promise.resolve({ sending: true, close }))
+    const startCall = vi.fn<StartCall>(() =>
+      Promise.resolve({ sending: true, setMuted: () => Promise.resolve(), close }),
+    )
     const { user } = setup(INVITE, ok, startCall)
     await user.type(screen.getByLabelText('Твоё имя'), 'Алексей')
     await user.type(screen.getByLabelText('Пароль комнаты'), 'x')
@@ -179,7 +190,11 @@ describe('the call after joining', () => {
 
   it('says when the user can only listen', async () => {
     const { user } = setup(INVITE, ok, () =>
-      Promise.resolve({ sending: false, close: () => undefined }),
+      Promise.resolve({
+        sending: false,
+        setMuted: () => Promise.resolve(),
+        close: () => undefined,
+      }),
     )
     await user.type(screen.getByLabelText('Твоё имя'), 'Алексей')
     await user.type(screen.getByLabelText('Пароль комнаты'), 'x')

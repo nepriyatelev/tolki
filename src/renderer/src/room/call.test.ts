@@ -96,6 +96,23 @@ describe('Call', () => {
     expect(host.request.mock.calls[3]?.[0]).toMatchObject({ method: 'produce', kind: 'audio' })
   })
 
+  it('mutes by pausing the producer here and on the host', async () => {
+    const { call, host } = await start()
+
+    await call.setMuted(true)
+    await call.setMuted(false)
+
+    expect(host.request.mock.calls.slice(-2).map((c) => c[0])).toEqual([
+      { method: 'pauseProducer', producerId: 'producer-1' },
+      { method: 'resumeProducer', producerId: 'producer-1' },
+    ])
+  })
+
+  it('joins muted with the producer paused on the host', async () => {
+    const { host } = await start({ muted: true })
+    expect(host.methods().at(-1)).toBe('pauseProducer')
+  })
+
   it('only listens without a microphone', async () => {
     const { call, host } = await start({ microphone: null })
 

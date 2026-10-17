@@ -1,4 +1,7 @@
+import HeadphoneOff from 'lucide-solid/icons/headphone-off'
+import Headphones from 'lucide-solid/icons/headphones'
 import LogOut from 'lucide-solid/icons/log-out'
+import Mic from 'lucide-solid/icons/mic'
 import MicOff from 'lucide-solid/icons/mic-off'
 import { createSignal, For, Match, onCleanup, onMount, Show, Switch, type JSX } from 'solid-js'
 import type { JoinResult } from '@shared/room'
@@ -28,8 +31,14 @@ export function CallScreen(props: {
   startCall?: typeof startRealCall
 }): JSX.Element {
   // eslint-disable-next-line solid/reactivity -- a session never changes while the screen lives
-  const { result, events, name, muted } = props.session
+  const { result, events, name } = props.session
   const [peers, setPeers] = createSignal<Peer[]>(result.peers)
+  const [mutedPeers, setMutedPeers] = createSignal<ReadonlySet<string>>(new Set(result.mutedPeers))
+  // eslint-disable-next-line solid/reactivity -- the initial choice from the join screen
+  const [muted, setMutedSignal] = createSignal(props.session.muted)
+  const [deafened, setDeafened] = createSignal(false)
+  /** Whether the microphone was on before deafening: undeafening turns it back on. */
+  let mutedBeforeDeafen = false
   const [speaking, setSpeaking] = createSignal<ReadonlySet<string>>(new Set())
   const [voices, setVoices] = createSignal<Voice[]>([])
   const [sound, setSound] = createSignal<Sound>('connecting')
@@ -51,6 +60,14 @@ export function CallScreen(props: {
       case 'active-speakers':
         setSpeaking(new Set(event.peerIds))
         break
+      case 'peer-muted':
+        setMutedPeers((set) => {
+          const next = new Set(set)
+          if (event.muted) next.add(event.peerId)
+          else next.delete(event.peerId)
+          return next
+        })
+        break
       default:
         break
     }
@@ -61,7 +78,7 @@ export function CallScreen(props: {
     void (props.startCall ?? startRealCall)({
       routerRtpCapabilities: result.routerRtpCapabilities,
       events: callEvents,
-      muted,
+      muted: muted(),
       onRemoteAudio: setVoices,
     }).then(
       (handle) => {
@@ -77,6 +94,61 @@ export function CallScreen(props: {
         setSound('failed')
       },
     )
+  })
+
+  const canSpeak = (): boolean => sound() === 'on'
+
+  const setMuted = (value: boolean): void => {
+    setMutedSignal(value)
+    void call?.setMuted(value).catch((error: unknown) => {
+      console.warn('[call] could not change the microphone:', error)
+    })
+  }
+
+  /** M: the microphone. Turning it on while deafened brings the sound back too. */
+  const toggleMic = (): void => {
+    if (!canSpeak()) return
+    if (muted()) {
+      setDeafened(false)
+      setMuted(false)
+    } else {
+      setMuted(true)
+    }
+  }
+
+  /** D: the sound. Deafening also mutes; undeafening restores the microphone as it was. */
+  const toggleSound = (): void => {
+    if (deafened()) {
+      setDeafened(false)
+      if (canSpeak() && !mutedBeforeDeafen) setMuted(false)
+    } else {
+      mutedBeforeDeafen = muted()
+      setDeafened(true)
+      if (canSpeak() && !muted()) setMuted(true)
+    }
+  }
+
+  // Hotkeys work while the window has focus, but not while typing.
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return
+    const target = event.target
+    if (
+      target instanceof HTMLElement &&
+      (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+    ) {
+      return
+    }
+    // event.code: the same physical keys on the Russian layout (Ь and В).
+    if (event.code === 'KeyM') toggleMic()
+    else if (event.code === 'KeyD') toggleSound()
+    else return
+    event.preventDefault()
+  }
+  onMount(() => {
+    window.addEventListener('keydown', onKeyDown)
+    onCleanup(() => {
+      window.removeEventListener('keydown', onKeyDown)
+    })
   })
 
   const end = (): void => {
@@ -124,7 +196,7 @@ export function CallScreen(props: {
                     <span class="call-tile-you">ты</span>
                   </Show>
                 </span>
-                <Show when={person.me && muted}>
+                <Show when={person.me ? muted() : mutedPeers().has(person.id)}>
                   <span class="call-tile-muted" role="img" aria-label="Микрофон выключен">
                     <MicOff />
                   </span>
@@ -144,7 +216,35 @@ export function CallScreen(props: {
           </Match>
         </Switch>
       </p>
-      <RemoteAudio voices={voices()} />
+      <div class="call-controls" role="toolbar" aria-label="Управление звонком">
+        <button
+          type="button"
+          class="call-control"
+          classList={{ 'call-control--off': muted() }}
+          aria-pressed={muted()}
+          aria-label={muted() ? 'Включить микрофон' : 'Выключить микрофон'}
+          disabled={!canSpeak()}
+          onClick={toggleMic}
+        >
+          <span class="call-control-icon">{muted() ? <MicOff /> : <Mic />}</span>
+          {muted() ? 'Выкл.' : 'Микрофон'}
+        </button>
+        <button
+          type="button"
+          class="call-control"
+          classList={{ 'call-control--off': deafened() }}
+          aria-pressed={deafened()}
+          aria-label={deafened() ? 'Включить звук' : 'Выключить звук'}
+          onClick={toggleSound}
+        >
+          <span class="call-control-icon">{deafened() ? <HeadphoneOff /> : <Headphones />}</span>
+          {deafened() ? 'Звук выкл.' : 'Звук'}
+        </button>
+      </div>
+      <p class="call-hotkeys">
+        <kbd>M</kbd> — микрофон · <kbd>D</kbd> — звук
+      </p>
+      <RemoteAudio voices={voices()} deafened={deafened()} />
     </main>
   )
 }

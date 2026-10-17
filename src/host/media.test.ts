@@ -289,6 +289,27 @@ describe('media on the host (mediasoup)', () => {
     ).toBeTruthy()
   })
 
+  it('mutes: pauses the producer, tells everyone, and newcomers learn it from welcome', async () => {
+    const { port } = await startRoom()
+    const alice = await connect(port, 'Алиса')
+    const { peerId: aliceId } = await alice.next('welcome')
+    const bob = await connect(port, 'Боб')
+    await bob.next('welcome')
+    const { producer } = await startSending(alice)
+
+    expect(await alice.ok({ method: 'pauseProducer', producerId: producer.id })).toEqual({})
+    expect(await bob.next('peer-muted')).toMatchObject({ peerId: aliceId, muted: true })
+    const vera = await connect(port, 'Вера')
+    expect((await vera.next('welcome')).mutedPeers).toEqual([aliceId])
+
+    await alice.ok({ method: 'resumeProducer', producerId: producer.id })
+    expect(await bob.next('peer-muted')).toMatchObject({ peerId: aliceId, muted: false })
+    // Someone else's producer cannot be paused.
+    expect((await bob.request({ method: 'pauseProducer', producerId: producer.id })).error).toBe(
+      'unknown producer',
+    )
+  })
+
   it('reports a busy UDP port', async () => {
     const port = await freePort()
     media = await MediaServer.start({ port })

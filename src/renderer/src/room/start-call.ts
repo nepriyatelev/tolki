@@ -3,6 +3,7 @@ import { Call, type RemoteAudio, type RoomEventSource } from './call'
 export interface CallHandle {
   /** False when there is no microphone (denied or missing): the user only listens. */
   readonly sending: boolean
+  setMuted(muted: boolean): Promise<void>
   close(): void
 }
 
@@ -20,6 +21,7 @@ export async function startCall(options: StartCallOptions): Promise<CallHandle> 
     const call = await Call.start({ ...options, microphone })
     return {
       sending: call.producing,
+      setMuted: (muted) => call.setMuted(muted),
       close: () => {
         call.close()
         microphone?.stop()

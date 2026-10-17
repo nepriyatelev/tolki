@@ -38,6 +38,8 @@ export interface RoomOptions {
 interface Member {
   peer: Peer
   media: PeerMedia | null
+  /** Their microphone is off (the audio producer is paused). */
+  muted: boolean
 }
 
 /**
@@ -203,16 +205,23 @@ export class Room {
             send({ type: 'consumer-closed', consumerId })
           },
           isForwarded: (producerId) => this.#speakers.forwarded.has(producerId),
+          onProducerPaused: (producer, paused) => {
+            const member = this.#peers.get(socket)
+            if (producer.kind !== 'audio' || !member || member.muted === paused) return
+            member.muted = paused
+            this.#broadcast({ type: 'peer-muted', peerId: peer.id, muted: paused })
+          },
         })
       : null
     const others = [...this.#peers.values()]
     this.#broadcast({ type: 'peer-joined', peer })
-    this.#peers.set(socket, { peer, media })
+    this.#peers.set(socket, { peer, media, muted: false })
     send({
       type: 'welcome',
       peerId: peer.id,
       peers: others.map((member) => member.peer),
       routerRtpCapabilities: { ...this.#media?.rtpCapabilities },
+      mutedPeers: others.filter((member) => member.muted).map((member) => member.peer.id),
     })
     // Whoever is already talking can be consumed right away.
     for (const member of others) {

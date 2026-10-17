@@ -21,6 +21,8 @@ export interface PeerMediaEvents {
   onConsumerClosed: (consumerId: string) => void
   /** Whether the host forwards this voice now (the three loudest, #21). */
   isForwarded: (producerId: string) => boolean
+  /** The participant muted or unmuted a producer. */
+  onProducerPaused: (producer: types.Producer, paused: boolean) => void
 }
 
 /** A participant's transports, producers and consumers on the host's router. */
@@ -119,7 +121,23 @@ export class PeerMedia {
         await this.#apply(consumer)
         return {}
       }
+
+      case 'pauseProducer':
+        await this.#setPaused(request.producerId, true)
+        return {}
+
+      case 'resumeProducer':
+        await this.#setPaused(request.producerId, false)
+        return {}
     }
+  }
+
+  async #setPaused(producerId: string, paused: boolean): Promise<void> {
+    const producer = this.#producers.get(producerId)
+    if (!producer) throw new MediaRequestError('unknown producer')
+    if (paused) await producer.pause()
+    else await producer.resume()
+    this.events.onProducerPaused(producer, paused)
   }
 
   /** The forwarded voices changed: pause the ones not forwarded, resume the others. */

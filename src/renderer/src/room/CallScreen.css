@@ -96,7 +96,82 @@
   color: var(--color-danger-text);
 }
 
+.call-controls {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-6);
+  margin-top: auto;
+}
+
+.call-control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-soft);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.call-control:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.call-control-icon {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: var(--radius-full);
+  background: var(--color-raised);
+  color: var(--color-text);
+  transition: background-color 150ms ease-out;
+}
+
+.call-control:not(:disabled):hover .call-control-icon {
+  background: var(--color-raised-hover);
+}
+
+.call-control:focus-visible {
+  outline: none;
+}
+
+.call-control:focus-visible .call-control-icon {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.call-control--off .call-control-icon,
+.call-control--off:not(:disabled):hover .call-control-icon {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+}
+
+.call-control-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.call-hotkeys {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.call-hotkeys kbd {
+  font-family: var(--font-mono);
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .call-control-icon {
+    transition: none;
+  }
+
   .call-tile {
     transition: none;
   }

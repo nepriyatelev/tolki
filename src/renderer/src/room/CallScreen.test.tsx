@@ -1,4 +1,4 @@
-import { render, screen, within } from '@solidjs/testing-library'
+import { fireEvent, render, screen, within } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { JoinResult } from '@shared/room'
@@ -12,25 +12,32 @@ const RESULT: Extract<JoinResult, { ok: true }> = {
   peers: [{ id: 'dima', name: 'Дима' }],
   room: { name: 'Вечерний созвон', peerCount: 1, hasPassword: false },
   routerRtpCapabilities: {},
+  mutedPeers: [],
 }
 
-function setup(options: { muted?: boolean } = {}) {
+function setup(options: { muted?: boolean; sending?: boolean; mutedPeers?: string[] } = {}) {
   const api = installRatatoskMock()
   const close = vi.fn()
+  const setMuted = vi.fn<(muted: boolean) => Promise<void>>(() => Promise.resolve())
   const onLeft = vi.fn()
   const events = collectRoomEvents()
   render(() => (
     <CallScreen
-      session={{ result: RESULT, events, name: 'Алексей', muted: options.muted ?? false }}
+      session={{
+        result: { ...RESULT, mutedPeers: options.mutedPeers ?? [] },
+        events,
+        name: 'Алексей',
+        muted: options.muted ?? false,
+      }}
       onLeft={onLeft}
-      startCall={() => Promise.resolve({ sending: true, close })}
+      startCall={() => Promise.resolve({ sending: options.sending ?? true, setMuted, close })}
     />
   ))
   const labels = () =>
     within(screen.getByRole('list', { name: 'Участники' }))
       .getAllByRole('listitem')
       .map((tile) => tile.getAttribute('aria-label'))
-  return { api, close, onLeft, labels, user: userEvent.setup() }
+  return { api, close, setMuted, onLeft, labels, user: userEvent.setup() }
 }
 
 describe('CallScreen', () => {
@@ -81,5 +88,99 @@ describe('CallScreen', () => {
     expect(close).toHaveBeenCalledOnce()
     expect(api.room.leave).toHaveBeenCalledOnce()
     expect(onLeft).toHaveBeenCalledOnce()
+  })
+})
+
+describe('microphone and sound (#22)', () => {
+  const mic = () => screen.getByRole('button', { name: /микрофон$/ })
+  const sound = () => screen.getByRole('button', { name: /звук$/ })
+  const ownBadge = () =>
+    document.querySelector('[data-peer-id="me"] [aria-label="Микрофон выключен"]')
+
+  it('mutes and unmutes with the button', async () => {
+    const { setMuted, user } = setup()
+    await screen.findByText('Звук подключён')
+
+    await user.click(screen.getByRole('button', { name: 'Выключить микрофон' }))
+    expect(setMuted).toHaveBeenLastCalledWith(true)
+    expect(mic().getAttribute('aria-pressed')).toBe('true')
+    expect(ownBadge()).not.toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Включить микрофон' }))
+    expect(setMuted).toHaveBeenLastCalledWith(false)
+    expect(ownBadge()).toBeNull()
+  })
+
+  it('deafening silences the voices and mutes; undeafening restores the microphone', async () => {
+    const { setMuted, user } = setup()
+    await screen.findByText('Звук подключён')
+
+    await user.click(screen.getByRole('button', { name: 'Выключить звук' }))
+    expect(sound().getAttribute('aria-pressed')).toBe('true')
+    expect(setMuted).toHaveBeenLastCalledWith(true)
+    expect(screen.getByRole('button', { name: 'Включить микрофон' })).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Включить звук' }))
+    expect(setMuted).toHaveBeenLastCalledWith(false)
+    expect(screen.getByRole('button', { name: 'Выключить микрофон' })).toBeTruthy()
+  })
+
+  it('keeps the microphone off after undeafening if it was off before', async () => {
+    const { setMuted, user } = setup({ muted: true })
+    await screen.findByText('Звук подключён')
+
+    await user.click(screen.getByRole('button', { name: 'Выключить звук' }))
+    await user.click(screen.getByRole('button', { name: 'Включить звук' }))
+
+    expect(setMuted).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Включить микрофон' })).toBeTruthy()
+  })
+
+  it('turning the microphone on while deafened brings the sound back', async () => {
+    const { user } = setup()
+    await screen.findByText('Звук подключён')
+    await user.click(screen.getByRole('button', { name: 'Выключить звук' }))
+
+    await user.click(screen.getByRole('button', { name: 'Включить микрофон' }))
+
+    expect(screen.getByRole('button', { name: 'Выключить звук' })).toBeTruthy()
+  })
+
+  it('answers the M and D keys, also on the Russian layout, but not while typing', async () => {
+    const { setMuted, user } = setup()
+    await screen.findByText('Звук подключён')
+
+    await user.keyboard('m')
+    expect(setMuted).toHaveBeenLastCalledWith(true)
+    // The Russian layout: the same key types «ь».
+    fireEvent.keyDown(window, { key: 'ь', code: 'KeyM' })
+    expect(setMuted).toHaveBeenLastCalledWith(false)
+    await user.keyboard('d')
+    expect(sound().getAttribute('aria-pressed')).toBe('true')
+
+    const input = document.createElement('input')
+    document.body.append(input)
+    input.focus()
+    await user.keyboard('d')
+    expect(sound().getAttribute('aria-pressed')).toBe('true')
+    input.remove()
+  })
+
+  it('cannot unmute without a microphone', async () => {
+    setup({ sending: false })
+    await screen.findByText('Микрофон недоступен — ты только слушаешь')
+    expect(mic()).toHaveProperty('disabled', true)
+  })
+
+  it('shows who else has the microphone off', () => {
+    const { api } = setup({ mutedPeers: ['dima'] })
+    const badge = () =>
+      document.querySelector('[data-peer-id="dima"] [aria-label="Микрофон выключен"]')
+    expect(badge()).not.toBeNull()
+
+    api.room.emitEvent({ type: 'peer-muted', peerId: 'dima', muted: false })
+    expect(badge()).toBeNull()
+    api.room.emitEvent({ type: 'peer-muted', peerId: 'dima', muted: true })
+    expect(badge()).not.toBeNull()
   })
 })

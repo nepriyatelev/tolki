@@ -165,6 +165,7 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
                   peers: message.peers,
                   room: roomInfo,
                   routerRtpCapabilities: message.routerRtpCapabilities,
+                  mutedPeers: message.mutedPeers,
                 },
           )
           return
@@ -183,6 +184,7 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
         case 'new-producer':
         case 'consumer-closed':
         case 'active-speakers':
+        case 'peer-muted':
           if (eventListener) eventListener(message)
           else earlyEvents.push(message)
           return

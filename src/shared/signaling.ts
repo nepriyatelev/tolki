@@ -71,6 +71,9 @@ export const mediaRequestSchema = z.discriminatedUnion('method', [
     rtpCapabilities: mediaObjectSchema,
   }),
   z.object({ method: z.literal('resumeConsumer'), consumerId: mediaIdSchema }),
+  /** Mute and unmute: the host stops forwarding the producer and tells everyone. */
+  z.object({ method: z.literal('pauseProducer'), producerId: mediaIdSchema }),
+  z.object({ method: z.literal('resumeProducer'), producerId: mediaIdSchema }),
 ])
 export type MediaRequest = z.infer<typeof mediaRequestSchema>
 export type MediaMethod = MediaRequest['method']
@@ -98,6 +101,8 @@ export interface MediaResults {
     rtpParameters: Record<string, unknown>
   }
   resumeConsumer: Record<string, never>
+  pauseProducer: Record<string, never>
+  resumeProducer: Record<string, never>
 }
 
 export const clientMessageSchema = z.discriminatedUnion('type', [
@@ -123,6 +128,8 @@ export const hostMessageSchema = z.discriminatedUnion('type', [
     peerId: z.string(),
     peers: z.array(peerSchema),
     routerRtpCapabilities: mediaObjectSchema,
+    /** Participants whose microphone is off right now. */
+    mutedPeers: z.array(z.string()),
   }),
   z.object({ type: z.literal('error'), code: errorCodeSchema }),
   /** Answer to the client's `request` with the same id: `data` on success, otherwise `error`. */
@@ -141,6 +148,8 @@ export const hostMessageSchema = z.discriminatedUnion('type', [
     producerId: z.string(),
     kind: z.enum(['audio', 'video']),
   }),
+  /** Someone turned their microphone off or on. */
+  z.object({ type: z.literal('peer-muted'), peerId: z.string(), muted: z.boolean() }),
   /** Who is speaking now (loud enough), for the frame around their tile; empty in silence. */
   z.object({ type: z.literal('active-speakers'), peerIds: z.array(z.string()).max(16) }),
   /** The producer behind this consumer is gone. */
