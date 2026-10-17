@@ -68,3 +68,29 @@ export async function cpuPercent(app: ElectronApplication): Promise<number> {
   await new Promise((resolve) => setTimeout(resolve, 1000))
   return sample()
 }
+
+/** The screen this app receives: decoded frames and the height of the layer it gets. */
+export function receivedVideo(
+  page: Page,
+): Promise<{ framesDecoded: number; frameHeight: number } | null> {
+  return page.evaluate(async () => {
+    const { connections } = window as unknown as { connections: RTCPeerConnection[] }
+    for (const pc of connections) {
+      const stats = [...(await pc.getStats()).values()] as {
+        type: string
+        kind?: string
+        framesDecoded?: number
+        frameHeight?: number
+        mid?: string
+      }[]
+      // mediasoup's 'probator' stream only probes bandwidth; the screen is the other one.
+      const inbound = stats.find(
+        (s) => s.type === 'inbound-rtp' && s.kind === 'video' && s.mid !== 'probator',
+      )
+      if (inbound) {
+        return { framesDecoded: inbound.framesDecoded ?? 0, frameHeight: inbound.frameHeight ?? 0 }
+      }
+    }
+    return null
+  })
+}

@@ -126,6 +126,22 @@ export class PeerMedia {
         return {}
       }
 
+      case 'pauseConsumer': {
+        const consumer = this.#consumers.get(request.consumerId)
+        if (!consumer) throw new MediaRequestError('unknown consumer')
+        this.#ready.delete(consumer.id)
+        await this.#apply(consumer)
+        return {}
+      }
+
+      case 'setPreferredLayers': {
+        const consumer = this.#consumers.get(request.consumerId)
+        if (!consumer) throw new MediaRequestError('unknown consumer')
+        if (consumer.type !== 'simulcast') throw new MediaRequestError('not a simulcast consumer')
+        await consumer.setPreferredLayers({ spatialLayer: request.spatialLayer })
+        return {}
+      }
+
       case 'pauseProducer':
         await this.#setPaused(request.producerId, true)
         return {}

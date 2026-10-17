@@ -1,6 +1,12 @@
 import type { ScreenMode } from '@shared/screen'
 import { openMicrophoneTrack } from '../audio/microphone'
-import { Call, type RemoteAudio, type RoomEventSource } from './call'
+import {
+  Call,
+  type RemoteAudio,
+  type RemoteScreen,
+  type RoomEventSource,
+  type ScreenLayer,
+} from './call'
 
 export interface CallHandle {
   /** False when there is no microphone (denied or missing): the user only listens. */
@@ -11,6 +17,9 @@ export interface CallHandle {
   /** Sends a captured screen to the room (PLAN #27); the track stays the caller's. */
   startScreen(track: MediaStreamTrack, mode: ScreenMode): Promise<void>
   stopScreen(): Promise<void>
+  /** Others' screens: shown or hidden, and the layer for the size shown (PLAN #28). */
+  setScreenVisible(consumerId: string, visible: boolean): Promise<void>
+  setScreenLayer(consumerId: string, layer: ScreenLayer): Promise<void>
   close(): void
 }
 
@@ -19,6 +28,7 @@ export interface StartCallOptions {
   events: RoomEventSource
   muted: boolean
   onRemoteAudio: (voices: RemoteAudio[]) => void
+  onRemoteScreens: (screens: RemoteScreen[]) => void
 }
 
 /** Opens the chosen microphone and starts the call; the microphone stops when the call does. */
@@ -35,6 +45,8 @@ export async function startCall(options: StartCallOptions): Promise<CallHandle> 
       setMuted: (muted) => call.setMuted(muted),
       startScreen: (track, mode) => call.startScreen(track, mode),
       stopScreen: () => call.stopScreen(),
+      setScreenVisible: (consumerId, visible) => call.setScreenVisible(consumerId, visible),
+      setScreenLayer: (consumerId, layer) => call.setScreenLayer(consumerId, layer),
       setInputDevice: async (deviceId) => {
         if (!call.producing) return
         const track = await openMicrophoneTrack(deviceId)

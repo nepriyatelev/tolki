@@ -46,7 +46,7 @@
 .call-tiles {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  grid-auto-rows: minmax(180px, 1fr);
+  grid-auto-rows: auto;
   gap: 14px;
   align-content: start;
   min-height: 0;
@@ -63,7 +63,7 @@
   align-items: center;
   justify-content: center;
   min-width: 0;
-  max-height: 260px;
+  height: 210px;
   border-radius: var(--radius-xl);
   background: var(--color-surface);
 }
@@ -85,8 +85,12 @@
   opacity: 1;
 }
 
-/* Your own screen, as you share it. */
+/* A shared screen (yours or someone else's): a whole row, 16:9, big enough to read. */
 .call-tile--screen {
+  grid-column: 1 / -1;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  max-height: 60vh;
   overflow: hidden;
   background: var(--color-bg);
 }

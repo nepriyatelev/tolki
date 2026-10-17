@@ -72,6 +72,17 @@ export const mediaRequestSchema = z.discriminatedUnion('method', [
     rtpCapabilities: mediaObjectSchema,
   }),
   z.object({ method: z.literal('resumeConsumer'), consumerId: mediaIdSchema }),
+  /** The viewer hid it (window minimized, screen scrolled away): stop sending it to them. */
+  z.object({ method: z.literal('pauseConsumer'), consumerId: mediaIdSchema }),
+  /**
+   * Which simulcast layer the viewer wants (0: ≈360p, 1: ≈1080p) by the size it is shown at.
+   * The host still drops to a lower layer when the network cannot carry it.
+   */
+  z.object({
+    method: z.literal('setPreferredLayers'),
+    consumerId: mediaIdSchema,
+    spatialLayer: z.number().int().min(0).max(1),
+  }),
   /** Mute and unmute: the host stops forwarding the producer and tells everyone. */
   z.object({ method: z.literal('pauseProducer'), producerId: mediaIdSchema }),
   z.object({ method: z.literal('resumeProducer'), producerId: mediaIdSchema }),
@@ -104,6 +115,8 @@ export interface MediaResults {
     rtpParameters: Record<string, unknown>
   }
   resumeConsumer: Record<string, never>
+  pauseConsumer: Record<string, never>
+  setPreferredLayers: Record<string, never>
   pauseProducer: Record<string, never>
   resumeProducer: Record<string, never>
   closeProducer: Record<string, never>

@@ -34,6 +34,8 @@ function setup(invite: Invite, result: JoinResult, startCall?: StartCall) {
             setInputDevice: () => Promise.resolve(),
             startScreen: () => Promise.resolve(),
             stopScreen: () => Promise.resolve(),
+            setScreenVisible: () => Promise.resolve(),
+            setScreenLayer: () => Promise.resolve(),
             close: () => undefined,
           }))
       }
@@ -182,6 +184,8 @@ describe('the call after joining', () => {
         setInputDevice: () => Promise.resolve(),
         startScreen: () => Promise.resolve(),
         stopScreen: () => Promise.resolve(),
+        setScreenVisible: () => Promise.resolve(),
+        setScreenLayer: () => Promise.resolve(),
         close,
       }),
     )
@@ -207,6 +211,8 @@ describe('the call after joining', () => {
         setInputDevice: () => Promise.resolve(),
         startScreen: () => Promise.resolve(),
         stopScreen: () => Promise.resolve(),
+        setScreenVisible: () => Promise.resolve(),
+        setScreenLayer: () => Promise.resolve(),
         close: () => undefined,
       }),
     )

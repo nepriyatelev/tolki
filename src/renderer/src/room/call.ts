@@ -14,6 +14,16 @@ export const VOICE_CODEC_OPTIONS: types.ProducerCodecOptions = {
   opusPtime: VOICE.ptime,
 }
 
+/** Someone else's shared screen, ready to show (PLAN #28). */
+export interface RemoteScreen {
+  consumerId: string
+  peerId: string
+  track: MediaStreamTrack
+}
+
+/** Simulcast layers of a shared screen: 0 is ≈360p, 1 is ≈1080p. */
+export type ScreenLayer = 0 | 1
+
 /** A voice from someone else in the room, ready to play. */
 export interface RemoteAudio {
   consumerId: string
@@ -76,6 +86,8 @@ export interface CallOptions {
   muted: boolean
   /** The voices to play changed. */
   onRemoteAudio: (voices: RemoteAudio[]) => void
+  /** The screens others share changed (PLAN #28). */
+  onRemoteScreens?: (screens: RemoteScreen[]) => void
   /** Tests pass a Device with mediasoup-client's FakeHandler. */
   createDevice?: () => Device
 }
@@ -90,6 +102,10 @@ export class CallError extends Error {
  */
 export class Call {
   readonly #voices = new Map<string, { consumer: types.Consumer; peerId: string }>()
+  readonly #screens = new Map<
+    string,
+    { consumer: types.Consumer; peerId: string; visible: boolean; layer: ScreenLayer | null }
+  >()
   #send: types.Transport | null = null
   #recv: types.Transport | null = null
   #producer: types.Producer | null = null
@@ -156,7 +172,9 @@ export class Call {
     this.#send?.close()
     this.#recv?.close()
     this.#voices.clear()
+    this.#screens.clear()
     this.options.onRemoteAudio([])
+    this.options.onRemoteScreens?.([])
   }
 
   async #startReceiving(): Promise<void> {
@@ -166,12 +184,12 @@ export class Call {
     this.#connectOnDemand(transport)
     this.options.events.listen((event) => {
       if (this.#closed) return
-      if (event.type === 'new-producer' && event.kind === 'audio') {
+      if (event.type === 'new-producer') {
         void this.#consume(transport, event.peerId, event.producerId).catch((error: unknown) => {
           console.warn('[call] could not receive a voice:', error)
         })
       } else if (event.type === 'consumer-closed') {
-        this.#dropVoice(event.consumerId)
+        this.#drop(event.consumerId)
       }
     })
   }
@@ -286,8 +304,32 @@ export class Call {
       consumer.close()
       return
     }
-    this.#voices.set(consumer.id, { consumer, peerId })
-    this.#publishVoices()
+    if (consumer.kind === 'audio') {
+      this.#voices.set(consumer.id, { consumer, peerId })
+      this.#publishVoices()
+    } else {
+      this.#screens.set(consumer.id, { consumer, peerId, visible: true, layer: null })
+      this.#publishScreens()
+    }
+  }
+
+  /**
+   * The viewer shows or hides a screen (window minimized, scrolled away): a hidden screen is not
+   * sent at all, so nobody's upload is spent on it.
+   */
+  async setScreenVisible(consumerId: string, visible: boolean): Promise<void> {
+    const screen = this.#screens.get(consumerId)
+    if (!screen || screen.visible === visible || this.#closed) return
+    screen.visible = visible
+    await this.#request({ method: visible ? 'resumeConsumer' : 'pauseConsumer', consumerId })
+  }
+
+  /** The layer that fits the size the screen is shown at; the host may still go lower. */
+  async setScreenLayer(consumerId: string, layer: ScreenLayer): Promise<void> {
+    const screen = this.#screens.get(consumerId)
+    if (!screen || screen.layer === layer || this.#closed) return
+    screen.layer = layer
+    await this.#request({ method: 'setPreferredLayers', consumerId, spatialLayer: layer })
   }
 
   /** A method, not the field: the call may close while a request is in flight. */
@@ -295,12 +337,29 @@ export class Call {
     return this.#closed
   }
 
-  #dropVoice(consumerId: string): void {
+  #drop(consumerId: string): void {
     const voice = this.#voices.get(consumerId)
-    if (!voice) return
-    voice.consumer.close()
-    this.#voices.delete(consumerId)
-    this.#publishVoices()
+    const screen = this.#screens.get(consumerId)
+    if (voice) {
+      voice.consumer.close()
+      this.#voices.delete(consumerId)
+      this.#publishVoices()
+    }
+    if (screen) {
+      screen.consumer.close()
+      this.#screens.delete(consumerId)
+      this.#publishScreens()
+    }
+  }
+
+  #publishScreens(): void {
+    this.options.onRemoteScreens?.(
+      [...this.#screens.values()].map(({ consumer, peerId }) => ({
+        consumerId: consumer.id,
+        peerId,
+        track: consumer.track,
+      })),
+    )
   }
 
   #publishVoices(): void {
