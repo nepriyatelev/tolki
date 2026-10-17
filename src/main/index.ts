@@ -1,41 +1,76 @@
 import { join } from 'node:path'
-import { app, BrowserWindow } from 'electron'
+import { pathToFileURL } from 'node:url'
+import { app, BrowserWindow, session, utilityProcess } from 'electron'
 import { APP_NAME } from '@shared/app'
+import { HostProcess } from './host-process'
+import { registerIpcHandlers } from './ipc'
+import { isTrustedRendererUrl } from './trusted-url'
+import { mainWindowOptions } from './window-options'
+
+const devServerUrl = app.isPackaged ? undefined : process.env['ELECTRON_RENDERER_URL']
+const rendererIndexPath = join(__dirname, '../renderer/index.html')
+const isTrustedUrl = (url: string): boolean =>
+  isTrustedRendererUrl(url, {
+    devServerUrl,
+    indexFileUrl: pathToFileURL(rendererIndexPath).href,
+  })
+
+const host = new HostProcess({
+  spawn: () =>
+    utilityProcess.fork(join(__dirname, 'host.js'), [], { serviceName: 'Ratatosk Host' }),
+})
 
 function createMainWindow(): BrowserWindow {
-  const win = new BrowserWindow({
-    title: APP_NAME,
-    width: 1280,
-    height: 860,
-    minWidth: 960,
-    minHeight: 640,
-    show: false,
-    backgroundColor: '#111315',
-    autoHideMenuBar: true,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      sandbox: true,
-      nodeIntegration: false,
-    },
-  })
+  const win = new BrowserWindow(mainWindowOptions(join(__dirname, '../preload/index.js')))
 
   win.once('ready-to-show', () => {
     win.show()
   })
-  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
-  const devServerUrl = process.env['ELECTRON_RENDERER_URL']
-  if (!app.isPackaged && devServerUrl) {
+  if (devServerUrl) {
     void win.loadURL(devServerUrl)
   } else {
-    void win.loadFile(join(__dirname, '../renderer/index.html'))
+    void win.loadFile(rendererIndexPath)
   }
 
   return win
 }
 
+// Every webContents: no popups, no webviews, no navigation away from our renderer.
+app.on('web-contents-created', (_event, contents) => {
+  contents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  contents.on('will-attach-webview', (event) => {
+    event.preventDefault()
+  })
+  contents.on('will-navigate', (event, url) => {
+    if (!isTrustedUrl(url)) event.preventDefault()
+  })
+})
+
+host.onStatus((status) => {
+  for (const win of BrowserWindow.getAllWindows()) win.webContents.send('host:status', status)
+})
+
+registerIpcHandlers(
+  {
+    'app:get-info': () => ({
+      name: APP_NAME,
+      version: app.getVersion(),
+      platform: process.platform,
+    }),
+    'host:start': () => host.start(),
+    'host:stop': () => host.stop(),
+    'host:get-status': () => host.status,
+  },
+  isTrustedUrl,
+)
+
 void app.whenReady().then(() => {
+  // Deny every permission until a feature needs one (microphone arrives with issue #17).
+  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => {
+    callback(false)
+  })
+
   createMainWindow()
 
   app.on('activate', () => {
@@ -45,4 +80,13 @@ void app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
+})
+
+// Stop the host process before quitting so it can release ports and mappings.
+app.on('before-quit', (event) => {
+  if (host.status === 'stopped') return
+  event.preventDefault()
+  void host.stop().finally(() => {
+    app.quit()
+  })
 })

@@ -22,3 +22,7 @@ coverage/
 *.pem
 *.key
 *.p12
+
+# Playwright
+test-results/
+playwright-report/

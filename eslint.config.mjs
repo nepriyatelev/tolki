@@ -12,6 +12,9 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
     },
+    rules: {
+      '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
+    },
   },
   {
     files: ['src/renderer/**/*.{ts,tsx}'],
@@ -19,7 +22,13 @@ export default tseslint.config(
     languageOptions: { globals: globals.browser },
   },
   {
-    files: ['src/main/**/*.ts', 'src/preload/**/*.ts', '*.config.{ts,mjs}'],
+    files: [
+      'src/main/**/*.ts',
+      'src/host/**/*.ts',
+      'src/preload/**/*.ts',
+      'e2e/**/*.ts',
+      '*.config.{ts,mjs}',
+    ],
     languageOptions: { globals: globals.node },
   },
   {
