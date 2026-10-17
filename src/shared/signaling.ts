@@ -55,6 +55,8 @@ export const hostMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('challenge'), nonce: z.string().max(64), room: roomInfoSchema }),
   z.object({ type: z.literal('welcome'), peerId: z.string(), peers: z.array(peerSchema) }),
   z.object({ type: z.literal('error'), code: errorCodeSchema }),
+  /** The host closes the room on purpose (as opposed to the connection dropping). */
+  z.object({ type: z.literal('room-closed') }),
 ])
 export type HostMessage = z.infer<typeof hostMessageSchema>
 

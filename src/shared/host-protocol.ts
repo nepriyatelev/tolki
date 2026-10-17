@@ -25,7 +25,7 @@ export const portMappingStateSchema = z.discriminatedUnion('status', [
   }),
   z.object({
     status: z.literal('failed'),
-    reason: z.enum(['no-gateway', 'unsupported', 'refused']),
+    reason: z.enum(['no-gateway', 'vpn', 'unsupported', 'refused']),
     detail: z.string(),
   }),
 ])

@@ -59,7 +59,7 @@ test('a wrong password is reported, the right one lets the user in', async () =>
   }
 })
 
-test('after 5 wrong passwords the user is told to wait', async () => {
+test('after 5 wrong passwords the user gets the «Неверный пароль» screen and waits', async () => {
   const host = await launchApp()
   try {
     const link = await startRoom(host.page, 'secret')
@@ -72,11 +72,14 @@ test('after 5 wrong passwords the user is told to wait', async () => {
         await expect(page.getByText('Неверный пароль')).toBeVisible()
       }
 
-      await tryJoin(page, 'secret')
+      await page.getByLabel('Пароль комнаты').fill('secret')
+      await page.getByRole('button', { name: 'Войти в комнату' }).click()
 
-      await expect(page.getByRole('alert')).toHaveText(
-        'Слишком много неверных попыток. Подожди минуту и попробуй снова.',
-      )
+      await expect(page.getByRole('heading', { name: 'Неверный пароль' })).toBeVisible()
+      await expect(page.getByText('Слишком много неверных попыток', { exact: false })).toBeVisible()
+      await expect(
+        page.getByRole('button', { name: /Попробовать снова через \d+ с/ }),
+      ).toBeDisabled()
     } finally {
       await client.app.close()
     }

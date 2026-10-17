@@ -4,7 +4,7 @@ import type { TLSSocket } from 'node:tls'
 import { WebSocket, type RawData } from 'ws'
 import { computeAuthHmac } from '@shared/auth'
 import type { Invite } from '@shared/invite'
-import type { JoinResult, RoomPreview } from '@shared/room'
+import type { JoinResult, RoomClosedReason, RoomPreview } from '@shared/room'
 import {
   hostMessageSchema,
   parseMessage,
@@ -23,7 +23,10 @@ export interface JoinRequest {
 
 export interface RoomConnection {
   readonly result: JoinResult
+  /** Leaves the room; no onClosed notification follows. */
   close(): void
+  /** Called once if the room ends without close(): the host closed it or the link dropped. */
+  onClosed(listener: (reason: RoomClosedReason) => void): void
 }
 
 /**
@@ -35,18 +38,32 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
   const { invite } = request
   const socket = openSocket(invite, request.timeoutMs ?? 10_000)
 
+  let leftOnPurpose = false
+  let hostClosed = false
+  let closedListener: ((reason: RoomClosedReason) => void) | undefined
+  socket.on('close', () => {
+    if (settled && !leftOnPurpose) closedListener?.(hostClosed ? 'host-closed' : 'connection-lost')
+  })
+  let settled = false
+
   return new Promise((resolve) => {
-    let settled = false
     let roomInfo: RoomInfo | null = null
     const finish = (result: JoinResult): void => {
       if (settled) return
       settled = true
       clearTimeout(timer)
-      if (!result.ok) socket.terminate()
+      if (!result.ok) {
+        leftOnPurpose = true
+        socket.terminate()
+      }
       resolve({
         result,
         close: () => {
+          leftOnPurpose = true
           socket.close(1000, 'Left the room')
+        },
+        onClosed: (listener) => {
+          closedListener = listener
         },
       })
     }
@@ -99,6 +116,9 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
           return
         case 'error':
           finish({ ok: false, error: message.code })
+          return
+        case 'room-closed':
+          hostClosed = true
           return
       }
     })

@@ -4,7 +4,7 @@ import {
   type HostState,
   type PortMappingState,
 } from '@shared/host-protocol'
-import { assessHosting, isGlobalIPv6, type NetworkCheckResult } from '@shared/network'
+import { assessHosting, classifyIPv4, isGlobalIPv6, type NetworkCheckResult } from '@shared/network'
 import type { HostChild } from './host-process'
 
 /** What the checker needs from HostProcess: a running room already knows its mapping. */
@@ -18,6 +18,7 @@ export interface NetworkCheckerOptions {
   spawn: () => HostChild
   host: HostView
   ipv6Address?: () => string | null
+  localAddress?: () => string | null
   /** False when automatic forwarding is turned off: the check then skips the router. */
   portMappingEnabled: boolean
   timeoutMs?: number
@@ -35,6 +36,7 @@ export class NetworkChecker {
   constructor(options: NetworkCheckerOptions) {
     this.#options = {
       ipv6Address: findGlobalIPv6,
+      localAddress: findLocalIPv4,
       timeoutMs: 30_000,
       cacheMs: 10 * 60_000,
       now: Date.now,
@@ -71,6 +73,7 @@ export class NetworkChecker {
       port,
       portMapping,
       ipv6Address,
+      localAddress: this.#options.localAddress(),
       verdict: assessHosting({ portMapping, ipv6Address }),
     }
     this.#last = result
@@ -151,6 +154,18 @@ export function findGlobalIPv6(): string | null {
   for (const addresses of Object.values(networkInterfaces())) {
     for (const info of addresses ?? []) {
       if (info.family === 'IPv6' && !info.internal && isGlobalIPv6(info.address)) {
+        return info.address
+      }
+    }
+  }
+  return null
+}
+
+/** First private IPv4 address of a non-internal interface (the address a router forwards to). */
+export function findLocalIPv4(): string | null {
+  for (const addresses of Object.values(networkInterfaces())) {
+    for (const info of addresses ?? []) {
+      if (info.family === 'IPv4' && !info.internal && classifyIPv4(info.address) === 'private') {
         return info.address
       }
     }

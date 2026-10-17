@@ -1,6 +1,6 @@
 import { render, screen } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { buildInvite, parseInvite, type Invite } from '@shared/invite'
 import type { JoinResult } from '@shared/room'
 import { installRatatoskMock } from '../../../test/ratatosk-mock'
@@ -16,8 +16,15 @@ const INVITE: Invite = {
 
 function setup(invite: Invite, result: JoinResult) {
   const api = installRatatoskMock({ join: () => Promise.resolve(result) })
-  render(() => <JoinScreen result={parseInvite(buildInvite(invite))} onBack={() => undefined} />)
-  return { api, user: userEvent.setup() }
+  const onError = vi.fn()
+  render(() => (
+    <JoinScreen
+      result={parseInvite(buildInvite(invite))}
+      onBack={() => undefined}
+      onError={onError}
+    />
+  ))
+  return { api, onError, user: userEvent.setup() }
 }
 
 const ok: JoinResult = {
@@ -75,15 +82,20 @@ describe('join form', () => {
     expect(password.getAttribute('aria-invalid')).toBe('true')
   })
 
-  it('shows TOO_MANY_ATTEMPTS as an alert', async () => {
-    const { user } = setup(INVITE, { ok: false, error: 'TOO_MANY_ATTEMPTS' })
+  it.each([
+    ['TOO_MANY_ATTEMPTS', { kind: 'too-many-attempts' }],
+    ['ROOM_FULL', { kind: 'room-full' }],
+    ['VERSION_MISMATCH', { kind: 'update-required', reason: 'host-version' }],
+    ['unreachable', { kind: 'host-offline' }],
+    ['timeout', { kind: 'host-offline' }],
+  ] as const)('hands %s over to a full error screen', async (error, screenKind) => {
+    const { onError, user } = setup(INVITE, { ok: false, error })
 
     await user.type(screen.getByLabelText('Твоё имя'), 'Миша')
     await user.click(screen.getByRole('button', { name: 'Войти в комнату' }))
 
-    expect((await screen.findByRole('alert')).textContent).toBe(
-      'Слишком много неверных попыток. Подожди минуту и попробуй снова.',
-    )
+    expect(onError).toHaveBeenCalledWith(screenKind)
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('leaves the room', async () => {

@@ -1,4 +1,5 @@
 import type { JoinError } from '@shared/room'
+import type { ErrorKind } from '../errors/error-content'
 
 export interface JoinErrorText {
   /** Shown under the password field instead of as a general message. */
@@ -31,5 +32,25 @@ export function describeJoinError(error: JoinError): JoinErrorText {
     case 'BAD_REQUEST':
     case 'protocol':
       return { text: 'Не получилось подключиться. Попробуй ещё раз.' }
+  }
+}
+
+/**
+ * Errors that get a full screen (PLAN #18) instead of a message in the form. A wrong password
+ * stays under the field; repeated wrong passwords become the «Неверный пароль» screen.
+ */
+export function errorScreenFor(error: JoinError): ErrorKind | null {
+  switch (error) {
+    case 'unreachable':
+    case 'timeout':
+      return { kind: 'host-offline' }
+    case 'TOO_MANY_ATTEMPTS':
+      return { kind: 'too-many-attempts' }
+    case 'ROOM_FULL':
+      return { kind: 'room-full' }
+    case 'VERSION_MISMATCH':
+      return { kind: 'update-required', reason: 'host-version' }
+    default:
+      return null
   }
 }

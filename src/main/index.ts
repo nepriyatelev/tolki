@@ -1,9 +1,18 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { app, BrowserWindow, clipboard, net, safeStorage, session, utilityProcess } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  net,
+  safeStorage,
+  session,
+  shell,
+  utilityProcess,
+} from 'electron'
 import Store from 'electron-store'
-import { APP_NAME } from '@shared/app'
+import { APP_NAME, DOWNLOAD_PAGE } from '@shared/app'
 import { DEFAULT_HOST_PORT } from '@shared/host-protocol'
 import type { RecentStatus } from '@shared/recent'
 import { buildInvite, parseInvite } from '@shared/invite'
@@ -185,6 +194,10 @@ registerIpcHandlers(
       await clipboard.writeText(text)
       return null
     },
+    'app:open-download-page': async () => {
+      await shell.openExternal(DOWNLOAD_PAGE)
+      return null
+    },
     'app:get-info': () => ({
       name: APP_NAME,
       version: app.getVersion(),
@@ -231,6 +244,14 @@ registerIpcHandlers(
       const { result } = connection
       if (result.ok) {
         roomConnection = connection
+        connection.onClosed((reason) => {
+          if (roomConnection !== connection) return
+          roomConnection = null
+          BrowserWindow.getAllWindows()[0]?.webContents.send('room:closed', {
+            reason,
+            roomName: result.room.name,
+          })
+        })
         recentRooms().remember(
           checked.invite,
           result.room.name,

@@ -38,7 +38,7 @@ export interface PortMappingSession {
 export async function mapPort(
   port: number,
   strategies: readonly MappingStrategy[],
-  options: { hasGateway: boolean },
+  options: { hasGateway: boolean; vpn?: boolean },
 ): Promise<PortMappingSession> {
   const refusals: string[] = []
 
@@ -68,7 +68,13 @@ export async function mapPort(
             reason: 'unsupported',
             detail: 'The router answered neither PCP, NAT-PMP nor UPnP',
           }
-        : { status: 'failed', reason: 'no-gateway', detail: 'No IPv4 default gateway found' }
+        : options.vpn === true
+          ? {
+              status: 'failed',
+              reason: 'vpn',
+              detail: 'The default route goes through a VPN tunnel',
+            }
+          : { status: 'failed', reason: 'no-gateway', detail: 'No IPv4 default gateway found' }
 
   return { state, close: () => Promise.resolve() }
 }

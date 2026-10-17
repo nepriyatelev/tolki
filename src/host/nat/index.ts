@@ -1,4 +1,4 @@
-import { findDefaultGateway } from './gateway'
+import { findDefaultGateway, findDefaultRouteInterface, TUNNEL_INTERFACE } from './gateway'
 import { mapPort, type PortMappingSession } from './port-mapper'
 import { NatPmpStrategy, PcpStrategy, UpnpStrategy, type NatProbe } from './strategies'
 
@@ -10,5 +10,8 @@ export async function mapHostPort(port: number): Promise<PortMappingSession> {
     ...(gateway ? [new PcpStrategy(gateway, probe), new NatPmpStrategy(gateway, probe)] : []),
     new UpnpStrategy(gateway?.localAddress ?? null),
   ]
-  return mapPort(port, strategies, { hasGateway: gateway !== null })
+  // No router but the default route goes into a tunnel: a VPN captures the traffic (#60).
+  const routeInterface = gateway === null ? await findDefaultRouteInterface() : null
+  const vpn = routeInterface !== null && TUNNEL_INTERFACE.test(routeInterface)
+  return mapPort(port, strategies, { hasGateway: gateway !== null, vpn })
 }

@@ -33,6 +33,7 @@ const api: RatatoskApi = {
   app: {
     getInfo: () => invoke('app:get-info'),
     copyText: (text) => invoke('app:copy-text', text),
+    openDownloadPage: () => invoke('app:open-download-page'),
   },
   host: {
     start: (options = {}) => invoke('host:start', options),
@@ -51,6 +52,7 @@ const api: RatatoskApi = {
   },
   room: {
     preview: (invite) => invoke('room:preview', invite),
+    onClosed: (listener) => subscribe('room:closed', listener),
     join: (request) => invoke('room:join', request),
     leave: () => invoke('room:leave'),
   },

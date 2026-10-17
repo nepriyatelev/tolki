@@ -93,3 +93,46 @@ function localAddressTowards(gateway: string): Promise<string | null> {
     })
   })
 }
+
+/** Interface names VPN clients use for their tunnel (macOS, Linux). */
+export const TUNNEL_INTERFACE = /^(utun|tun|tap|wg|ppp|ipsec|gpd|zt|tailscale)\d*$/i
+
+/**
+ * Name of the interface the default route goes through, or null if unknown.
+ * Used to tell a VPN that captures all traffic apart from a missing router (#60).
+ * Windows reports interfaces by address in `route print`, so it returns null there.
+ */
+export async function findDefaultRouteInterface(): Promise<string | null> {
+  try {
+    switch (process.platform) {
+      case 'linux':
+        return parseLinuxDefaultInterface(await readFile('/proc/net/route', 'utf8'))
+      case 'darwin':
+        return parseMacDefaultInterface(
+          (await execFileAsync('/sbin/route', ['-n', 'get', 'default'])).stdout,
+        )
+      default:
+        return null
+    }
+  } catch {
+    return null
+  }
+}
+
+/** Interface of the lowest-metric default route in /proc/net/route. */
+export function parseLinuxDefaultInterface(table: string): string | null {
+  let best: { iface: string; metric: number } | null = null
+  for (const line of table.split('\n').slice(1)) {
+    const [iface, destination, , flags, , , metric] = line.trim().split(/\s+/)
+    if (iface === undefined || destination !== '00000000' || flags === undefined) continue
+    if ((parseInt(flags, 16) & 0x1) !== 0x1) continue // RTF_UP
+    const m = Number(metric ?? 0)
+    if (best === null || m < best.metric) best = { iface, metric: m }
+  }
+  return best?.iface ?? null
+}
+
+/** `route -n get default` prints "interface: utun6". */
+export function parseMacDefaultInterface(output: string): string | null {
+  return /^\s*interface:\s*(\S+)/m.exec(output)?.[1] ?? null
+}

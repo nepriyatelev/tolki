@@ -52,6 +52,8 @@ export type HostingProblem =
   | 'cgnat'
   | 'double-nat'
   | 'no-gateway'
+  /** A VPN captures all traffic: replies to friends would leave through the tunnel. */
+  | 'vpn'
   | 'unsupported'
   | 'refused'
   | 'bad-address'
@@ -109,5 +111,7 @@ export interface NetworkCheckResult {
   port: number
   portMapping: PortMappingState
   ipv6Address: string | null
+  /** This computer's address in the home network, for manual port forwarding advice. */
+  localAddress: string | null
   verdict: HostingVerdict
 }

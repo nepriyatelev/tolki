@@ -3,7 +3,7 @@ import { hostPortSchema, type HostState } from './host-protocol'
 import type { Invite, InviteParseResult } from './invite'
 import type { NetworkCheckResult } from './network'
 import type { RecentRoom, RecentStatus } from './recent'
-import type { JoinResult, RoomPreview } from './room'
+import type { JoinResult, RoomClosedEvent, RoomPreview } from './room'
 import { peerNameSchema } from './signaling'
 import { settingsPatchSchema, type Settings, type SettingsPatch } from './settings'
 import type { UploadMeasurement } from './upload-capacity'
@@ -19,6 +19,8 @@ export interface InvokeContract {
   'app:get-info': { args: []; result: AppInfo }
   /** Copies text to the system clipboard (the sandboxed preload has no clipboard module). */
   'app:copy-text': { args: [text: string]; result: null }
+  /** Opens the installers page in the browser (fixed URL; the renderer cannot pass one). */
+  'app:open-download-page': { args: []; result: null }
   /** Never throws for expected failures: returns `stopped` with `lastError` instead. */
   'host:start': { args: [options: HostStartRequest]; result: HostState }
   'host:stop': { args: []; result: HostState }
@@ -74,6 +76,8 @@ export interface EventContract {
   'host:state': HostState
   /** The user opened a ratatosk:// link (already parsed strictly in main). */
   'invite:opened': InviteParseResult
+  /** The joined room ended without the user leaving: the host closed it or the link dropped. */
+  'room:closed': RoomClosedEvent
 }
 
 export type InvokeChannel = keyof InvokeContract
@@ -95,6 +99,7 @@ export const invokeArgsSchemas: {
 } = {
   'app:get-info': z.tuple([]),
   'app:copy-text': z.tuple([z.string().max(4096)]),
+  'app:open-download-page': z.tuple([]),
   'host:start': z.tuple([
     z.strictObject({
       port: hostPortSchema.optional(),
@@ -133,6 +138,7 @@ export interface RatatoskApi {
   app: {
     getInfo(): Promise<AppInfo>
     copyText(text: string): Promise<null>
+    openDownloadPage(): Promise<null>
   }
   host: {
     start(options?: HostStartRequest): Promise<HostState>
@@ -152,6 +158,8 @@ export interface RatatoskApi {
   }
   room: {
     preview(invite: Invite): Promise<RoomPreview>
+    /** Returns an unsubscribe function. */
+    onClosed(listener: (event: RoomClosedEvent) => void): () => void
     join(request: JoinRoomRequest): Promise<JoinResult>
     leave(): Promise<null>
   }

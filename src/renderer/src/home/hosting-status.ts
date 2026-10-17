@@ -17,6 +17,7 @@ const PROBLEMS: Record<HostingProblem, string> = {
   cgnat: 'провайдер выдаёт общий адрес (CGNAT)',
   'double-nat': 'роутер подключён через другой роутер (двойной NAT)',
   'no-gateway': 'не найден роутер',
+  vpn: 'включён VPN — через него друзья не подключатся',
   unsupported: 'роутер не открывает порты автоматически',
   refused: 'роутер отказался открыть порт',
   'bad-address': 'роутер сообщил непонятный внешний адрес',
@@ -31,6 +32,8 @@ function advice(problem: HostingProblem, port: number): string {
       return 'Включи режим моста на модеме провайдера или пусть хостит другой'
     case 'no-gateway':
       return 'Если включён VPN — выключи его на время созвона'
+    case 'vpn':
+      return 'Выключи VPN на время созвона или добавь Ratatosk в исключения VPN (split tunneling)'
     case 'unsupported':
       return `Включи UPnP в настройках роутера или пробрось порт ${port} вручную`
     case 'refused':

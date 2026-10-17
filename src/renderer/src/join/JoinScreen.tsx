@@ -14,7 +14,8 @@ import {
 import type { JoinError, JoinResult, RoomPreview } from '@shared/room'
 import logo from '../assets/logo.svg'
 import { Button, Card, Chip, Input } from '../ui'
-import { describeJoinError } from './join-errors'
+import type { ErrorKind } from '../errors/error-content'
+import { describeJoinError, errorScreenFor } from './join-errors'
 import { MicCheck } from './MicCheck'
 import type { MicrophoneAccess } from './microphone'
 import './JoinScreen.css'
@@ -32,6 +33,8 @@ export interface JoinScreenProps {
   /** Prefills the name field. */
   profileName?: string
   onJoined?: () => void
+  /** Errors with their own screen (host offline, room full…). */
+  onError?: (error: ErrorKind) => void
   microphone?: MicrophoneAccess
 }
 
@@ -96,6 +99,7 @@ export function JoinScreen(props: JoinScreenProps): JSX.Element {
                   recent={props.recent}
                   profileName={props.profileName ?? ''}
                   onJoined={() => props.onJoined?.()}
+                  onError={(error) => props.onError?.(error)}
                   preview={preview.latest}
                   {...(props.microphone ? { microphone: props.microphone } : {})}
                 />
@@ -156,6 +160,7 @@ function JoinForm(props: {
   recent: RecentContext | undefined
   profileName: string
   onJoined: () => void
+  onError: (error: ErrorKind) => void
   preview: RoomPreview | undefined
   microphone?: MicrophoneAccess
 }): JSX.Element {
@@ -203,6 +208,12 @@ function JoinForm(props: {
       ...(props.recent ? { recentId: props.recent.id } : {}),
     })
     if (!result.ok && result.error === 'WRONG_PASSWORD') setUseSaved(false)
+    const screen = result.ok ? null : errorScreenFor(result.error)
+    if (screen) {
+      setStatus({ kind: 'idle' })
+      props.onError(screen)
+      return
+    }
     setStatus(result.ok ? { kind: 'joined', result } : { kind: 'failed', error: result.error })
     if (result.ok) props.onJoined()
   }
