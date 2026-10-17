@@ -16,13 +16,13 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
+    "dist": "electron-vite build && electron-builder --publish never",
+    "dist:dir": "electron-vite build && electron-builder --dir --publish never",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.e2e.json",
     "test": "vitest run --coverage",
-    "test:e2e": "electron-vite build && playwright test",
-    "pack": "electron-vite build && electron-builder --dir --publish never",
-    "dist": "electron-vite build && electron-builder --publish never"
+    "test:e2e": "electron-vite build && playwright test"
   },
   "dependencies": {
     "selfsigned": "5.5.0",

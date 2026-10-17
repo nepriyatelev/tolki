@@ -1,10 +1,13 @@
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { app, BrowserWindow, net, session, utilityProcess } from 'electron'
 import Store from 'electron-store'
 import { APP_NAME } from '@shared/app'
 import { DEFAULT_HOST_PORT } from '@shared/host-protocol'
+import { integrateAppImage } from './appimage-integration'
 import { HostProcess, HostStartError } from './host-process'
+import { findInviteLink, InviteLinks } from './invite-links'
 import { NetworkChecker } from './network-check'
 import { SettingsStore } from './settings'
 import { measureUpload } from './speed-test'
@@ -16,6 +19,11 @@ import { mainWindowOptions } from './window-options'
 // Lets e2e tests isolate the certificate and settings from the real profile.
 const userDataOverride = process.env['RATATOSK_USER_DATA']
 if (userDataOverride) app.setPath('userData', userDataOverride)
+
+// One app per profile: a second launch (e.g. a clicked invite link) hands its arguments to the
+// running one via 'second-instance' and quits.
+const isPrimaryInstance = app.requestSingleInstanceLock()
+if (!isPrimaryInstance) app.quit()
 
 const devServerUrl = app.isPackaged ? undefined : process.env['ELECTRON_RENDERER_URL']
 const rendererIndexPath = join(__dirname, '../renderer/index.html')
@@ -54,8 +62,54 @@ const network = new NetworkChecker({
     utilityProcess.fork(join(__dirname, 'host.js'), [], { serviceName: 'Ratatosk Network Check' }),
 })
 
+const inviteLinks = new InviteLinks((result) => {
+  BrowserWindow.getAllWindows()[0]?.webContents.send('invite:opened', result)
+})
+
+function focusMainWindow(): void {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (!win) return
+  if (win.isMinimized()) win.restore()
+  win.show()
+  win.focus()
+}
+
+// Windows and Linux pass the link as an argument, both on first start and to a second instance.
+const startupLink = findInviteLink(process.argv)
+if (startupLink) inviteLinks.receive(startupLink)
+
+app.on('second-instance', (_event, argv) => {
+  const link = findInviteLink(argv)
+  if (link) inviteLinks.receive(link)
+  focusMainWindow()
+})
+
+// macOS delivers links as an event, possibly before the app is ready.
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  inviteLinks.receive(url)
+  focusMainWindow()
+})
+
+function registerInviteScheme(): void {
+  if (!app.isPackaged) return
+  // macOS: Info.plist from electron-builder `protocols`; Linux deb: its .desktop file.
+  if (process.platform === 'win32') app.setAsDefaultProtocolClient('ratatosk')
+  const appImage = process.env['APPIMAGE']
+  if (process.platform === 'linux' && appImage) {
+    void integrateAppImage({
+      appImagePath: appImage,
+      home: homedir(),
+      iconSource: join(process.resourcesPath, 'icons/ratatosk.png'),
+    })
+  }
+}
+
 function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow(mainWindowOptions(join(__dirname, '../preload/index.js')))
+  win.webContents.on('did-start-loading', () => {
+    inviteLinks.rendererGone()
+  })
 
   win.once('ready-to-show', () => {
     win.show()
@@ -110,11 +164,15 @@ registerIpcHandlers(
     'network:measure-upload': ({ force }) => upload.measure({ force: force ?? false }),
     'settings:get': () => settings.get(),
     'settings:update': (patch) => settings.update(patch),
+    'invite:take-pending': () => inviteLinks.takePending(),
   },
   isTrustedUrl,
 )
 
 void app.whenReady().then(() => {
+  if (!isPrimaryInstance) return
+  registerInviteScheme()
+
   // Deny every permission until a feature needs one (microphone arrives with issue #17).
   session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => {
     callback(false)

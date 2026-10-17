@@ -47,6 +47,10 @@ const api: RatatoskApi = {
     get: () => invoke('settings:get'),
     update: (patch) => invoke('settings:update', patch),
   },
+  invite: {
+    takePending: () => invoke('invite:take-pending'),
+    onOpened: (listener) => subscribe('invite:opened', listener),
+  },
 }
 
 contextBridge.exposeInMainWorld('ratatosk', api)
