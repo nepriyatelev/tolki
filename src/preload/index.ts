@@ -63,6 +63,11 @@ const api: RatatoskApi = {
     probe: () => invoke('recent:probe'),
     remove: (id) => invoke('recent:remove', id),
   },
+  screen: {
+    listSources: () => invoke('screen:list-sources'),
+    select: (id) => invoke('screen:select', id),
+    openPermissionSettings: () => invoke('screen:open-permission-settings'),
+  },
   invite: {
     takePending: () => invoke('invite:take-pending'),
     onOpened: (listener) => subscribe('invite:opened', listener),

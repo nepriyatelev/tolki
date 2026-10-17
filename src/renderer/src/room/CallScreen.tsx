@@ -3,13 +3,17 @@ import Headphones from 'lucide-solid/icons/headphones'
 import LogOut from 'lucide-solid/icons/log-out'
 import Mic from 'lucide-solid/icons/mic'
 import MicOff from 'lucide-solid/icons/mic-off'
+import ScreenShare from 'lucide-solid/icons/screen-share'
+import ScreenShareOff from 'lucide-solid/icons/screen-share-off'
 import Settings from 'lucide-solid/icons/settings'
-import { createSignal, For, Match, onCleanup, onMount, Switch, type JSX } from 'solid-js'
+import { createSignal, For, Match, onCleanup, onMount, Show, Switch, type JSX } from 'solid-js'
 import type { JoinResult } from '@shared/room'
 import { volumeKey } from '@shared/settings'
 import type { Peer } from '@shared/signaling'
 import { AudioSettingsDialog } from '../audio/AudioSettingsDialog'
 import type { MicrophoneAccess } from '../audio/microphone'
+import { ScreenSourceDialog } from '../screen/ScreenSourceDialog'
+import { browserScreen, type ScreenAccess } from '../screen/screen-share'
 import { Button } from '../ui'
 import { createEventBuffer, type RemoteAudio as Voice, type RoomEventSource } from './call'
 import { ParticipantTile } from './ParticipantTile'
@@ -50,6 +54,8 @@ export function CallScreen(props: {
   /** Tests replace devices and the test sound in «Настройки звука». */
   microphone?: MicrophoneAccess
   playTestSound?: (outputDeviceId: string) => Promise<void>
+  /** Tests replace screen capture. */
+  screen?: ScreenAccess
 }): JSX.Element {
   // eslint-disable-next-line solid/reactivity -- a session never changes while the screen lives
   const { result, events, name } = props.session
@@ -61,6 +67,10 @@ export function CallScreen(props: {
   /** Whether the microphone was on before deafening: undeafening turns it back on. */
   let mutedBeforeDeafen = false
   const [settingsOpen, setSettingsOpen] = createSignal(false)
+  const [pickerOpen, setPickerOpen] = createSignal(false)
+  /** What this user is showing (PLAN #26); sending it to the others comes with #27. */
+  const [myScreen, setMyScreen] = createSignal<MediaStream | null>(null)
+  const [screenError, setScreenError] = createSignal(false)
   const [outputDeviceId, setOutputDeviceId] = createSignal('')
   /** Remembered volumes by name (PLAN #23); loaded from settings. */
   const [volumes, setVolumes] = createSignal<Record<string, number>>({})
@@ -202,7 +212,7 @@ export function CallScreen(props: {
   // Hotkeys work while the window has focus, but not while typing.
   const onKeyDown = (event: KeyboardEvent): void => {
     if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return
-    if (isTyping(event.target) || settingsOpen()) return
+    if (isTyping(event.target) || settingsOpen() || pickerOpen()) return
     // event.code: the same physical keys on the Russian layout (Ь and В).
     if (event.code === 'KeyM') toggleMic()
     else if (event.code === 'KeyD') toggleSound()
@@ -223,7 +233,32 @@ export function CallScreen(props: {
     })
   }
 
+  const stopScreen = (): void => {
+    for (const track of myScreen()?.getTracks() ?? []) track.stop()
+    setMyScreen(null)
+  }
+  const shareScreen = async (sourceId: string | null): Promise<void> => {
+    setPickerOpen(false)
+    setScreenError(false)
+    try {
+      const stream = await (props.screen ?? browserScreen).capture(sourceId)
+      stopScreen()
+      // The system's own «stop sharing» or a closed window ends it too.
+      stream.getVideoTracks()[0]?.addEventListener('ended', () => {
+        if (myScreen() === stream) setMyScreen(null)
+      })
+      setMyScreen(stream)
+    } catch (error) {
+      // Cancelling the system picker is not an error worth showing.
+      if (!(error instanceof DOMException && error.name === 'NotAllowedError')) {
+        console.warn('[screen] could not start:', error)
+        setScreenError(true)
+      }
+    }
+  }
+
   const end = (): void => {
+    stopScreen()
     left = true
     call?.close()
     call = null
@@ -252,6 +287,24 @@ export function CallScreen(props: {
         </Button>
       </header>
       <ul class="call-tiles" aria-label="Участники">
+        <Show when={myScreen()}>
+          {(stream) => (
+            <li class="call-tile call-tile--screen" aria-label="Твой экран">
+              <video
+                class="call-screen-video"
+                autoplay
+                muted
+                playsinline
+                ref={(element) => {
+                  element.srcObject = stream()
+                }}
+              />
+              <span class="call-tile-name">
+                <span class="call-tile-name-text">Твой экран</span>
+              </span>
+            </li>
+          )}
+        </Show>
         <For each={everyone()}>
           {(person) => (
             <ParticipantTile
@@ -285,6 +338,11 @@ export function CallScreen(props: {
             </Match>
           </Switch>
         </p>
+        <Show when={screenError()}>
+          <p class="call-sound call-sound--failed" role="alert">
+            Не получилось начать показ экрана. Попробуй ещё раз или выбери другое окно.
+          </p>
+        </Show>
         <div class="call-controls" role="toolbar" aria-label="Управление звонком">
           <button
             type="button"
@@ -312,6 +370,22 @@ export function CallScreen(props: {
           <button
             type="button"
             class="call-control"
+            classList={{ 'call-control--active': myScreen() !== null }}
+            aria-pressed={myScreen() !== null}
+            aria-label={myScreen() ? 'Остановить показ экрана' : 'Показать экран'}
+            onClick={() => {
+              if (myScreen()) stopScreen()
+              else setPickerOpen(true)
+            }}
+          >
+            <span class="call-control-icon">
+              {myScreen() ? <ScreenShareOff /> : <ScreenShare />}
+            </span>
+            {myScreen() ? 'Остановить' : 'Экран'}
+          </button>
+          <button
+            type="button"
+            class="call-control"
             aria-haspopup="dialog"
             onClick={() => setSettingsOpen(true)}
           >
@@ -321,6 +395,12 @@ export function CallScreen(props: {
             Настройки
           </button>
         </div>
+        <ScreenSourceDialog
+          open={pickerOpen()}
+          onClose={() => setPickerOpen(false)}
+          onPick={(sourceId) => void shareScreen(sourceId)}
+          {...(props.screen ? { access: props.screen } : {})}
+        />
         <AudioSettingsDialog
           open={settingsOpen()}
           onClose={() => setSettingsOpen(false)}

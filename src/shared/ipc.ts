@@ -3,6 +3,7 @@ import { hostPortSchema, type HostState } from './host-protocol'
 import type { Invite, InviteParseResult } from './invite'
 import type { NetworkCheckResult } from './network'
 import type { RecentRoom, RecentStatus } from './recent'
+import type { ScreenSourcesResult } from './screen'
 import type { JoinResult, MediaResponse, RoomClosedEvent, RoomEvent, RoomPreview } from './room'
 import { mediaRequestSchema, peerNameSchema, type MediaRequest } from './signaling'
 import { settingsPatchSchema, type Settings, type SettingsPatch } from './settings'
@@ -46,6 +47,12 @@ export interface InvokeContract {
   /** Light check of every recent room: only the number of people, no authentication. */
   'recent:probe': { args: []; result: Record<string, RecentStatus> }
   'recent:remove': { args: [id: string]; result: RecentRoom[] }
+  /** Screens and windows with previews for our picker (PLAN #26). */
+  'screen:list-sources': { args: []; result: ScreenSourcesResult }
+  /** The source the next getDisplayMedia() gets; false if it is not in the last list. */
+  'screen:select': { args: [id: string]; result: boolean }
+  /** macOS: the privacy pane where «Запись экрана» is allowed. */
+  'screen:open-permission-settings': { args: []; result: null }
 }
 
 export interface JoinRoomRequest {
@@ -136,6 +143,9 @@ export const invokeArgsSchemas: {
   'recent:list': z.tuple([]),
   'recent:probe': z.tuple([]),
   'recent:remove': z.tuple([z.string().max(64)]),
+  'screen:list-sources': z.tuple([]),
+  'screen:select': z.tuple([z.string().max(256)]),
+  'screen:open-permission-settings': z.tuple([]),
 }
 
 /** The API the preload script exposes to the renderer as `window.ratatosk`. */
@@ -175,6 +185,11 @@ export interface RatatoskApi {
     list(): Promise<RecentRoom[]>
     probe(): Promise<Record<string, RecentStatus>>
     remove(id: string): Promise<RecentRoom[]>
+  }
+  screen: {
+    listSources(): Promise<ScreenSourcesResult>
+    select(id: string): Promise<boolean>
+    openPermissionSettings(): Promise<null>
   }
   invite: {
     takePending(): Promise<InviteParseResult | null>
