@@ -73,6 +73,23 @@ test('the user picks a screen and sees what they are showing', async () => {
       await tapPeerConnections(page)
       await page.getByLabel('Твоё имя').fill('Катя')
       await page.getByRole('button', { name: 'Войти в комнату' }).click()
+      const variants = await client.app.evaluate(async ({ desktopCapturer }) => {
+        const run = async (types: ('screen' | 'window')[], size: number) => {
+          const started = Date.now()
+          const list = await desktopCapturer.getSources({
+            types,
+            thumbnailSize: { width: size, height: size },
+          })
+          return `${types.join('+')}@${size}: ${list.length} in ${Date.now() - started} ms`
+        }
+        return [
+          await run(['screen'], 0),
+          await run(['window'], 0),
+          await run(['screen'], 150),
+          await run(['screen', 'window'], 150),
+        ]
+      })
+      console.log('main getSources after join:', variants.join(' | '))
       for (const label of ['after join', 'after join +3s']) {
         if (label.endsWith('3s')) await page.waitForTimeout(3000)
         const started = Date.now()
