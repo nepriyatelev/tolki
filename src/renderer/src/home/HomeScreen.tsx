@@ -12,6 +12,7 @@ export interface HomeScreenProps {
   profileName: string
   onOpenInvite: (result: InviteParseResult) => void
   onOpenRecent: (room: RecentRoom) => void
+  onCreateRoom: () => void
 }
 
 /** Home screen (mockup 1, PLAN #15). */
@@ -51,8 +52,13 @@ export function HomeScreen(props: HomeScreenProps): JSX.Element {
               Твой компьютер станет хостом. Получишь ссылку — отправь её друзьям, и они подключатся
               напрямую к тебе.
             </p>
-            {/* The create-room screen is issue #16. */}
-            <Button variant="primary" iconEnd={<ArrowRight />} disabled>
+            <Button
+              variant="primary"
+              iconEnd={<ArrowRight />}
+              onClick={() => {
+                props.onCreateRoom()
+              }}
+            >
               Создать комнату
             </Button>
           </Card>

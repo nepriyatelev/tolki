@@ -32,11 +32,13 @@ function subscribe<K extends EventChannel>(
 const api: RatatoskApi = {
   app: {
     getInfo: () => invoke('app:get-info'),
+    copyText: (text) => invoke('app:copy-text', text),
   },
   host: {
     start: (options = {}) => invoke('host:start', options),
     stop: () => invoke('host:stop'),
     getState: () => invoke('host:get-state'),
+    getFingerprint: () => invoke('host:get-fingerprint'),
     onState: (listener) => subscribe('host:state', listener),
   },
   network: {

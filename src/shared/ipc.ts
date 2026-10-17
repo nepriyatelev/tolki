@@ -17,10 +17,14 @@ export interface AppInfo {
 /** Renderer → main request/response channels (`ipcRenderer.invoke`). */
 export interface InvokeContract {
   'app:get-info': { args: []; result: AppInfo }
+  /** Copies text to the system clipboard (the sandboxed preload has no clipboard module). */
+  'app:copy-text': { args: [text: string]; result: null }
   /** Never throws for expected failures: returns `stopped` with `lastError` instead. */
   'host:start': { args: [options: HostStartRequest]; result: HostState }
   'host:stop': { args: []; result: HostState }
   'host:get-state': { args: []; result: HostState }
+  /** This installation's certificate fingerprint, for invite links; creates it if needed. */
+  'host:get-fingerprint': { args: []; result: string }
   /** Can this computer host? Cached for a few minutes unless `force`. */
   'network:check': { args: [options: NetworkCheckRequest]; result: NetworkCheckResult }
   /** Upload speed via speed.cloudflare.com; `disabled` when turned off in settings. */
@@ -49,6 +53,8 @@ export interface JoinRoomRequest {
 
 export interface NetworkCheckRequest {
   force?: boolean | undefined
+  /** Defaults to DEFAULT_HOST_PORT. */
+  port?: number | undefined
 }
 
 export interface HostStartRequest {
@@ -76,6 +82,7 @@ export const invokeArgsSchemas: {
   [K in InvokeChannel]: z.ZodType<InvokeContract[K]['args']>
 } = {
   'app:get-info': z.tuple([]),
+  'app:copy-text': z.tuple([z.string().max(4096)]),
   'host:start': z.tuple([
     z.strictObject({
       port: hostPortSchema.optional(),
@@ -86,7 +93,10 @@ export const invokeArgsSchemas: {
   ]),
   'host:stop': z.tuple([]),
   'host:get-state': z.tuple([]),
-  'network:check': z.tuple([z.strictObject({ force: z.boolean().optional() })]),
+  'host:get-fingerprint': z.tuple([]),
+  'network:check': z.tuple([
+    z.strictObject({ force: z.boolean().optional(), port: hostPortSchema.optional() }),
+  ]),
   'network:measure-upload': z.tuple([z.strictObject({ force: z.boolean().optional() })]),
   'settings:get': z.tuple([]),
   'settings:update': z.tuple([settingsPatchSchema]),
@@ -116,11 +126,13 @@ export const invokeArgsSchemas: {
 export interface RatatoskApi {
   app: {
     getInfo(): Promise<AppInfo>
+    copyText(text: string): Promise<null>
   }
   host: {
     start(options?: HostStartRequest): Promise<HostState>
     stop(): Promise<HostState>
     getState(): Promise<HostState>
+    getFingerprint(): Promise<string>
     /** Returns an unsubscribe function. */
     onState(listener: (state: HostState) => void): () => void
   }

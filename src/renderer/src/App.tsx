@@ -12,13 +12,16 @@ import { APP_NAME } from '@shared/app'
 import type { InviteParseResult } from '@shared/invite'
 import type { RecentRoom } from '@shared/recent'
 import logo from './assets/logo.svg'
+import { CreateRoomScreen } from './create/CreateRoomScreen'
 import { HomeScreen } from './home/HomeScreen'
 import { JoinScreen, type RecentContext } from './join/JoinScreen'
 import { Avatar } from './ui'
 import './App.css'
 
 type Route =
-  { screen: 'home' } | { screen: 'join'; result: InviteParseResult; recent?: RecentContext }
+  | { screen: 'home' }
+  | { screen: 'create' }
+  | { screen: 'join'; result: InviteParseResult; recent?: RecentContext }
 
 export function App(): JSX.Element {
   const [route, setRoute] = createSignal<Route>({ screen: 'home' })
@@ -71,9 +74,19 @@ export function App(): JSX.Element {
             profileName={profileName()}
             onOpenInvite={openInvite}
             onOpenRecent={openRecent}
+            onCreateRoom={() => setRoute({ screen: 'create' })}
           />
         }
       >
+        <Match when={route().screen === 'create'}>
+          <CreateRoomScreen
+            profileName={profileName()}
+            onOpened={() => void reloadSettings()}
+            onBack={() => {
+              setRoute({ screen: 'home' })
+            }}
+          />
+        </Match>
         <Match when={joinRoute()}>
           {(current) => (
             <JoinScreen

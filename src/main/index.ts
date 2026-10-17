@@ -1,11 +1,12 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { app, BrowserWindow, net, safeStorage, session, utilityProcess } from 'electron'
+import { app, BrowserWindow, clipboard, net, safeStorage, session, utilityProcess } from 'electron'
 import Store from 'electron-store'
 import { APP_NAME } from '@shared/app'
 import { DEFAULT_HOST_PORT } from '@shared/host-protocol'
 import { buildInvite, parseInvite } from '@shared/invite'
+import { loadOrCreateCertificate } from '../host/certificate'
 import { integrateAppImage } from './appimage-integration'
 import { HostProcess, HostStartError } from './host-process'
 import { findInviteLink, InviteLinks } from './invite-links'
@@ -179,6 +180,10 @@ host.onState((state) => {
 
 registerIpcHandlers(
   {
+    'app:copy-text': async (text) => {
+      await clipboard.writeText(text)
+      return null
+    },
     'app:get-info': () => ({
       name: APP_NAME,
       version: app.getVersion(),
@@ -200,7 +205,10 @@ registerIpcHandlers(
     },
     'host:stop': () => host.stop(),
     'host:get-state': () => host.state,
-    'network:check': ({ force }) => network.check(DEFAULT_HOST_PORT, { force: force ?? false }),
+    'host:get-fingerprint': async () =>
+      (await loadOrCreateCertificate(app.getPath('userData'))).fingerprint,
+    'network:check': ({ force, port }) =>
+      network.check(port ?? DEFAULT_HOST_PORT, { force: force ?? false }),
     'network:measure-upload': ({ force }) => upload.measure({ force: force ?? false }),
     'settings:get': () => settings.get(),
     'settings:update': (patch) => settings.update(patch),

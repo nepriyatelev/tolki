@@ -19,10 +19,16 @@ function show(options: Parameters<typeof installRatatoskMock>[0] = {}, profileNa
   const api = installRatatoskMock(options)
   const onOpenInvite = vi.fn()
   const onOpenRecent = vi.fn()
+  const onCreateRoom = vi.fn()
   render(() => (
-    <HomeScreen profileName={profileName} onOpenInvite={onOpenInvite} onOpenRecent={onOpenRecent} />
+    <HomeScreen
+      profileName={profileName}
+      onOpenInvite={onOpenInvite}
+      onOpenRecent={onOpenRecent}
+      onCreateRoom={onCreateRoom}
+    />
   ))
-  return { api, onOpenInvite, onOpenRecent, user: userEvent.setup() }
+  return { api, onOpenInvite, onOpenRecent, onCreateRoom, user: userEvent.setup() }
 }
 
 describe('HomeScreen', () => {
@@ -30,6 +36,14 @@ describe('HomeScreen', () => {
     show({}, 'Алексей')
 
     expect(screen.getByText('Привет, Алексей')).toBeTruthy()
+  })
+
+  it('goes to room creation', async () => {
+    const { onCreateRoom, user } = show()
+
+    await user.click(screen.getByRole('button', { name: 'Создать комнату' }))
+
+    expect(onCreateRoom).toHaveBeenCalledOnce()
   })
 
   it('opens a pasted invite link', async () => {
