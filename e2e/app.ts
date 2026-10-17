@@ -17,11 +17,12 @@ export interface LaunchedApp {
  */
 export async function launchApp(options: { userDataDir?: string } = {}): Promise<LaunchedApp> {
   const userDataDir = options.userDataDir ?? mkdtempSync(join(tmpdir(), 'ratatosk-e2e-'))
-  // Port mapping off: e2e must never change the router of whoever runs the tests.
+  // e2e must never change the router or upload to speed.cloudflare.com.
   const env = {
     ...process.env,
     RATATOSK_USER_DATA: userDataDir,
     RATATOSK_PORT_MAPPING: 'off',
+    RATATOSK_SPEED_TEST: 'off',
   } as Record<string, string>
   const executablePath = process.env['E2E_EXECUTABLE']
   const app = await electron.launch(executablePath ? { executablePath, env } : { args: ['.'], env })

@@ -41,6 +41,11 @@ const api: RatatoskApi = {
   },
   network: {
     check: (options = {}) => invoke('network:check', options),
+    measureUpload: (options = {}) => invoke('network:measure-upload', options),
+  },
+  settings: {
+    get: () => invoke('settings:get'),
+    update: (patch) => invoke('settings:update', patch),
   },
 }
 

@@ -1,6 +1,7 @@
 import { vi, type Mock } from 'vitest'
 import type { RatatoskApi } from '@shared/ipc'
 import type { NetworkCheckResult } from '@shared/network'
+import { DEFAULT_SETTINGS } from '@shared/settings'
 
 export const PUBLIC_IPV4_CHECK: NetworkCheckResult = {
   checkedAt: 0,
@@ -23,7 +24,10 @@ export const PUBLIC_IPV4_CHECK: NetworkCheckResult = {
 }
 
 export interface RatatoskMock {
-  network: { check: Mock<RatatoskApi['network']['check']> }
+  network: {
+    check: Mock<RatatoskApi['network']['check']>
+    measureUpload: Mock<RatatoskApi['network']['measureUpload']>
+  }
 }
 
 /** Installs a fake preload bridge on window for renderer tests. */
@@ -44,6 +48,13 @@ export function installRatatoskMock(overrides: Partial<RatatoskApi['network']> =
       check: vi.fn<RatatoskApi['network']['check']>(
         overrides.check ?? (() => Promise.resolve(PUBLIC_IPV4_CHECK)),
       ),
+      measureUpload: vi.fn<RatatoskApi['network']['measureUpload']>(
+        overrides.measureUpload ?? (() => Promise.resolve({ status: 'disabled' })),
+      ),
+    },
+    settings: {
+      get: vi.fn(() => Promise.resolve(DEFAULT_SETTINGS)),
+      update: vi.fn(() => Promise.resolve(DEFAULT_SETTINGS)),
     },
   }
   Object.defineProperty(window, 'ratatosk', { value: api, configurable: true })
