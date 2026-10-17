@@ -15,8 +15,14 @@ import type { MicrophoneAccess } from '../audio/microphone'
 import { ScreenSourceDialog } from '../screen/ScreenSourceDialog'
 import { browserScreen, type ScreenAccess } from '../screen/screen-share'
 import { Button } from '../ui'
-import { createEventBuffer, type RemoteAudio as Voice, type RoomEventSource } from './call'
+import {
+  createEventBuffer,
+  type RemoteAudio as Voice,
+  type RemoteScreen,
+  type RoomEventSource,
+} from './call'
 import { ParticipantTile } from './ParticipantTile'
+import { RemoteScreenTile } from './RemoteScreenTile'
 import { RemoteAudio } from './RemoteAudio'
 import { startCall as startRealCall, type CallHandle } from './start-call'
 import './CallScreen.css'
@@ -89,6 +95,7 @@ export function CallScreen(props: {
   }
   const [speaking, setSpeaking] = createSignal<ReadonlySet<string>>(new Set())
   const [voices, setVoices] = createSignal<Voice[]>([])
+  const [screens, setScreens] = createSignal<RemoteScreen[]>([])
   const [sound, setSound] = createSignal<Sound>('connecting')
   // The frame follows the host's reports (every 300 ms) but lingers a little after someone stops:
   // short pauses between words should not make it blink.
@@ -161,6 +168,7 @@ export function CallScreen(props: {
       events: callEvents,
       muted: muted(),
       onRemoteAudio: setVoices,
+      onRemoteScreens: setScreens,
     }).then(
       (handle) => {
         if (hasLeft()) {
@@ -311,6 +319,20 @@ export function CallScreen(props: {
             </li>
           )}
         </Show>
+        <For each={screens()}>
+          {(remote) => (
+            <RemoteScreenTile
+              screen={remote}
+              name={peers().find((p) => p.id === remote.peerId)?.name ?? 'участник'}
+              onVisibleChange={(visible) => {
+                void call?.setScreenVisible(remote.consumerId, visible).catch(() => undefined)
+              }}
+              onLayerChange={(layer) => {
+                void call?.setScreenLayer(remote.consumerId, layer).catch(() => undefined)
+              }}
+            />
+          )}
+        </For>
         <For each={everyone()}>
           {(person) => (
             <ParticipantTile

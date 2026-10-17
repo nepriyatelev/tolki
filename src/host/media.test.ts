@@ -183,6 +183,19 @@ async function startSending(client: Client) {
   return { transport, producer }
 }
 
+/** Every consumer the host creates, to look at what it actually forwards. */
+function watchConsumers(): types.Consumer[] {
+  const consumers: types.Consumer[] = []
+  mediasoup.observer.once('newworker', (worker) => {
+    worker.observer.on('newrouter', (router) => {
+      router.observer.on('newtransport', (transport) => {
+        transport.observer.on('newconsumer', (consumer) => consumers.push(consumer))
+      })
+    })
+  })
+  return consumers
+}
+
 describe('media on the host (mediasoup)', () => {
   it('welcomes with the router capabilities and announces candidates on the public port', async () => {
     const { port } = await startRoom()
@@ -351,6 +364,7 @@ describe('media on the host (mediasoup)', () => {
   })
 
   it('takes a simulcast screen and closes it on request (#27)', async () => {
+    const consumers = watchConsumers()
     const { port } = await startRoom()
     const alice = await connect(port, 'Алиса')
     await alice.next('welcome')
@@ -399,6 +413,23 @@ describe('media on the host (mediasoup)', () => {
     })
     expect(consumer.kind).toBe('video')
 
+    // The viewer picks the layer by size and pauses it while hidden (#28).
+    await bob.ok({ method: 'resumeConsumer', consumerId: consumer.id })
+    expect(
+      await bob.ok({ method: 'setPreferredLayers', consumerId: consumer.id, spatialLayer: 0 }),
+    ).toEqual({})
+    const hostSide = consumers.find((c) => c.id === consumer.id)
+    expect(hostSide?.preferredLayers).toMatchObject({ spatialLayer: 0 })
+    expect(hostSide?.paused).toBe(false)
+    await bob.ok({ method: 'pauseConsumer', consumerId: consumer.id })
+    expect(hostSide?.paused).toBe(true)
+    await bob.ok({ method: 'resumeConsumer', consumerId: consumer.id })
+    expect(hostSide?.paused).toBe(false)
+    expect(
+      (await bob.request({ method: 'setPreferredLayers', consumerId: 'nope', spatialLayer: 1 }))
+        .error,
+    ).toBe('unknown consumer')
+
     expect(await alice.ok({ method: 'closeProducer', producerId: screenProducer.id })).toEqual({})
     expect(await bob.next('consumer-closed')).toMatchObject({ consumerId: consumer.id })
     expect(
@@ -436,19 +467,6 @@ describe('media on the host (mediasoup)', () => {
 })
 
 describe('forwarding only the loudest voices (#21)', () => {
-  /** Every consumer the host creates, to look at what it actually forwards. */
-  function watchConsumers(): types.Consumer[] {
-    const consumers: types.Consumer[] = []
-    mediasoup.observer.once('newworker', (worker) => {
-      worker.observer.on('newrouter', (router) => {
-        router.observer.on('newtransport', (transport) => {
-          transport.observer.on('newconsumer', (consumer) => consumers.push(consumer))
-        })
-      })
-    })
-    return consumers
-  }
-
   it('with 15 people talking, each receives at most 3 voices at once', async () => {
     const consumers = watchConsumers()
     const { port } = await startRoom()

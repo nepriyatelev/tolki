@@ -1,7 +1,7 @@
 import { createServer, type AddressInfo } from 'node:net'
 import { expect, test } from '@playwright/test'
 import { launchApp } from './app'
-import { cpuPercent, sentVideo, tapPeerConnections } from './media'
+import { cpuPercent, receivedVideo, sentVideo, tapPeerConnections } from './media'
 
 async function freePort(): Promise<number> {
   const probe = createServer()
@@ -121,6 +121,92 @@ test('the user picks a screen and sees what they are showing', async () => {
       await expect(page.getByRole('listitem', { name: 'Твой экран' })).toHaveCount(0)
     } finally {
       await client.app.close()
+    }
+  } finally {
+    await host.app.close()
+  }
+})
+
+test('others see the shared screen at a layer that fits, and nothing while minimized', async () => {
+  test.setTimeout(120_000)
+  const host = await launchApp()
+  try {
+    const port = await freePort()
+    const state = await host.page.evaluate(
+      (p) =>
+        window.ratatosk.host.start({ port: p, portMapping: false, roomName: 'Кино', password: '' }),
+      port,
+    )
+    if (state.status !== 'running') throw new Error('host did not start')
+    const link = `ratatosk://join?v=1&h=127.0.0.1&p=${port}&r=kino&fp=${state.fingerprint}`
+    const katya = await launchApp({ args: [link] })
+    const misha = await launchApp({ args: [link] })
+    try {
+      let hasScreen = false
+      for (let attempt = 0; attempt < 20 && !hasScreen; attempt++) {
+        const sources = await katya.page.evaluate(() => window.ratatosk.screen.listSources())
+        hasScreen = sources.picker === 'app' && sources.sources.some((s) => s.kind === 'screen')
+        if (!hasScreen) await katya.page.waitForTimeout(500)
+      }
+      if (Boolean(process.env['CI']) && process.platform === 'linux') expect(hasScreen).toBe(true)
+      test.skip(!hasScreen, 'no screen to capture (no «Запись экрана» permission?)')
+
+      const resize = (width: number, height: number) =>
+        misha.app.evaluate(
+          ({ BrowserWindow }, size) => {
+            BrowserWindow.getAllWindows()[0]?.setSize(size.width, size.height)
+          },
+          { width, height },
+        )
+      await resize(1280, 1000)
+      await tapPeerConnections(misha.page)
+      for (const [app, name] of [
+        [katya, 'Катя'],
+        [misha, 'Миша'],
+      ] as const) {
+        await app.page.getByLabel('Твоё имя').fill(name)
+        await app.page.getByRole('button', { name: 'Войти в комнату' }).click()
+        await expect(app.page.getByRole('heading', { name: 'Кино' })).toBeVisible()
+      }
+
+      await katya.page.getByRole('button', { name: 'Показать экран' }).click()
+      const dialog = katya.page.getByRole('dialog', { name: 'Что показать' })
+      await dialog.getByRole('radio').first().click()
+      await dialog.getByRole('button', { name: 'Показать' }).click()
+
+      // Misha sees it, big: the ≈1080p layer.
+      await expect(misha.page.getByRole('listitem', { name: 'Экран: Катя' })).toBeVisible()
+      await expect
+        .poll(async () => (await receivedVideo(misha.page))?.frameHeight ?? 0, { timeout: 20_000 })
+        .toBeGreaterThan(600)
+      console.log('big window:', JSON.stringify(await receivedVideo(misha.page)))
+
+      // A small window: the ≈360p layer is enough.
+      await resize(960, 640)
+      await expect
+        .poll(async () => (await receivedVideo(misha.page))?.frameHeight ?? 0, { timeout: 20_000 })
+        .toBeLessThanOrEqual(360)
+      console.log('small window:', JSON.stringify(await receivedVideo(misha.page)))
+
+      // Minimized: nothing arrives; restored: frames again.
+      await misha.app.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()[0]?.minimize()
+      })
+      await misha.page.waitForTimeout(1500)
+      const pausedAt = (await receivedVideo(misha.page))?.framesDecoded ?? 0
+      await misha.page.waitForTimeout(2000)
+      expect((await receivedVideo(misha.page))?.framesDecoded ?? 0).toBe(pausedAt)
+      await misha.app.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()[0]?.restore()
+      })
+      await expect
+        .poll(async () => (await receivedVideo(misha.page))?.framesDecoded ?? 0, {
+          timeout: 15_000,
+        })
+        .toBeGreaterThan(pausedAt)
+    } finally {
+      await misha.app.close()
+      await katya.app.close()
     }
   } finally {
     await host.app.close()

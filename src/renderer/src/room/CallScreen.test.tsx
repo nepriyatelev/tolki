@@ -5,7 +5,7 @@ import type { JoinResult } from '@shared/room'
 import { installRatatoskMock } from '../../../test/ratatosk-mock'
 import type { ScreenMode, ScreenSourcesResult } from '@shared/screen'
 import type { MicrophoneAccess } from '../audio/microphone'
-import { collectRoomEvents } from './call'
+import { collectRoomEvents, type RemoteScreen } from './call'
 import { CallScreen, peopleCount, SPEAKING_HOLD_MS } from './CallScreen'
 
 const RESULT: Extract<JoinResult, { ok: true }> = {
@@ -85,6 +85,13 @@ function setup(
     Promise.resolve(),
   )
   const stopScreen = vi.fn(() => Promise.resolve())
+  const setScreenVisible = vi.fn<(consumerId: string, visible: boolean) => Promise<void>>(() =>
+    Promise.resolve(),
+  )
+  const setScreenLayer = vi.fn<(consumerId: string, layer: 0 | 1) => Promise<void>>(() =>
+    Promise.resolve(),
+  )
+  let showScreens: (screens: RemoteScreen[]) => void = () => undefined
   const onLeft = vi.fn()
   const events = collectRoomEvents()
   const playTestSound = vi.fn<(outputDeviceId: string) => Promise<void>>(() => Promise.resolve())
@@ -101,16 +108,19 @@ function setup(
         muted: options.muted ?? false,
       }}
       onLeft={onLeft}
-      startCall={() =>
-        Promise.resolve({
+      startCall={(callOptions) => {
+        showScreens = callOptions.onRemoteScreens
+        return Promise.resolve({
           sending: options.sending ?? true,
           setMuted,
           setInputDevice,
           startScreen,
           stopScreen,
+          setScreenVisible,
+          setScreenLayer,
           close,
         })
-      }
+      }}
     />
   ))
   const labels = () =>
@@ -124,6 +134,11 @@ function setup(
     setInputDevice,
     startScreen,
     stopScreen,
+    setScreenVisible,
+    setScreenLayer,
+    showScreens: (screens: RemoteScreen[]) => {
+      showScreens(screens)
+    },
     playTestSound,
     screen: screenAccess,
     onLeft,
@@ -537,5 +552,20 @@ describe('showing your screen: picking the source (#26)', () => {
     ctx.screen.access.capture.mockRejectedValueOnce(new Error('boom'))
     await pickFirst()
     expect(await screen.findByRole('alert')).toBeTruthy()
+  })
+})
+
+describe('others’ screens in the call (#28)', () => {
+  it('shows a screen someone shares, named after them, and drops it when they stop', async () => {
+    vi.stubGlobal('MediaStream', vi.fn())
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+
+    ctx.showScreens([{ consumerId: 'c1', peerId: 'dima', track: {} as MediaStreamTrack }])
+    expect(await screen.findByRole('listitem', { name: 'Экран: Дима' })).toBeTruthy()
+
+    ctx.showScreens([])
+    expect(screen.queryByRole('listitem', { name: 'Экран: Дима' })).toBeNull()
+    vi.unstubAllGlobals()
   })
 })

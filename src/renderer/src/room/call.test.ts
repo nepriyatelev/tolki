@@ -2,7 +2,13 @@ import { Device, FakeHandler, testFakeParameters } from 'mediasoup-client'
 import { describe, expect, it, vi } from 'vitest'
 import type { MediaResponse, RoomEvent } from '@shared/room'
 import type { MediaRequest } from '@shared/signaling'
-import { Call, collectRoomEvents, preferredScreenCodec, type RemoteAudio } from './call'
+import {
+  Call,
+  collectRoomEvents,
+  preferredScreenCodec,
+  type RemoteAudio,
+  type RemoteScreen,
+} from './call'
 
 function fakeEvents() {
   let emit: (event: RoomEvent) => void = () => undefined
@@ -338,5 +344,82 @@ describe('preferredScreenCodec', () => {
     ).toBe('video/H264')
     expect(preferredScreenCodec({ codecs: [codec('video/VP8')] })?.mimeType).toBe('video/VP8')
     expect(preferredScreenCodec({ codecs: [codec('audio/opus')] })).toBeUndefined()
+  })
+})
+
+describe('receiving screens (#28)', () => {
+  async function startWithScreen() {
+    const host = fakeHost()
+    const events = fakeEvents()
+    const onRemoteScreens = vi.fn<(screens: RemoteScreen[]) => void>()
+    const call = await Call.start({
+      routerRtpCapabilities: { ...testFakeParameters.generateRouterRtpCapabilities() },
+      events: events.source,
+      request: host.request,
+      microphone: null,
+      muted: false,
+      onRemoteAudio: () => undefined,
+      onRemoteScreens,
+      createDevice,
+    })
+    host.request.mockImplementation((r: MediaRequest) => {
+      if (r.method === 'consume') {
+        const consumer = testFakeParameters.generateConsumerRemoteParameters({
+          codecMimeType: 'video/VP8',
+        })
+        return Promise.resolve({
+          ok: true,
+          data: { ...consumer, producerId: r.producerId, kind: 'video' },
+        })
+      }
+      return Promise.resolve({ ok: true, data: {} })
+    })
+    events.emit({ type: 'new-producer', peerId: 'dima', producerId: 'screen-1', kind: 'video' })
+    await vi.waitFor(() => {
+      expect(onRemoteScreens).toHaveBeenLastCalledWith([
+        expect.objectContaining({ peerId: 'dima' }) as RemoteScreen,
+      ])
+    })
+    const consumerId = onRemoteScreens.mock.lastCall?.[0][0]?.consumerId ?? ''
+    return { call, host, events, onRemoteScreens, consumerId }
+  }
+
+  it('shows another participant’s screen', async () => {
+    const { host } = await startWithScreen()
+    expect(host.request.mock.calls.map((c) => c[0].method)).toContain('resumeConsumer')
+  })
+
+  it('pauses a hidden screen and resumes it, without repeating requests', async () => {
+    const { call, host, consumerId } = await startWithScreen()
+    host.request.mockClear()
+
+    await call.setScreenVisible(consumerId, false)
+    await call.setScreenVisible(consumerId, false)
+    await call.setScreenVisible(consumerId, true)
+
+    expect(host.request.mock.calls.map((c) => c[0])).toEqual([
+      { method: 'pauseConsumer', consumerId },
+      { method: 'resumeConsumer', consumerId },
+    ])
+  })
+
+  it('asks for the layer that fits, once per change', async () => {
+    const { call, host, consumerId } = await startWithScreen()
+    host.request.mockClear()
+
+    await call.setScreenLayer(consumerId, 0)
+    await call.setScreenLayer(consumerId, 0)
+    await call.setScreenLayer(consumerId, 1)
+
+    expect(host.request.mock.calls.map((c) => c[0])).toEqual([
+      { method: 'setPreferredLayers', consumerId, spatialLayer: 0 },
+      { method: 'setPreferredLayers', consumerId, spatialLayer: 1 },
+    ])
+  })
+
+  it('drops the screen when sharing ends', async () => {
+    const { events, onRemoteScreens, consumerId } = await startWithScreen()
+    events.emit({ type: 'consumer-closed', consumerId })
+    expect(onRemoteScreens).toHaveBeenLastCalledWith([])
   })
 })
