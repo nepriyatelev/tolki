@@ -83,7 +83,11 @@ test('the user picks a screen and sees what they are showing', async () => {
       )
       if (!listed) {
         console.log('picker before refresh:', await dialog.innerText())
+        await page.screenshot({ path: 'test-results/picker-before-refresh.png' })
         await dialog.getByRole('button', { name: 'Обновить список' }).click()
+        await page.waitForTimeout(5000)
+        await page.screenshot({ path: 'test-results/picker-after-refresh.png' })
+        console.log('picker after refresh:', await dialog.innerText())
       }
       await firstSource.click()
       await dialog.getByRole('button', { name: 'Показать' }).click()
