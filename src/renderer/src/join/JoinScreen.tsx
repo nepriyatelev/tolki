@@ -4,7 +4,7 @@ import Link from 'lucide-solid/icons/link'
 import Lock from 'lucide-solid/icons/lock'
 import ShieldAlert from 'lucide-solid/icons/shield-alert'
 import ShieldCheck from 'lucide-solid/icons/shield-check'
-import { createResource, createSignal, Match, Show, Switch, type JSX } from 'solid-js'
+import { createResource, createSignal, Match, onCleanup, Show, Switch, type JSX } from 'solid-js'
 import {
   inviteAddress,
   inviteErrorMessage,
@@ -18,6 +18,9 @@ import type { ErrorKind } from '../errors/error-content'
 import { describeJoinError, errorScreenFor } from './join-errors'
 import { MicCheck } from './MicCheck'
 import type { MicrophoneAccess } from './microphone'
+import { collectRoomEvents, type RemoteAudio as Voice } from '../room/call'
+import { RemoteAudio } from '../room/RemoteAudio'
+import { startCall as startRealCall, type CallHandle } from '../room/start-call'
 import './JoinScreen.css'
 
 /** Set when the screen is opened from the recent rooms list. */
@@ -36,6 +39,8 @@ export interface JoinScreenProps {
   /** Errors with their own screen (host offline, room full…). */
   onError?: (error: ErrorKind) => void
   microphone?: MicrophoneAccess
+  /** Tests replace the real call (mediasoup needs WebRTC). */
+  startCall?: typeof startRealCall
 }
 
 const plural = new Intl.PluralRules('ru-RU')
@@ -102,6 +107,7 @@ export function JoinScreen(props: JoinScreenProps): JSX.Element {
                   onError={(error) => props.onError?.(error)}
                   preview={preview.latest}
                   {...(props.microphone ? { microphone: props.microphone } : {})}
+                  {...(props.startCall ? { startCall: props.startCall } : {})}
                 />
               </>
             )}
@@ -163,6 +169,7 @@ function JoinForm(props: {
   onError: (error: ErrorKind) => void
   preview: RoomPreview | undefined
   microphone?: MicrophoneAccess
+  startCall?: typeof startRealCall
 }): JSX.Element {
   // eslint-disable-next-line solid/reactivity -- the initial value only; the user edits it
   const [name, setName] = createSignal(props.profileName)
@@ -173,6 +180,18 @@ function JoinForm(props: {
   const [micMuted, setMicMuted] = createSignal(false)
   const [nameError, setNameError] = createSignal<string | undefined>(undefined)
   const [status, setStatus] = createSignal<Status>({ kind: 'idle' })
+  const [voices, setVoices] = createSignal<Voice[]>([])
+  const [sound, setSound] = createSignal<'connecting' | 'on' | 'listen-only' | 'failed'>(
+    'connecting',
+  )
+  let call: CallHandle | null = null
+  let left = false
+  // A function, not the variable: the user may leave while the call is starting.
+  const hasLeft = (): boolean => left
+  onCleanup(() => {
+    left = true
+    call?.close()
+  })
 
   const roomNeedsPassword = () =>
     props.preview?.status === 'live' ? props.preview.room.hasPassword : true
@@ -201,12 +220,15 @@ function JoinForm(props: {
     }
     setNameError(undefined)
     setStatus({ kind: 'joining' })
+    // Subscribe before joining: the host announces who is already talking right after welcome.
+    const events = collectRoomEvents()
     const result = await window.ratatosk.room.join({
       invite: props.invite,
       name: name().trim(),
       ...(askPassword() ? { password: password() } : {}),
       ...(props.recent ? { recentId: props.recent.id } : {}),
     })
+    if (!result.ok) events.stop()
     if (!result.ok && result.error === 'WRONG_PASSWORD') setUseSaved(false)
     const screen = result.ok ? null : errorScreenFor(result.error)
     if (screen) {
@@ -215,10 +237,34 @@ function JoinForm(props: {
       return
     }
     setStatus(result.ok ? { kind: 'joined', result } : { kind: 'failed', error: result.error })
-    if (result.ok) props.onJoined()
+    if (!result.ok) return
+    props.onJoined()
+    left = false
+    setSound('connecting')
+    try {
+      const handle = await (props.startCall ?? startRealCall)({
+        routerRtpCapabilities: result.routerRtpCapabilities,
+        events,
+        muted: micMuted(),
+        onRemoteAudio: setVoices,
+      })
+      if (hasLeft()) {
+        handle.close()
+        return
+      }
+      call = handle
+      setSound(handle.sending ? 'on' : 'listen-only')
+    } catch (error) {
+      console.warn('[call] could not start:', error)
+      events.stop()
+      setSound('failed')
+    }
   }
 
   const leave = async (): Promise<void> => {
+    left = true
+    call?.close()
+    call = null
     await window.ratatosk.room.leave()
     setStatus({ kind: 'idle' })
   }
@@ -300,6 +346,23 @@ function JoinForm(props: {
             Ты в комнате «{result().room.name}». Участников вместе с тобой:{' '}
             {result().peers.length + 1}.{micMuted() ? ' Микрофон выключен.' : ''}
           </p>
+          <Switch>
+            <Match when={sound() === 'connecting'}>
+              <p class="join-sound">Подключаем звук…</p>
+            </Match>
+            <Match when={sound() === 'on'}>
+              <p class="join-sound">Звук подключён</p>
+            </Match>
+            <Match when={sound() === 'listen-only'}>
+              <p class="join-sound">Микрофон недоступен — ты только слушаешь</p>
+            </Match>
+            <Match when={sound() === 'failed'}>
+              <p class="join-sound join-sound--failed">
+                Не получилось подключить звук. Выйди и зайди снова.
+              </p>
+            </Match>
+          </Switch>
+          <RemoteAudio voices={voices()} />
           <Button variant="danger" onClick={() => void leave()}>
             Выйти
           </Button>

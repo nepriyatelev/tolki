@@ -4,12 +4,19 @@ import type { TLSSocket } from 'node:tls'
 import { WebSocket, type RawData } from 'ws'
 import { computeAuthHmac } from '@shared/auth'
 import type { Invite } from '@shared/invite'
-import type { JoinResult, RoomClosedReason, RoomPreview } from '@shared/room'
+import type {
+  JoinResult,
+  MediaResponse,
+  RoomClosedReason,
+  RoomEvent,
+  RoomPreview,
+} from '@shared/room'
 import {
   hostMessageSchema,
   parseMessage,
   PROTOCOL_VERSION,
   type ClientMessage,
+  type MediaRequest,
   type RoomInfo,
 } from '@shared/signaling'
 
@@ -19,6 +26,8 @@ export interface JoinRequest {
   /** From the link or typed by the user; ignored when the room has no password. */
   password: string | undefined
   timeoutMs?: number
+  /** How long the host may take to answer a media request. */
+  requestTimeoutMs?: number
 }
 
 export interface RoomConnection {
@@ -27,6 +36,10 @@ export interface RoomConnection {
   close(): void
   /** Called once if the room ends without close(): the host closed it or the link dropped. */
   onClosed(listener: (reason: RoomClosedReason) => void): void
+  /** A media request to the host; never throws. */
+  request(request: MediaRequest): Promise<MediaResponse>
+  /** Room events after joining; those that came before the listener are replayed to it. */
+  onEvent(listener: (event: RoomEvent) => void): void
 }
 
 /**
@@ -41,10 +54,40 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
   let leftOnPurpose = false
   let hostClosed = false
   let closedListener: ((reason: RoomClosedReason) => void) | undefined
+  let eventListener: ((event: RoomEvent) => void) | undefined
+  // Events that arrive with welcome (who is already talking) wait for the listener.
+  const earlyEvents: RoomEvent[] = []
+  const pending = new Map<number, (response: MediaResponse) => void>()
+  let nextId = 0
   socket.on('close', () => {
+    for (const answer of pending.values()) answer({ ok: false, error: 'disconnected' })
+    pending.clear()
     if (settled && !leftOnPurpose) closedListener?.(hostClosed ? 'host-closed' : 'connection-lost')
   })
   let settled = false
+
+  const sendRequest = (media: MediaRequest): Promise<MediaResponse> => {
+    if (socket.readyState !== WebSocket.OPEN) {
+      return Promise.resolve({ ok: false, error: 'disconnected' })
+    }
+    const id = nextId++
+    const message: ClientMessage = { type: 'request', id, request: media }
+    socket.send(JSON.stringify(message))
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        pending.delete(id)
+        resolve({ ok: false, error: 'timeout' })
+      }, request.requestTimeoutMs ?? 10_000)
+      pending.set(id, (response) => {
+        clearTimeout(timer)
+        resolve(
+          response.ok && media.method === 'createTransport'
+            ? { ok: true, data: pointCandidatesAt(response.data, invite.host) }
+            : response,
+        )
+      })
+    })
+  }
 
   return new Promise((resolve) => {
     let roomInfo: RoomInfo | null = null
@@ -64,6 +107,11 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
         },
         onClosed: (listener) => {
           closedListener = listener
+        },
+        request: sendRequest,
+        onEvent: (listener) => {
+          eventListener = listener
+          for (const event of earlyEvents.splice(0)) listener(event)
         },
       })
     }
@@ -111,8 +159,31 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
           finish(
             roomInfo === null
               ? { ok: false, error: 'protocol' }
-              : { ok: true, peerId: message.peerId, peers: message.peers, room: roomInfo },
+              : {
+                  ok: true,
+                  peerId: message.peerId,
+                  peers: message.peers,
+                  room: roomInfo,
+                  routerRtpCapabilities: message.routerRtpCapabilities,
+                },
           )
+          return
+        case 'response': {
+          const answer = pending.get(message.id)
+          pending.delete(message.id)
+          answer?.(
+            message.error === undefined
+              ? { ok: true, data: message.data }
+              : { ok: false, error: message.error },
+          )
+          return
+        }
+        case 'peer-joined':
+        case 'peer-left':
+        case 'new-producer':
+        case 'consumer-closed':
+          if (eventListener) eventListener(message)
+          else earlyEvents.push(message)
           return
         case 'error':
           finish({ ok: false, error: message.code })
@@ -181,6 +252,24 @@ export function probeRoom(
       finish({ status: 'offline' })
     })
   })
+}
+
+/**
+ * The host only knows its own local address; media must go where signalling went — the host
+ * from the invite (the router forwards the same port for UDP).
+ */
+export function pointCandidatesAt(data: unknown, host: string): unknown {
+  if (typeof data !== 'object' || data === null || !('iceCandidates' in data)) return data
+  const { iceCandidates } = data
+  if (!Array.isArray(iceCandidates)) return data
+  return {
+    ...data,
+    iceCandidates: iceCandidates.map((candidate: unknown) =>
+      typeof candidate === 'object' && candidate !== null
+        ? { ...candidate, ip: host, address: host }
+        : candidate,
+    ),
+  }
 }
 
 /** WSS to the host. The CA check is replaced by comparing fingerprints before sending anything. */

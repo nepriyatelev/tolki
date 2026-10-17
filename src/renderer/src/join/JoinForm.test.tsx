@@ -4,7 +4,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { buildInvite, parseInvite, type Invite } from '@shared/invite'
 import type { JoinResult } from '@shared/room'
 import { installRatatoskMock } from '../../../test/ratatosk-mock'
+import type { startCall as realStartCall } from '../room/start-call'
 import { JoinScreen } from './JoinScreen'
+
+type StartCall = typeof realStartCall
 
 const INVITE: Invite = {
   host: '203.0.113.5',
@@ -14,7 +17,7 @@ const INVITE: Invite = {
   fingerprint: '2_SqXt3l45Ay59VWqBcvcLmeh7BmqvL0m-UwbNw3EiE',
 }
 
-function setup(invite: Invite, result: JoinResult) {
+function setup(invite: Invite, result: JoinResult, startCall?: StartCall) {
   const api = installRatatoskMock({ join: () => Promise.resolve(result) })
   const onError = vi.fn()
   render(() => (
@@ -22,6 +25,7 @@ function setup(invite: Invite, result: JoinResult) {
       result={parseInvite(buildInvite(invite))}
       onBack={() => undefined}
       onError={onError}
+      startCall={startCall ?? (() => Promise.resolve({ sending: true, close: () => undefined }))}
     />
   ))
   return { api, onError, user: userEvent.setup() }
@@ -32,6 +36,7 @@ const ok: JoinResult = {
   peerId: 'me',
   peers: [{ id: '1', name: 'Дима' }],
   room: { name: 'Вечерний созвон', peerCount: 1, hasPassword: true },
+  routerRtpCapabilities: {},
 }
 
 describe('join form', () => {
@@ -147,5 +152,47 @@ describe('join form', () => {
     })
     expect(await screen.findByLabelText('Пароль комнаты')).toBeTruthy()
     expect(screen.getByText('Неверный пароль')).toBeTruthy()
+  })
+})
+
+describe('the call after joining', () => {
+  it('starts with the router capabilities and the «join muted» choice, and ends on leave', async () => {
+    const close = vi.fn()
+    const startCall = vi.fn<StartCall>(() => Promise.resolve({ sending: true, close }))
+    const { user } = setup(INVITE, ok, startCall)
+    await user.type(screen.getByLabelText('Твоё имя'), 'Алексей')
+    await user.type(screen.getByLabelText('Пароль комнаты'), 'x')
+    await user.click(screen.getByRole('checkbox', { name: 'Войти с выключенным микрофоном' }))
+    await user.click(screen.getByRole('button', { name: 'Войти в комнату' }))
+
+    expect(await screen.findByText('Звук подключён')).toBeTruthy()
+    expect(startCall).toHaveBeenCalledWith(
+      expect.objectContaining({ routerRtpCapabilities: {}, muted: true }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Выйти' }))
+    expect(close).toHaveBeenCalledOnce()
+  })
+
+  it('says when the user can only listen', async () => {
+    const { user } = setup(INVITE, ok, () =>
+      Promise.resolve({ sending: false, close: () => undefined }),
+    )
+    await user.type(screen.getByLabelText('Твоё имя'), 'Алексей')
+    await user.type(screen.getByLabelText('Пароль комнаты'), 'x')
+    await user.click(screen.getByRole('button', { name: 'Войти в комнату' }))
+
+    expect(await screen.findByText('Микрофон недоступен — ты только слушаешь')).toBeTruthy()
+  })
+
+  it('says when sound could not be connected', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { user } = setup(INVITE, ok, () => Promise.reject(new Error('no WebRTC')))
+    await user.type(screen.getByLabelText('Твоё имя'), 'Алексей')
+    await user.type(screen.getByLabelText('Пароль комнаты'), 'x')
+    await user.click(screen.getByRole('button', { name: 'Войти в комнату' }))
+
+    expect(
+      await screen.findByText('Не получилось подключить звук. Выйди и зайди снова.'),
+    ).toBeTruthy()
   })
 })

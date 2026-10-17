@@ -55,6 +55,8 @@ const api: RatatoskApi = {
     onClosed: (listener) => subscribe('room:closed', listener),
     join: (request) => invoke('room:join', request),
     leave: () => invoke('room:leave'),
+    request: (request) => invoke('room:request', request),
+    onEvent: (listener) => subscribe('room:event', listener),
   },
   recent: {
     list: () => invoke('recent:list'),

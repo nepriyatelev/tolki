@@ -244,6 +244,11 @@ registerIpcHandlers(
       const { result } = connection
       if (result.ok) {
         roomConnection = connection
+        connection.onEvent((event) => {
+          if (roomConnection === connection) {
+            BrowserWindow.getAllWindows()[0]?.webContents.send('room:event', event)
+          }
+        })
         connection.onClosed((reason) => {
           if (roomConnection !== connection) return
           roomConnection = null
@@ -268,6 +273,8 @@ registerIpcHandlers(
       leaveRoom()
       return null
     },
+    'room:request': (request) =>
+      roomConnection?.request(request) ?? Promise.resolve({ ok: false, error: 'not in a room' }),
     'room:preview': (invite) => probeRoom(invite),
     'recent:list': () => recentRooms().list(),
     'recent:probe': async () => {
