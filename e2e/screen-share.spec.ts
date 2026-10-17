@@ -93,7 +93,7 @@ test('the user picks a screen and sees what they are showing', async () => {
         .toBeGreaterThan(0)
 
       // Sent to the room (#27): two simulcast layers, H.264 or VP8, tuned for motion.
-      await expect
+      const encoded = await expect
         .poll(
           async () => (await sentVideo(page))?.layers.every((l) => l.framesEncoded > 0) ?? false,
           {
@@ -101,8 +101,13 @@ test('the user picks a screen and sees what they are showing', async () => {
           },
         )
         .toBe(true)
+        .then(
+          () => true,
+          () => false,
+        )
       const video = await sentVideo(page)
       console.log('sent video:', JSON.stringify(video))
+      expect(encoded).toBe(true)
       expect(video?.codec).toMatch(/^video\/(H264|VP8)$/)
       expect(video?.contentHint).toBe('motion')
       expect(video?.layers.map((l) => l.rid)).toEqual(['high', 'low'])
