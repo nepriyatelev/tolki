@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { HostStatus } from './host-protocol'
+import { hostPortSchema, type HostState } from './host-protocol'
 
 export interface AppInfo {
   name: string
@@ -10,14 +10,20 @@ export interface AppInfo {
 /** Renderer → main request/response channels (`ipcRenderer.invoke`). */
 export interface InvokeContract {
   'app:get-info': { args: []; result: AppInfo }
-  'host:start': { args: []; result: HostStatus }
-  'host:stop': { args: []; result: HostStatus }
-  'host:get-status': { args: []; result: HostStatus }
+  /** Never throws for expected failures: returns `stopped` with `lastError` instead. */
+  'host:start': { args: [options: HostStartRequest]; result: HostState }
+  'host:stop': { args: []; result: HostState }
+  'host:get-state': { args: []; result: HostState }
+}
+
+export interface HostStartRequest {
+  /** Defaults to DEFAULT_HOST_PORT. */
+  port?: number | undefined
 }
 
 /** Main → renderer events (`webContents.send`). */
 export interface EventContract {
-  'host:status': HostStatus
+  'host:state': HostState
 }
 
 export type InvokeChannel = keyof InvokeContract
@@ -28,9 +34,9 @@ export const invokeArgsSchemas: {
   [K in InvokeChannel]: z.ZodType<InvokeContract[K]['args']>
 } = {
   'app:get-info': z.tuple([]),
-  'host:start': z.tuple([]),
+  'host:start': z.tuple([z.strictObject({ port: hostPortSchema.optional() })]),
   'host:stop': z.tuple([]),
-  'host:get-status': z.tuple([]),
+  'host:get-state': z.tuple([]),
 }
 
 /** The API the preload script exposes to the renderer as `window.ratatosk`. */
@@ -39,10 +45,10 @@ export interface RatatoskApi {
     getInfo(): Promise<AppInfo>
   }
   host: {
-    start(): Promise<HostStatus>
-    stop(): Promise<HostStatus>
-    getStatus(): Promise<HostStatus>
+    start(options?: HostStartRequest): Promise<HostState>
+    stop(): Promise<HostState>
+    getState(): Promise<HostState>
     /** Returns an unsubscribe function. */
-    onStatus(listener: (status: HostStatus) => void): () => void
+    onState(listener: (state: HostState) => void): () => void
   }
 }

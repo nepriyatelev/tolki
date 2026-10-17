@@ -1,6 +1,7 @@
 import {
   hostToMainMessageSchema,
-  type HostStatus,
+  type HostStartFailure,
+  type HostState,
   type MainToHostMessage,
 } from '@shared/host-protocol'
 
@@ -12,53 +13,73 @@ export interface HostChild {
   kill(): boolean
 }
 
+export interface HostStartOptions {
+  port: number
+  /** Where the host keeps its certificate (Electron userData). */
+  dataDir: string
+}
+
 export interface HostProcessOptions {
   spawn: () => HostChild
   readyTimeoutMs?: number
   stopTimeoutMs?: number
 }
 
+export class HostStartError extends Error {
+  constructor(
+    readonly reason: HostStartFailure,
+    message: string,
+  ) {
+    super(message)
+    this.name = 'HostStartError'
+  }
+}
+
 /**
- * Owns the `host` utility process: starts it on demand, waits for its `ready` message,
- * and stops it gracefully (shutdown message, then kill after a timeout).
+ * Owns the `host` utility process: spawns it, asks it to start the signalling server on a port,
+ * waits for `ready`, and stops it gracefully (shutdown message, then kill after a timeout).
  */
 export class HostProcess {
-  #status: HostStatus = 'stopped'
+  #state: HostState = { status: 'stopped' }
   #child: HostChild | null = null
-  #pending: Promise<HostStatus> | null = null
-  readonly #listeners = new Set<(status: HostStatus) => void>()
+  #pending: Promise<HostState> | null = null
+  readonly #listeners = new Set<(state: HostState) => void>()
   readonly #spawn: () => HostChild
   readonly #readyTimeoutMs: number
   readonly #stopTimeoutMs: number
 
   constructor(options: HostProcessOptions) {
     this.#spawn = options.spawn
-    this.#readyTimeoutMs = options.readyTimeoutMs ?? 10_000
+    this.#readyTimeoutMs = options.readyTimeoutMs ?? 15_000
     this.#stopTimeoutMs = options.stopTimeoutMs ?? 5_000
   }
 
-  get status(): HostStatus {
-    return this.#status
+  get state(): HostState {
+    return this.#state
   }
 
-  onStatus(listener: (status: HostStatus) => void): () => void {
+  onState(listener: (state: HostState) => void): () => void {
     this.#listeners.add(listener)
     return () => this.#listeners.delete(listener)
   }
 
-  async start(): Promise<HostStatus> {
-    if (this.#pending) await this.#pending
-    if (this.#status === 'running') return this.#status
+  /** Starts the host, or returns the running one if it already listens on the same port. */
+  async start(options: HostStartOptions): Promise<HostState> {
+    if (this.#pending) await this.#pending.catch(() => undefined)
+    if (this.#state.status === 'running') {
+      if (this.#state.port === options.port) return this.#state
+      await this.stop()
+    }
 
-    this.#pending = this.#doStart().finally(() => {
+    this.#pending = this.#doStart(options).finally(() => {
       this.#pending = null
     })
     return this.#pending
   }
 
-  async stop(): Promise<HostStatus> {
+  async stop(): Promise<HostState> {
     if (this.#pending) await this.#pending.catch(() => undefined)
-    if (this.#status === 'stopped') return this.#status
+    if (this.#state.status === 'stopped') return this.#state
 
     this.#pending = this.#doStop().finally(() => {
       this.#pending = null
@@ -66,15 +87,21 @@ export class HostProcess {
     return this.#pending
   }
 
-  #doStart(): Promise<HostStatus> {
-    this.#setStatus('starting')
+  #doStart(options: HostStartOptions): Promise<HostState> {
+    this.#setState({ status: 'starting', port: options.port })
     const child = this.#spawn()
     this.#child = child
 
-    return new Promise<HostStatus>((resolve, reject) => {
+    return new Promise<HostState>((resolve, reject) => {
+      let failure: HostStartError | null = null
+
       const timer = setTimeout(() => {
+        failure = new HostStartError(
+          'timeout',
+          `host did not start within ${this.#readyTimeoutMs} ms`,
+        )
         // Reject before killing: kill() may emit 'exit' synchronously.
-        reject(new Error(`host process did not report ready within ${this.#readyTimeoutMs} ms`))
+        reject(failure)
         child.kill()
       }, this.#readyTimeoutMs)
 
@@ -83,10 +110,17 @@ export class HostProcess {
         if (!message.success) return
         switch (message.data.type) {
           case 'ready':
-            if (this.#status !== 'starting') return
+            if (this.#state.status !== 'starting') return
             clearTimeout(timer)
-            this.#setStatus('running')
-            resolve(this.#status)
+            this.#setState({
+              status: 'running',
+              port: message.data.port,
+              fingerprint: message.data.fingerprint,
+            })
+            resolve(this.#state)
+            return
+          case 'start-failed':
+            failure = new HostStartError(message.data.reason, message.data.message)
             return
           case 'fatal':
             console.error(`[host] fatal: ${message.data.message}`)
@@ -97,34 +131,40 @@ export class HostProcess {
       child.on('exit', (code) => {
         clearTimeout(timer)
         if (this.#child === child) this.#child = null
-        const wasStarting = this.#status === 'starting'
-        this.#setStatus('stopped')
-        if (wasStarting) reject(new Error(`host process exited during startup (code ${code})`))
+        if (this.#state.status === 'starting') {
+          failure ??= new HostStartError('crashed', `host exited during startup (code ${code})`)
+          this.#setState({ status: 'stopped', lastError: failure.reason })
+          reject(failure)
+        } else {
+          this.#setState({ status: 'stopped' })
+        }
       })
+
+      child.postMessage({ type: 'start', port: options.port, dataDir: options.dataDir })
     })
   }
 
-  #doStop(): Promise<HostStatus> {
+  #doStop(): Promise<HostState> {
     const child = this.#child
-    if (!child) {
-      this.#setStatus('stopped')
-      return Promise.resolve(this.#status)
+    if (!child || this.#state.status === 'stopped') {
+      this.#setState({ status: 'stopped' })
+      return Promise.resolve(this.#state)
     }
 
-    this.#setStatus('stopping')
-    return new Promise<HostStatus>((resolve) => {
+    const port = 'port' in this.#state ? this.#state.port : 0
+    this.#setState({ status: 'stopping', port })
+    return new Promise<HostState>((resolve) => {
       const timer = setTimeout(() => child.kill(), this.#stopTimeoutMs)
       child.on('exit', () => {
         clearTimeout(timer)
-        resolve(this.#status)
+        resolve(this.#state)
       })
       child.postMessage({ type: 'shutdown' })
     })
   }
 
-  #setStatus(status: HostStatus): void {
-    if (this.#status === status) return
-    this.#status = status
-    for (const listener of this.#listeners) listener(status)
+  #setState(state: HostState): void {
+    this.#state = state
+    for (const listener of this.#listeners) listener(state)
   }
 }

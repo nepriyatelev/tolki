@@ -34,10 +34,10 @@ const api: RatatoskApi = {
     getInfo: () => invoke('app:get-info'),
   },
   host: {
-    start: () => invoke('host:start'),
+    start: (options = {}) => invoke('host:start', options),
     stop: () => invoke('host:stop'),
-    getStatus: () => invoke('host:get-status'),
-    onStatus: (listener) => subscribe('host:status', listener),
+    getState: () => invoke('host:get-state'),
+    onState: (listener) => subscribe('host:state', listener),
   },
 }
 

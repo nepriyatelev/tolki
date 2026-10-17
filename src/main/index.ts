@@ -2,10 +2,15 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { app, BrowserWindow, session, utilityProcess } from 'electron'
 import { APP_NAME } from '@shared/app'
-import { HostProcess } from './host-process'
+import { DEFAULT_HOST_PORT } from '@shared/host-protocol'
+import { HostProcess, HostStartError } from './host-process'
 import { registerIpcHandlers } from './ipc'
 import { isTrustedRendererUrl } from './trusted-url'
 import { mainWindowOptions } from './window-options'
+
+// Lets e2e tests isolate the certificate and settings from the real profile.
+const userDataOverride = process.env['RATATOSK_USER_DATA']
+if (userDataOverride) app.setPath('userData', userDataOverride)
 
 const devServerUrl = app.isPackaged ? undefined : process.env['ELECTRON_RENDERER_URL']
 const rendererIndexPath = join(__dirname, '../renderer/index.html')
@@ -47,8 +52,8 @@ app.on('web-contents-created', (_event, contents) => {
   })
 })
 
-host.onStatus((status) => {
-  for (const win of BrowserWindow.getAllWindows()) win.webContents.send('host:status', status)
+host.onState((state) => {
+  for (const win of BrowserWindow.getAllWindows()) win.webContents.send('host:state', state)
 })
 
 registerIpcHandlers(
@@ -58,9 +63,19 @@ registerIpcHandlers(
       version: app.getVersion(),
       platform: process.platform,
     }),
-    'host:start': () => host.start(),
+    'host:start': async ({ port }) => {
+      try {
+        return await host.start({
+          port: port ?? DEFAULT_HOST_PORT,
+          dataDir: app.getPath('userData'),
+        })
+      } catch (error) {
+        if (error instanceof HostStartError) return host.state
+        throw error
+      }
+    },
     'host:stop': () => host.stop(),
-    'host:get-status': () => host.status,
+    'host:get-state': () => host.state,
   },
   isTrustedUrl,
 )
@@ -84,7 +99,7 @@ app.on('window-all-closed', () => {
 
 // Stop the host process before quitting so it can release ports and mappings.
 app.on('before-quit', (event) => {
-  if (host.status === 'stopped') return
+  if (host.state.status === 'stopped') return
   event.preventDefault()
   void host.stop().finally(() => {
     app.quit()
