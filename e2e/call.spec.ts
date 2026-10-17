@@ -81,6 +81,8 @@ function outputLevel(page: Page): Promise<number> {
 }
 
 test('two app instances on one machine hear each other through the host', async () => {
+  // Three apps and a whole call scenario: well past the default 30 s on a slow CI runner.
+  test.setTimeout(120_000)
   const host = await launchApp()
   try {
     const port = await freePort()
