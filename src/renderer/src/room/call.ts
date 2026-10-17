@@ -231,6 +231,9 @@ export class Call {
       track,
       encodings: screenEncodings(mode, track.getSettings().height ?? SCREEN_LAYERS.high),
       ...(codec ? { codec } : {}),
+      // Start at 1 Mbit/s instead of the browser's ~300 kbit/s: the first seconds of a shared
+      // screen should already be readable.
+      codecOptions: { videoGoogleStartBitrate: SCREEN_START_KBPS },
       stopTracks: false,
       appData: { source: 'screen' },
     })
@@ -328,6 +331,9 @@ function asTransportOptions(parameters: TransportParameters): types.TransportOpt
     dtlsParameters: parameters.dtlsParameters as unknown as types.DtlsParameters,
   }
 }
+
+/** Initial bandwidth estimate for the screen, kbit/s. */
+export const SCREEN_START_KBPS = 1000
 
 /** H.264 first (hardware encoders), VP8 when the browser cannot send H.264 to this router. */
 export function preferredScreenCodec(

@@ -272,6 +272,37 @@ describe('sending the screen (#27)', () => {
     expect(call.screenCodec).toMatch(/^video\//)
   })
 
+  it('starts the screen at 1 Mbit/s, not the browser default', async () => {
+    const device = createDevice()
+    const produced: unknown[] = []
+    const createSendTransport = device.createSendTransport.bind(device)
+    vi.spyOn(device, 'createSendTransport').mockImplementation((options) => {
+      const transport = createSendTransport(options)
+      const produce = transport.produce.bind(transport)
+      vi.spyOn(transport, 'produce').mockImplementation((args) => {
+        produced.push(args)
+        return produce(args)
+      })
+      return transport
+    })
+    const call = await Call.start({
+      routerRtpCapabilities: { ...testFakeParameters.generateRouterRtpCapabilities() },
+      events: fakeEvents().source,
+      request: fakeHost().request,
+      microphone: null,
+      muted: false,
+      onRemoteAudio: () => undefined,
+      createDevice: () => device,
+    })
+
+    await call.startScreen(fakeScreenTrack().track, 'auto')
+
+    expect(produced.at(-1)).toMatchObject({
+      codecOptions: { videoGoogleStartBitrate: 1000 },
+      appData: { source: 'screen' },
+    })
+  })
+
   it('stops: closes the producer here and on the host', async () => {
     const { call, host } = await start({ microphone: null })
     await call.startScreen(fakeScreenTrack().track, 'motion')
