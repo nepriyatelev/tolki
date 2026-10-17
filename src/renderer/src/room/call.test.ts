@@ -122,6 +122,41 @@ describe('Call', () => {
     expect(host.request.mock.calls.length).toBe(before)
   })
 
+  it('encodes the voice as mono Opus, ~40 kbit/s, with DTX and FEC', async () => {
+    const device = createDevice()
+    const produced: unknown[] = []
+    const createSendTransport = device.createSendTransport.bind(device)
+    vi.spyOn(device, 'createSendTransport').mockImplementation((options) => {
+      const transport = createSendTransport(options)
+      const produce = transport.produce.bind(transport)
+      vi.spyOn(transport, 'produce').mockImplementation((args) => {
+        produced.push(args)
+        return produce(args)
+      })
+      return transport
+    })
+
+    await Call.start({
+      routerRtpCapabilities: { ...testFakeParameters.generateRouterRtpCapabilities() },
+      events: fakeEvents().source,
+      request: fakeHost().request,
+      microphone: fakeTrack(),
+      muted: false,
+      onRemoteAudio: () => undefined,
+      createDevice: () => device,
+    })
+
+    expect(produced[0]).toMatchObject({
+      codecOptions: {
+        opusStereo: false,
+        opusDtx: true,
+        opusFec: true,
+        opusMaxAverageBitrate: 40_000,
+        opusPtime: 20,
+      },
+    })
+  })
+
   it('only listens without a microphone', async () => {
     const { call, host } = await start({ microphone: null })
 

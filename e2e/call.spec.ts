@@ -80,6 +80,39 @@ function outputLevel(page: Page): Promise<number> {
   })
 }
 
+/** Records the app's peer connections, to read what is actually negotiated and sent. */
+function tapPeerConnections(page: Page): Promise<void> {
+  return page.evaluate(() => {
+    const connections: RTCPeerConnection[] = []
+    Object.assign(window, { connections })
+    const Original = window.RTCPeerConnection
+    window.RTCPeerConnection = class extends Original {
+      constructor(config?: RTCConfiguration) {
+        super(config)
+        connections.push(this)
+      }
+    }
+  })
+}
+
+/** The sent voice: negotiated Opus parameters and the microphone's processing settings. */
+function sentVoice(page: Page): Promise<{ fmtp: string; settings: MediaTrackSettings } | null> {
+  return page.evaluate(async () => {
+    const { connections } = window as unknown as { connections: RTCPeerConnection[] }
+    for (const pc of connections) {
+      const sender = pc.getSenders().find((s) => s.track?.kind === 'audio')
+      if (!sender?.track) continue
+      const stats = [...(await sender.getStats()).values()] as {
+        type: string
+        sdpFmtpLine?: string
+      }[]
+      const codec = stats.find((s) => s.type === 'codec')
+      return { fmtp: codec?.sdpFmtpLine ?? '', settings: sender.track.getSettings() }
+    }
+    return null
+  })
+}
+
 test('two app instances on one machine hear each other through the host', async () => {
   // Three apps and a whole call scenario: well past the default 30 s on a slow CI runner.
   test.setTimeout(120_000)
@@ -102,6 +135,7 @@ test('two app instances on one machine hear each other through the host', async 
     const katya = await launchApp({ args: [FAKE_MEDIA, link] })
     try {
       await tapOutput(katya.page)
+      await tapPeerConnections(katya.page)
       await joinByUi(katya.page, 'Катя')
       const misha = await launchApp({ args: [FAKE_MEDIA, link] })
       try {
@@ -116,6 +150,20 @@ test('two app instances on one machine hear each other through the host', async 
         // The fake microphones beep: the speaking frame shows up around someone's tile.
         await expect(misha.page.locator('.call-tile--speaking').first()).toBeVisible({
           timeout: 15_000,
+        })
+
+        // The voice goes out as mono Opus, ~40 kbit/s, DTX and FEC, voice processing on (#25).
+        await expect
+          .poll(async () => (await sentVoice(katya.page))?.fmtp ?? '')
+          .toContain('usedtx=1')
+        const voice = await sentVoice(katya.page)
+        expect(voice?.fmtp).toContain('useinbandfec=1')
+        expect(voice?.fmtp).toContain('maxaveragebitrate=40000')
+        expect(voice?.fmtp).toContain('stereo=0')
+        expect(voice?.settings).toMatchObject({
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
         })
 
         // Katya's speakers get Misha's voice; at 0 % they go quiet (PLAN #23).

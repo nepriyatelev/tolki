@@ -2,11 +2,21 @@ import { sep } from 'node:path'
 import * as mediasoup from 'mediasoup'
 import type { types } from 'mediasoup'
 import type { TransportParameters } from '@shared/signaling'
+import { VOICE, VOICE_OPUS_PARAMETERS } from '@shared/voice'
 import { FORWARDED_VOICES } from './speakers'
 
-/** Codecs the room's router speaks. Video codecs join with screen sharing (M3). */
+/**
+ * Codecs the room's router speaks. Opus is always "/48000/2" in WebRTC; the voice itself is mono
+ * (stereo=0). Video codecs join with screen sharing (M3).
+ */
 const MEDIA_CODECS: types.RouterRtpCodecCapability[] = [
-  { kind: 'audio', mimeType: 'audio/opus', clockRate: 48000, channels: 2 },
+  {
+    kind: 'audio',
+    mimeType: 'audio/opus',
+    clockRate: VOICE.sampleRate,
+    channels: 2,
+    parameters: { ...VOICE_OPUS_PARAMETERS },
+  },
 ]
 
 export class MediaServerStartError extends Error {
