@@ -1,6 +1,17 @@
 import { Device, type types } from 'mediasoup-client'
 import type { MediaResponse, RoomEvent } from '@shared/room'
 import type { MediaRequest, MediaResults, TransportParameters } from '@shared/signaling'
+import { VOICE } from '@shared/voice'
+
+/** How the microphone is encoded (PLAN #25). */
+export const VOICE_CODEC_OPTIONS: types.ProducerCodecOptions = {
+  opusStereo: false,
+  opusDtx: VOICE.dtx,
+  opusFec: VOICE.fec,
+  opusMaxAverageBitrate: VOICE.maxAverageBitrate,
+  opusMaxPlaybackRate: VOICE.sampleRate,
+  opusPtime: VOICE.ptime,
+}
 
 /** A voice from someone else in the room, ready to play. */
 export interface RemoteAudio {
@@ -177,6 +188,7 @@ export class Call {
     })
     this.#producer = await transport.produce({
       track,
+      codecOptions: VOICE_CODEC_OPTIONS,
       // The microphone belongs to the caller (it also feeds the level meter).
       stopTracks: false,
       disableTrackOnPause: true,

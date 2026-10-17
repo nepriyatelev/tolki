@@ -1,3 +1,5 @@
+import { VOICE } from '@shared/voice'
+
 export interface AudioInput {
   deviceId: string
   label: string
@@ -37,10 +39,12 @@ async function listDevices(kind: MediaDeviceKind, fallback: string): Promise<Aud
     .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `${fallback} ${i + 1}` }))
 }
 
-/** Voice processing for calls (PLAN #25 keeps it on). */
+/** The microphone for a voice call (PLAN #25): mono, 48 kHz, voice processing on. */
 export function microphoneConstraints(deviceId: string): MediaTrackConstraints {
   return {
     ...(deviceId !== '' ? { deviceId: { exact: deviceId } } : {}),
+    channelCount: { ideal: VOICE.channels },
+    sampleRate: { ideal: VOICE.sampleRate },
     echoCancellation: true,
     noiseSuppression: true,
     autoGainControl: true,

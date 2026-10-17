@@ -189,7 +189,16 @@ describe('media on the host (mediasoup)', () => {
     const alice = await connect(port, 'Алиса')
 
     const welcome = await alice.next('welcome')
-    expect(JSON.stringify(welcome.routerRtpCapabilities)).toContain('audio/opus')
+    // Opus with FEC and DTX, mono (PLAN #25).
+    expect(welcome.routerRtpCapabilities).toMatchObject({
+      codecs: [
+        {
+          mimeType: 'audio/opus',
+          clockRate: 48000,
+          parameters: { useinbandfec: 1, usedtx: 1, stereo: 0 },
+        },
+      ],
+    })
 
     const transport = await alice.ok<Transport>({ method: 'createTransport', direction: 'send' })
     expect(transport.iceCandidates.map((c) => [c.protocol, c.port]).sort()).toEqual([
