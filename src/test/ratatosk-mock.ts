@@ -5,6 +5,8 @@ import type { NetworkCheckResult } from '@shared/network'
 import type { RecentRoom, RecentStatus } from '@shared/recent'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 
+export const MOCK_FINGERPRINT = '2_SqXt3l45Ay59VWqBcvcLmeh7BmqvL0m-UwbNw3EiE'
+
 export const PUBLIC_IPV4_CHECK: NetworkCheckResult = {
   checkedAt: 0,
   port: 47000,
@@ -26,6 +28,11 @@ export const PUBLIC_IPV4_CHECK: NetworkCheckResult = {
 }
 
 export interface RatatoskMock {
+  app: { copyText: Mock<RatatoskApi['app']['copyText']> }
+  host: {
+    start: Mock<RatatoskApi['host']['start']>
+    stop: Mock<RatatoskApi['host']['stop']>
+  }
   network: {
     check: Mock<RatatoskApi['network']['check']>
     measureUpload: Mock<RatatoskApi['network']['measureUpload']>
@@ -53,6 +60,7 @@ export interface RatatoskMockOptions extends Partial<RatatoskApi['network']> {
   recentRooms?: RecentRoom[]
   recentStatuses?: Record<string, RecentStatus>
   profileName?: string
+  hostStart?: RatatoskApi['host']['start']
 }
 
 /** Installs a fake preload bridge on window for renderer tests. */
@@ -64,12 +72,23 @@ export function installRatatoskMock(options: RatatoskMockOptions = {}): Ratatosk
       getInfo: vi.fn(() =>
         Promise.resolve({ name: 'Ratatosk', version: '0.0.0', platform: 'test' }),
       ),
+      copyText: vi.fn<RatatoskApi['app']['copyText']>(() => Promise.resolve(null)),
     },
     host: {
-      start: vi.fn(),
-      stop: vi.fn(),
+      start: vi.fn<RatatoskApi['host']['start']>(
+        options.hostStart ??
+          (() =>
+            Promise.resolve({
+              status: 'running',
+              port: 47000,
+              fingerprint: MOCK_FINGERPRINT,
+              portMapping: { status: 'pending' },
+            })),
+      ),
+      stop: vi.fn<RatatoskApi['host']['stop']>(() => Promise.resolve({ status: 'stopped' })),
       getState: vi.fn(() => Promise.resolve({ status: 'stopped' as const })),
       onState: vi.fn(() => () => undefined),
+      getFingerprint: vi.fn(() => Promise.resolve(MOCK_FINGERPRINT)),
     },
     network: {
       check: vi.fn<RatatoskApi['network']['check']>(

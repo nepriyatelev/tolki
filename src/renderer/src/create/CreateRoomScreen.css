@@ -1,0 +1,192 @@
+.create {
+  flex: 1;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-8) var(--space-12);
+}
+
+.create-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.create-title h1 {
+  font-size: var(--text-xl);
+  font-weight: 600;
+}
+
+.create-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.create-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.create-password {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-3);
+  align-items: start;
+}
+
+/* The button lines up with the input, below the field label. */
+.create-password > .rt-button {
+  margin-top: calc(var(--text-md) * 1.45 + var(--space-2));
+}
+
+.create-advanced {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.create-advanced summary {
+  margin-bottom: var(--space-4);
+  cursor: pointer;
+  font-size: var(--text-md);
+}
+
+.create-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.network-card h2,
+.link-card h2 {
+  margin-bottom: var(--space-4);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.network-card-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-md);
+}
+
+.network-card-items li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.check-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+}
+
+.check-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.check-icon--ok {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.check-icon--bad {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+}
+
+.check-icon--neutral {
+  background: var(--color-chip);
+  color: var(--color-text-muted);
+}
+
+.network-card-upload {
+  margin-bottom: var(--space-3);
+  font-size: var(--text-md);
+  color: var(--color-text-soft);
+}
+
+.network-card-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-accent-selected);
+  color: var(--color-accent-soft-text);
+  font-size: var(--text-md);
+}
+
+.network-card-summary--bad {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+}
+
+.network-card-retry {
+  margin-top: var(--space-2);
+  padding: var(--space-1) 0;
+  background: none;
+  border: 0;
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.network-card-muted,
+.link-card-muted {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.link-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.link-card h2 {
+  margin-bottom: var(--space-1);
+}
+
+.link-card-link {
+  display: block;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.create-error {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+  font-size: var(--text-md);
+}
+
+.create-open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  font-size: var(--text-md);
+}
