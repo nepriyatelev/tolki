@@ -41,7 +41,7 @@ test('a joined room shows up in recent rooms with its live status and saved pass
     await page.getByLabel('Твоё имя').fill('Алексей')
     await page.getByLabel('Пароль комнаты').fill('лиса-маяк-42')
     await page.getByRole('button', { name: 'Войти в комнату' }).click()
-    await expect(page.getByText(/Ты в комнате «Вечерний созвон»/)).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Вечерний созвон' })).toBeVisible()
     await page.getByRole('button', { name: 'Выйти' }).click()
     await page.getByRole('button', { name: 'Отмена' }).click()
 
@@ -66,7 +66,7 @@ test('a joined room shows up in recent rooms with its live status and saved pass
       await page.getByLabel('Пароль комнаты').fill('лиса-маяк-42')
     }
     await page.getByRole('button', { name: 'Войти в комнату' }).click()
-    await expect(page.getByText(/Ты в комнате «Вечерний созвон»/)).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Вечерний созвон' })).toBeVisible()
     await page.getByRole('button', { name: 'Выйти' }).click()
     await page.getByRole('button', { name: 'Отмена' }).click()
 

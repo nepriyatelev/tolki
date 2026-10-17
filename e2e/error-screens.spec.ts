@@ -53,7 +53,7 @@ test('when the host closes the room, the guest sees «Хост закрыл ко
       const page = client.page
       await page.getByLabel('Твоё имя').fill('Катя')
       await page.getByRole('button', { name: 'Войти в комнату' }).click()
-      await expect(page.getByText(/Ты в комнате «Кино»/)).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Кино' })).toBeVisible()
 
       await host.page.evaluate(() => window.ratatosk.host.stop())
 

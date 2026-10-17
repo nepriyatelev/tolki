@@ -75,6 +75,11 @@ test('two app instances on one machine hear each other through the host', async 
           await expect.poll(() => heardLevel(page), { timeout: 15_000 }).toBeGreaterThan(0.01)
         }
 
+        // The fake microphones beep: the speaking frame shows up around someone's tile.
+        await expect(misha.page.locator('.call-tile--speaking').first()).toBeVisible({
+          timeout: 15_000,
+        })
+
         // Misha leaves: Katya stops playing his voice.
         await misha.page.getByRole('button', { name: 'Выйти' }).click()
         await expect(katya.page.locator('audio[data-peer-id]')).toHaveCount(0)

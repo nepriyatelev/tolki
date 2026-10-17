@@ -182,6 +182,7 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
         case 'peer-left':
         case 'new-producer':
         case 'consumer-closed':
+        case 'active-speakers':
           if (eventListener) eventListener(message)
           else earlyEvents.push(message)
           return

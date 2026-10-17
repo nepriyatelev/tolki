@@ -43,7 +43,7 @@ export interface RoomClosedEvent {
 /** What happens in a joined room: people come and go, voices start and stop. */
 export type RoomEvent = Extract<
   HostMessage,
-  { type: 'peer-joined' | 'peer-left' | 'new-producer' | 'consumer-closed' }
+  { type: 'peer-joined' | 'peer-left' | 'new-producer' | 'consumer-closed' | 'active-speakers' }
 >
 
 /** The host's answer to a media request. */

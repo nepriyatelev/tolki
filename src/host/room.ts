@@ -15,6 +15,7 @@ import {
 import { AttemptLimiter } from './attempt-limiter'
 import type { MediaServer, MediaTransport } from './media-server'
 import { PeerMedia } from './peer-media'
+import { SpeakerSelector } from './speakers'
 
 export interface RoomConfig {
   name: string
@@ -49,6 +50,10 @@ export class Room {
   readonly #handshakeTimeoutMs: number
   readonly #media: MediaServer | undefined
   readonly #maxPeers: number
+  readonly #speakers = new SpeakerSelector()
+  /** Audio producer → the participant whose voice it is. */
+  readonly #voiceOwner = new Map<string, string>()
+  #speaking: string[] = []
 
   constructor(
     private readonly config: RoomConfig,
@@ -58,6 +63,20 @@ export class Room {
     this.#handshakeTimeoutMs = options.handshakeTimeoutMs ?? 10_000
     this.#media = options.media
     this.#maxPeers = options.maxPeers ?? MAX_PARTICIPANTS
+    const levels = this.#media?.audioLevels
+    levels?.on('volumes', (volumes) => {
+      const loudest = volumes.map((v) => v.producer.id)
+      if (this.#speakers.heard(loudest)) this.#refreshForwarding()
+      this.#setSpeaking(
+        loudest.flatMap((id) => {
+          const owner = this.#voiceOwner.get(id)
+          return owner === undefined ? [] : [owner]
+        }),
+      )
+    })
+    levels?.on('silence', () => {
+      this.#setSpeaking([])
+    })
   }
 
   get peers(): Peer[] {
@@ -168,6 +187,7 @@ export class Room {
     const media = this.#media
       ? new PeerMedia(this.#media, {
           onProducer: (producer) => {
+            if (producer.kind === 'audio') this.#addVoice(producer, peer.id)
             this.#broadcast(
               {
                 type: 'new-producer',
@@ -182,6 +202,7 @@ export class Room {
           onConsumerClosed: (consumerId) => {
             send({ type: 'consumer-closed', consumerId })
           },
+          isForwarded: (producerId) => this.#speakers.forwarded.has(producerId),
         })
       : null
     const others = [...this.#peers.values()]
@@ -215,6 +236,36 @@ export class Room {
       // mediasoup's own messages (bad parameters) are fine to pass on; nothing secret in them.
       return { type: 'response', id, error: error instanceof Error ? error.message : 'failed' }
     }
+  }
+
+  #addVoice(producer: types.Producer, peerId: string): void {
+    this.#voiceOwner.set(producer.id, peerId)
+    void this.#media?.audioLevels.addProducer({ producerId: producer.id }).catch(() => undefined)
+    if (this.#speakers.add(producer.id)) this.#refreshForwarding()
+    producer.observer.on('close', () => {
+      this.#voiceOwner.delete(producer.id)
+      if (this.#speakers.remove(producer.id)) this.#refreshForwarding()
+      this.#setSpeaking(this.#speaking.filter((id) => id !== peerId))
+    })
+  }
+
+  /** Each participant gets only the forwarded voices (at most three, PLAN §2). */
+  #refreshForwarding(): void {
+    for (const member of this.#peers.values()) {
+      void member.media?.refresh().catch((error: unknown) => {
+        console.warn('[host] could not update forwarded voices:', error)
+      })
+    }
+  }
+
+  /** Tells everyone who is speaking, when that changes. */
+  #setSpeaking(peerIds: string[]): void {
+    const unique = [...new Set(peerIds)]
+    const same =
+      unique.length === this.#speaking.length && unique.every((id) => this.#speaking.includes(id))
+    if (same) return
+    this.#speaking = unique
+    this.#broadcast({ type: 'active-speakers', peerIds: unique })
   }
 
   #findProducer(id: string): types.Producer | undefined {

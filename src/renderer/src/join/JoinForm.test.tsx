@@ -1,4 +1,4 @@
-import { render, screen } from '@solidjs/testing-library'
+import { render, screen, within } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { buildInvite, parseInvite, type Invite } from '@shared/invite'
@@ -52,9 +52,13 @@ describe('join form', () => {
       name: 'Алексей',
       password: 'лиса-маяк-42',
     })
+    expect(await screen.findByRole('heading', { name: 'Вечерний созвон' })).toBeTruthy()
+    const tiles = screen.getByRole('list', { name: 'Участники' })
     expect(
-      await screen.findByText('Ты в комнате «Вечерний созвон». Участников вместе с тобой: 2.'),
-    ).toBeTruthy()
+      within(tiles)
+        .getAllByRole('listitem')
+        .map((t) => t.getAttribute('aria-label')),
+    ).toEqual(['Дима', 'Алексей (ты)'])
   })
 
   it('does not ask for a password embedded in the link', async () => {
