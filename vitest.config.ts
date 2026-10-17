@@ -6,6 +6,16 @@ const alias = { '@shared': resolve(__dirname, 'src/shared') }
 
 export default defineConfig({
   test: {
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['**/*.test.{ts,tsx}', 'src/test/**', '**/*.d.ts'],
+      reporter: ['text-summary'],
+      thresholds: {
+        // PLAN #11: the invite parser guards what we connect to; every branch is tested.
+        'src/shared/invite.ts': { lines: 100, branches: 100, functions: 100, statements: 100 },
+      },
+    },
     projects: [
       {
         // Renderer: Solid components in jsdom, browser builds of dependencies.
