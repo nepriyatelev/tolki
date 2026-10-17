@@ -9,7 +9,7 @@ import { AttemptLimiter, normalizeAddress } from '../host/attempt-limiter'
 import { loadOrCreateCertificate, type HostCertificate } from '../host/certificate'
 import { Room } from '../host/room'
 import { startSignalingServer, type SignalingServer } from '../host/server'
-import { joinRoom, type RoomConnection } from './room-client'
+import { joinRoom, probeRoom, type RoomConnection } from './room-client'
 
 // Real host (TLS server + Room) and real client, over loopback.
 
@@ -222,5 +222,31 @@ describe('host protocol checks', () => {
     const received = await rawClient(invite, [])
 
     expect(received).toEqual([])
+  })
+})
+
+describe('probeRoom (recent rooms status)', () => {
+  it('reports a running room with the number of people, without joining', async () => {
+    const invite = await startHost('secret')
+    await enter(invite, 'Дима', 'secret')
+
+    expect(await probeRoom(invite)).toEqual({ status: 'live', peerCount: 1 })
+    expect(room.peers.map((p) => p.name)).toEqual(['Дима'])
+  })
+
+  it('reports an offline host', async () => {
+    const invite = await startHost('')
+
+    expect(await probeRoom({ ...invite, port: await freePort() }, 1000)).toEqual({
+      status: 'offline',
+    })
+  })
+
+  it('reports a changed certificate and sends nothing', async () => {
+    const invite = await startHost('')
+
+    expect(await probeRoom({ ...invite, fingerprint: 'A'.repeat(42) + 'E' })).toEqual({
+      status: 'certificate-changed',
+    })
   })
 })

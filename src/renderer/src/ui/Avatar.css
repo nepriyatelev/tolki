@@ -39,6 +39,10 @@
   font-size: 34px;
 }
 
+.rt-avatar--square {
+  border-radius: var(--radius-sm);
+}
+
 .rt-avatar--speaking {
   box-shadow: 0 0 0 2px var(--color-accent);
 }

@@ -51,6 +51,11 @@ const api: RatatoskApi = {
     join: (request) => invoke('room:join', request),
     leave: () => invoke('room:leave'),
   },
+  recent: {
+    list: () => invoke('recent:list'),
+    probe: () => invoke('recent:probe'),
+    remove: (id) => invoke('recent:remove', id),
+  },
   invite: {
     takePending: () => invoke('invite:take-pending'),
     onOpened: (listener) => subscribe('invite:opened', listener),

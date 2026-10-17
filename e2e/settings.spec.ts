@@ -6,12 +6,13 @@ test('settings default to the speed test being on and survive a restart', async 
   try {
     expect(await first.page.evaluate(() => window.ratatosk.settings.get())).toEqual({
       speedTest: { enabled: true },
+      profile: { name: '' },
     })
     expect(
       await first.page.evaluate(() =>
         window.ratatosk.settings.update({ speedTest: { enabled: false } }),
       ),
-    ).toEqual({ speedTest: { enabled: false } })
+    ).toEqual({ speedTest: { enabled: false }, profile: { name: '' } })
   } finally {
     await first.app.close()
   }
@@ -20,6 +21,7 @@ test('settings default to the speed test being on and survive a restart', async 
   try {
     expect(await second.page.evaluate(() => window.ratatosk.settings.get())).toEqual({
       speedTest: { enabled: false },
+      profile: { name: '' },
     })
   } finally {
     await second.app.close()

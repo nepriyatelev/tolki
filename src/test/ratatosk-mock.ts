@@ -2,6 +2,7 @@ import { vi, type Mock } from 'vitest'
 import type { InviteParseResult } from '@shared/invite'
 import type { RatatoskApi } from '@shared/ipc'
 import type { NetworkCheckResult } from '@shared/network'
+import type { RecentRoom, RecentStatus } from '@shared/recent'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 
 export const PUBLIC_IPV4_CHECK: NetworkCheckResult = {
@@ -29,6 +30,11 @@ export interface RatatoskMock {
     check: Mock<RatatoskApi['network']['check']>
     measureUpload: Mock<RatatoskApi['network']['measureUpload']>
   }
+  recent: {
+    list: Mock<RatatoskApi['recent']['list']>
+    probe: Mock<RatatoskApi['recent']['probe']>
+    remove: Mock<RatatoskApi['recent']['remove']>
+  }
   room: {
     join: Mock<RatatoskApi['room']['join']>
     leave: Mock<RatatoskApi['room']['leave']>
@@ -44,11 +50,15 @@ export interface RatatoskMockOptions extends Partial<RatatoskApi['network']> {
   /** A link that "started the app". */
   pendingInvite?: InviteParseResult
   join?: RatatoskApi['room']['join']
+  recentRooms?: RecentRoom[]
+  recentStatuses?: Record<string, RecentStatus>
+  profileName?: string
 }
 
 /** Installs a fake preload bridge on window for renderer tests. */
 export function installRatatoskMock(options: RatatoskMockOptions = {}): RatatoskMock {
   const inviteListeners = new Set<(result: InviteParseResult) => void>()
+  let recent = options.recentRooms ?? []
   const api = {
     app: {
       getInfo: vi.fn(() =>
@@ -69,8 +79,20 @@ export function installRatatoskMock(options: RatatoskMockOptions = {}): Ratatosk
         options.measureUpload ?? (() => Promise.resolve({ status: 'disabled' })),
       ),
     },
+    recent: {
+      list: vi.fn<RatatoskApi['recent']['list']>(() => Promise.resolve(recent)),
+      probe: vi.fn<RatatoskApi['recent']['probe']>(() =>
+        Promise.resolve(options.recentStatuses ?? {}),
+      ),
+      remove: vi.fn<RatatoskApi['recent']['remove']>((id) => {
+        recent = recent.filter((r) => r.id !== id)
+        return Promise.resolve(recent)
+      }),
+    },
     settings: {
-      get: vi.fn(() => Promise.resolve(DEFAULT_SETTINGS)),
+      get: vi.fn(() =>
+        Promise.resolve({ ...DEFAULT_SETTINGS, profile: { name: options.profileName ?? '' } }),
+      ),
       update: vi.fn(() => Promise.resolve(DEFAULT_SETTINGS)),
     },
     room: {

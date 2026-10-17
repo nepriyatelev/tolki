@@ -30,6 +30,7 @@ export class SettingsStore {
       ...(patch.speedTest
         ? { speedTest: { ...this.#settings.speedTest, ...patch.speedTest } }
         : {}),
+      ...(patch.profile ? { profile: { ...this.#settings.profile, ...patch.profile } } : {}),
     }
     this.backend.write(this.#settings)
     return this.get()
