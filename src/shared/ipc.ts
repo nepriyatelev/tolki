@@ -1,7 +1,9 @@
 import { z } from 'zod'
 import { hostPortSchema, type HostState } from './host-protocol'
-import type { InviteParseResult } from './invite'
+import type { Invite, InviteParseResult } from './invite'
 import type { NetworkCheckResult } from './network'
+import type { JoinResult } from './room'
+import { peerNameSchema } from './signaling'
 import { settingsPatchSchema, type Settings, type SettingsPatch } from './settings'
 import type { UploadMeasurement } from './upload-capacity'
 
@@ -26,6 +28,16 @@ export interface InvokeContract {
   'settings:update': { args: [patch: SettingsPatch]; result: Settings }
   /** An invite link that arrived before the renderer was ready, if any. */
   'invite:take-pending': { args: []; result: InviteParseResult | null }
+  /** Connect to a host and authenticate; replaces any current connection. */
+  'room:join': { args: [request: JoinRoomRequest]; result: JoinResult }
+  'room:leave': { args: []; result: null }
+}
+
+export interface JoinRoomRequest {
+  invite: Invite
+  name: string
+  /** Typed by the user; the invite's embedded password is used when this is absent. */
+  password?: string | undefined
 }
 
 export interface NetworkCheckRequest {
@@ -37,6 +49,9 @@ export interface HostStartRequest {
   port?: number | undefined
   /** Ask the router to forward the port (PCP / NAT-PMP / UPnP). Defaults to true. */
   portMapping?: boolean | undefined
+  roomName?: string | undefined
+  /** Empty or absent: no password. */
+  password?: string | undefined
 }
 
 /** Main → renderer events (`webContents.send`). */
@@ -55,7 +70,12 @@ export const invokeArgsSchemas: {
 } = {
   'app:get-info': z.tuple([]),
   'host:start': z.tuple([
-    z.strictObject({ port: hostPortSchema.optional(), portMapping: z.boolean().optional() }),
+    z.strictObject({
+      port: hostPortSchema.optional(),
+      portMapping: z.boolean().optional(),
+      roomName: z.string().trim().min(1).max(64).optional(),
+      password: z.string().max(128).optional(),
+    }),
   ]),
   'host:stop': z.tuple([]),
   'host:get-state': z.tuple([]),
@@ -64,6 +84,21 @@ export const invokeArgsSchemas: {
   'settings:get': z.tuple([]),
   'settings:update': z.tuple([settingsPatchSchema]),
   'invite:take-pending': z.tuple([]),
+  'room:join': z.tuple([
+    z.strictObject({
+      invite: z.strictObject({
+        host: z.string(),
+        hostKind: z.enum(['ipv4', 'ipv6', 'dns']),
+        port: z.number().int(),
+        roomId: z.string(),
+        fingerprint: z.string(),
+        password: z.string().optional(),
+      }),
+      name: peerNameSchema,
+      password: z.string().max(128).optional(),
+    }),
+  ]),
+  'room:leave': z.tuple([]),
 }
 
 /** The API the preload script exposes to the renderer as `window.ratatosk`. */
@@ -85,6 +120,10 @@ export interface RatatoskApi {
   settings: {
     get(): Promise<Settings>
     update(patch: SettingsPatch): Promise<Settings>
+  }
+  room: {
+    join(request: JoinRoomRequest): Promise<JoinResult>
+    leave(): Promise<null>
   }
   invite: {
     takePending(): Promise<InviteParseResult | null>

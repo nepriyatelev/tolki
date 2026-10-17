@@ -3,7 +3,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { HostState, MainToHostMessage } from '@shared/host-protocol'
 import { HostProcess, HostStartError, type HostChild } from './host-process'
 
-const OPTIONS = { port: 47000, dataDir: '/tmp/ratatosk', portMapping: true }
+const OPTIONS = {
+  port: 47000,
+  dataDir: '/tmp/ratatosk',
+  portMapping: true,
+  roomName: 'Комната',
+  password: '',
+}
 const FINGERPRINT = 'x'.repeat(43)
 
 class FakeChild extends EventEmitter implements HostChild {
@@ -64,7 +70,14 @@ describe('HostProcess', () => {
     const started = host.start(OPTIONS)
     expect(host.state).toEqual({ status: 'starting', port: 47000 })
     expect(children[0]?.sent).toEqual([
-      { type: 'start', port: 47000, dataDir: '/tmp/ratatosk', portMapping: true },
+      {
+        type: 'start',
+        port: 47000,
+        dataDir: '/tmp/ratatosk',
+        portMapping: true,
+        roomName: 'Комната',
+        password: '',
+      },
     ])
     children[0]?.ready()
 

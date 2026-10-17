@@ -29,6 +29,10 @@ export interface RatatoskMock {
     check: Mock<RatatoskApi['network']['check']>
     measureUpload: Mock<RatatoskApi['network']['measureUpload']>
   }
+  room: {
+    join: Mock<RatatoskApi['room']['join']>
+    leave: Mock<RatatoskApi['room']['leave']>
+  }
   invite: {
     takePending: Mock<RatatoskApi['invite']['takePending']>
     /** Simulates main delivering a link while the app is open. */
@@ -39,6 +43,7 @@ export interface RatatoskMock {
 export interface RatatoskMockOptions extends Partial<RatatoskApi['network']> {
   /** A link that "started the app". */
   pendingInvite?: InviteParseResult
+  join?: RatatoskApi['room']['join']
 }
 
 /** Installs a fake preload bridge on window for renderer tests. */
@@ -67,6 +72,19 @@ export function installRatatoskMock(options: RatatoskMockOptions = {}): Ratatosk
     settings: {
       get: vi.fn(() => Promise.resolve(DEFAULT_SETTINGS)),
       update: vi.fn(() => Promise.resolve(DEFAULT_SETTINGS)),
+    },
+    room: {
+      join: vi.fn<RatatoskApi['room']['join']>(
+        options.join ??
+          (() =>
+            Promise.resolve({
+              ok: true,
+              peerId: 'me',
+              peers: [],
+              room: { name: 'Комната', peerCount: 0, hasPassword: false },
+            })),
+      ),
+      leave: vi.fn<RatatoskApi['room']['leave']>(() => Promise.resolve(null)),
     },
     invite: {
       takePending: vi.fn<RatatoskApi['invite']['takePending']>(() =>
