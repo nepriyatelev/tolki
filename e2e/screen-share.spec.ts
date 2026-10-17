@@ -193,16 +193,20 @@ test('others see the shared screen at a layer that fits, and nothing while minim
         .toBeLessThanOrEqual(360)
       console.log('small window:', JSON.stringify(await receivedVideo(misha.page)))
 
-      // Minimized: nothing arrives; restored: frames again.
+      // Hidden (minimized or another window on top): nothing arrives; shown again: frames again.
+      // Hiding, not minimizing: a virtual display without a window manager cannot minimize.
       await misha.app.evaluate(({ BrowserWindow }) => {
-        BrowserWindow.getAllWindows()[0]?.minimize()
+        BrowserWindow.getAllWindows()[0]?.hide()
       })
+      await expect
+        .poll(() => misha.page.evaluate(() => document.visibilityState), { timeout: 10_000 })
+        .toBe('hidden')
       await misha.page.waitForTimeout(1500)
       const pausedAt = (await receivedVideo(misha.page))?.framesDecoded ?? 0
       await misha.page.waitForTimeout(2000)
       expect((await receivedVideo(misha.page))?.framesDecoded ?? 0).toBe(pausedAt)
       await misha.app.evaluate(({ BrowserWindow }) => {
-        BrowserWindow.getAllWindows()[0]?.restore()
+        BrowserWindow.getAllWindows()[0]?.show()
       })
       await expect
         .poll(async () => (await receivedVideo(misha.page))?.framesDecoded ?? 0, {
