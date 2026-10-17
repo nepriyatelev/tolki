@@ -1,8 +1,11 @@
+import { createSocket } from 'node:dgram'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { createServer, type AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import * as mediasoup from 'mediasoup'
+import type { types } from 'mediasoup'
 import { WebSocket } from 'ws'
 import type { HostMessage, MediaRequest } from '@shared/signaling'
 import { loadOrCreateCertificate, type HostCertificate } from './certificate'
@@ -35,18 +38,31 @@ afterEach(async () => {
   media = null
 })
 
+/** A port free for both TCP and UDP (a closed worker may still hold its UDP port briefly). */
 async function freePort(): Promise<number> {
-  const probe = createServer()
-  await new Promise<void>((resolve) => {
-    probe.listen(0, resolve)
-  })
-  const { port } = probe.address() as AddressInfo
-  await new Promise<void>((resolve) => {
-    probe.close(() => {
-      resolve()
+  for (;;) {
+    const probe = createServer()
+    await new Promise<void>((resolve) => {
+      probe.listen(0, resolve)
     })
-  })
-  return port
+    const { port } = probe.address() as AddressInfo
+    await new Promise<void>((resolve) => {
+      probe.close(() => {
+        resolve()
+      })
+    })
+    const udp = createSocket('udp6')
+    const free = await new Promise<boolean>((resolve) => {
+      udp.once('error', () => {
+        resolve(false)
+      })
+      udp.bind(port, () => {
+        resolve(true)
+      })
+    })
+    udp.close()
+    if (free) return port
+  }
 }
 
 async function startRoom(options: { media?: boolean; maxPeers?: number } = {}) {
@@ -280,6 +296,63 @@ describe('media on the host (mediasoup)', () => {
       constructor: MediaServerStartError,
       reason: 'port-in-use',
     })
+  })
+})
+
+describe('forwarding only the loudest voices (#21)', () => {
+  /** Every consumer the host creates, to look at what it actually forwards. */
+  function watchConsumers(): types.Consumer[] {
+    const consumers: types.Consumer[] = []
+    mediasoup.observer.once('newworker', (worker) => {
+      worker.observer.on('newrouter', (router) => {
+        router.observer.on('newtransport', (transport) => {
+          transport.observer.on('newconsumer', (consumer) => consumers.push(consumer))
+        })
+      })
+    })
+    return consumers
+  }
+
+  it('with 15 people talking, each receives at most 3 voices at once', async () => {
+    const consumers = watchConsumers()
+    const { port } = await startRoom()
+    const people: { client: Client; producerId: string; caps: Record<string, unknown> }[] = []
+    for (let i = 0; i < 15; i++) {
+      const client = await connect(port, `Гость ${i}`)
+      const { routerRtpCapabilities: caps } = await client.next('welcome')
+      const { producer } = await startSending(client)
+      people.push({ client, producerId: producer.id, caps })
+    }
+
+    const received = new Map<Client, string[]>()
+    for (const { client, caps } of people) {
+      const recv = await client.ok<Transport>({ method: 'createTransport', direction: 'recv' })
+      const ids: string[] = []
+      for (const other of people) {
+        if (other.client === client) continue
+        const consumer = await client.ok<{ id: string }>({
+          method: 'consume',
+          transportId: recv.id,
+          producerId: other.producerId,
+          rtpCapabilities: caps,
+        })
+        await client.ok({ method: 'resumeConsumer', consumerId: consumer.id })
+        ids.push(consumer.id)
+      }
+      received.set(client, ids)
+    }
+
+    const running = (client: Client) =>
+      consumers.filter((c) => received.get(client)?.includes(c.id) && !c.paused).length
+    expect(consumers).toHaveLength(15 * 14)
+    for (const { client } of people) expect(running(client)).toBeLessThanOrEqual(3)
+
+    // A forwarded voice leaves: its slot goes to someone else, still three at most.
+    const listener = people[14]?.client
+    if (!listener) throw new Error('no listener')
+    expect(running(listener)).toBe(3)
+    people[0]?.client.socket.close()
+    await expect.poll(() => running(listener)).toBe(3)
   })
 })
 

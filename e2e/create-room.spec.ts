@@ -57,9 +57,10 @@ test('a room is created and opened from the UI, and a friend can join it', async
       await friend.page.getByLabel('Твоё имя').fill('Катя')
       await friend.page.getByLabel('Пароль комнаты').fill(password)
       await friend.page.getByRole('button', { name: 'Войти в комнату' }).click()
+      await expect(friend.page.getByRole('heading', { name: 'Вечерний созвон' })).toBeVisible()
       await expect(
-        friend.page.getByText('Ты в комнате «Вечерний созвон». Участников вместе с тобой: 2.'),
-      ).toBeVisible()
+        friend.page.getByRole('list', { name: 'Участники' }).getByRole('listitem'),
+      ).toHaveCount(2)
     } finally {
       await friend.app.close()
     }

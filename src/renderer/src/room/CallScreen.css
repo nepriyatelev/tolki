@@ -1,0 +1,103 @@
+.call {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-6);
+}
+
+.call-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+}
+
+.call-header h1 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.call-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  align-content: start;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.call-tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 220px;
+  border: 2px solid var(--color-surface);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  transition:
+    border-color 150ms ease-out,
+    box-shadow 150ms ease-out;
+}
+
+/* The speaking frame from mockup 4. */
+.call-tile--speaking {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 4px rgb(127 209 174 / 15%);
+}
+
+.call-tile-name {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 30px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  background: rgb(17 19 21 / 80%);
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+
+.call-tile-you {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.call-tile-muted {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+}
+
+.call-tile-muted svg {
+  width: 16px;
+  height: 16px;
+}
+
+.call-sound {
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.call-sound--failed {
+  color: var(--color-danger-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .call-tile {
+    transition: none;
+  }
+}

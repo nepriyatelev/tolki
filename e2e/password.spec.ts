@@ -48,9 +48,10 @@ test('a wrong password is reported, the right one lets the user in', async () =>
 
       await page.getByLabel('Пароль комнаты').fill('лиса-маяк-42')
       await page.getByRole('button', { name: 'Войти в комнату' }).click()
-      await expect(
-        page.getByText('Ты в комнате «Тест». Участников вместе с тобой: 1.'),
-      ).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Тест' })).toBeVisible()
+      await expect(page.getByRole('list', { name: 'Участники' }).getByRole('listitem')).toHaveCount(
+        1,
+      )
     } finally {
       await client.app.close()
     }

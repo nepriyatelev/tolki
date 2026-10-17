@@ -77,11 +77,9 @@ test('the join screen previews the room, checks the microphone and joins muted',
     await page.getByLabel('Пароль комнаты').fill('secret')
     await page.getByRole('checkbox', { name: 'Войти с выключенным микрофоном' }).check()
     await page.getByRole('button', { name: 'Войти в комнату' }).click()
-    await expect(
-      page.getByText(
-        'Ты в комнате «Кино по пятницам». Участников вместе с тобой: 2. Микрофон выключен.',
-      ),
-    ).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Кино по пятницам' })).toBeVisible()
+    await expect(page.getByRole('list', { name: 'Участники' }).getByRole('listitem')).toHaveCount(2)
+    await expect(page.getByRole('img', { name: 'Микрофон выключен' })).toBeVisible()
   } finally {
     await client.app.close()
     await host.app.close()

@@ -141,6 +141,8 @@ export const hostMessageSchema = z.discriminatedUnion('type', [
     producerId: z.string(),
     kind: z.enum(['audio', 'video']),
   }),
+  /** Who is speaking now (loud enough), for the frame around their tile; empty in silence. */
+  z.object({ type: z.literal('active-speakers'), peerIds: z.array(z.string()).max(16) }),
   /** The producer behind this consumer is gone. */
   z.object({ type: z.literal('consumer-closed'), consumerId: z.string() }),
   /** The host closes the room on purpose (as opposed to the connection dropping). */

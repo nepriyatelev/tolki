@@ -19,6 +19,8 @@ export interface PeerMediaEvents {
   findProducer: (producerId: string) => types.Producer | undefined
   /** A consumer ended because its producer did. */
   onConsumerClosed: (consumerId: string) => void
+  /** Whether the host forwards this voice now (the three loudest, #21). */
+  isForwarded: (producerId: string) => boolean
 }
 
 /** A participant's transports, producers and consumers on the host's router. */
@@ -26,6 +28,8 @@ export class PeerMedia {
   readonly #transports = new Map<string, MediaTransport>()
   readonly #producers = new Map<string, types.Producer>()
   readonly #consumers = new Map<string, types.Consumer>()
+  /** Consumers the client asked to resume: its side is ready to play. */
+  readonly #ready = new Set<string>()
 
   constructor(
     private readonly server: MediaServer,
@@ -93,7 +97,10 @@ export class PeerMedia {
           paused: true,
         })
         this.#consumers.set(consumer.id, consumer)
-        consumer.observer.on('close', () => this.#consumers.delete(consumer.id))
+        consumer.observer.on('close', () => {
+          this.#consumers.delete(consumer.id)
+          this.#ready.delete(consumer.id)
+        })
         consumer.on('producerclose', () => {
           this.events.onConsumerClosed(consumer.id)
         })
@@ -108,10 +115,25 @@ export class PeerMedia {
       case 'resumeConsumer': {
         const consumer = this.#consumers.get(request.consumerId)
         if (!consumer) throw new MediaRequestError('unknown consumer')
-        await consumer.resume()
+        this.#ready.add(consumer.id)
+        await this.#apply(consumer)
         return {}
       }
     }
+  }
+
+  /** The forwarded voices changed: pause the ones not forwarded, resume the others. */
+  async refresh(): Promise<void> {
+    await Promise.all([...this.#consumers.values()].map((consumer) => this.#apply(consumer)))
+  }
+
+  async #apply(consumer: types.Consumer): Promise<void> {
+    const run =
+      this.#ready.has(consumer.id) &&
+      (consumer.kind !== 'audio' || this.events.isForwarded(consumer.producerId))
+    if (consumer.closed) return
+    if (run && consumer.paused) await consumer.resume()
+    else if (!run && !consumer.paused) await consumer.pause()
   }
 
   /** Closing the transports closes every producer and consumer on them. */

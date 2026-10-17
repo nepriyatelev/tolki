@@ -2,6 +2,7 @@ import { sep } from 'node:path'
 import * as mediasoup from 'mediasoup'
 import type { types } from 'mediasoup'
 import type { TransportParameters } from '@shared/signaling'
+import { FORWARDED_VOICES } from './speakers'
 
 /** Codecs the room's router speaks. Video codecs join with screen sharing (M3). */
 const MEDIA_CODECS: types.RouterRtpCodecCapability[] = [
@@ -42,6 +43,8 @@ export class MediaServer {
     private readonly worker: types.Worker,
     readonly router: types.Router,
     private readonly webRtcServer: types.WebRtcServer,
+    /** Who is loud right now: drives the forwarded voices and the speaking frame. */
+    readonly audioLevels: types.AudioLevelObserver,
   ) {
     this.publicUdpPort = port
   }
@@ -57,7 +60,13 @@ export class MediaServer {
       const { tcpServers } = await webRtcServer.dump()
       const tcpPort = tcpServers[0]?.port
       if (tcpPort === undefined) throw new Error('mediasoup did not open an ICE-TCP listener')
-      return new MediaServer(options.port, tcpPort, worker, router, webRtcServer)
+      const audioLevels = await router.createAudioLevelObserver({
+        maxEntries: FORWARDED_VOICES,
+        // dBov: quieter than this is background noise, not speech.
+        threshold: -70,
+        interval: 300,
+      })
+      return new MediaServer(options.port, tcpPort, worker, router, webRtcServer, audioLevels)
     } catch (error) {
       worker.close()
       throw toStartError(error, options.port)

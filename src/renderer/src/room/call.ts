@@ -19,23 +19,38 @@ export interface RoomEventSource {
   stop(): void
 }
 
-export function collectRoomEvents(
-  subscribe: (listener: (event: RoomEvent) => void) => () => void = (listener) =>
-    window.ratatosk.room.onEvent(listener),
-): RoomEventSource {
+/** A RoomEventSource fed by hand: buffers until someone listens. */
+export function createEventBuffer(
+  onStop: () => void = () => undefined,
+): RoomEventSource & { push(event: RoomEvent): void } {
   const buffer: RoomEvent[] = []
   let current: ((event: RoomEvent) => void) | null = null
-  const unsubscribe = subscribe((event) => {
-    if (current) current(event)
-    else buffer.push(event)
-  })
   return {
+    push(event) {
+      if (current) current(event)
+      else buffer.push(event)
+    },
     listen(listener) {
       current = listener
       for (const event of buffer.splice(0)) listener(event)
     },
-    stop: unsubscribe,
+    stop: onStop,
   }
+}
+
+/** Subscribes to main's room events now; they wait in a buffer until someone listens. */
+export function collectRoomEvents(
+  subscribe: (listener: (event: RoomEvent) => void) => () => void = (listener) =>
+    window.ratatosk.room.onEvent(listener),
+): RoomEventSource {
+  let unsubscribe = (): void => undefined
+  const source = createEventBuffer(() => {
+    unsubscribe()
+  })
+  unsubscribe = subscribe((event) => {
+    source.push(event)
+  })
+  return source
 }
 
 export interface CallOptions {
