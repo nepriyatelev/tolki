@@ -1,12 +1,18 @@
-// Entry point of the `host` utility process: the room's signalling server.
-// mediasoup and NAT mapping join it in issues #8 and #19.
+// Entry point of the `host` utility process: the room's signalling server and port forwarding.
+// mediasoup joins it in issue #19.
 import type { HostToMainMessage, MainToHostMessage } from '@shared/host-protocol'
 import { loadOrCreateCertificate } from './certificate'
+import { mapHostPort } from './nat'
+import type { PortMappingSession } from './nat/port-mapper'
 import { SignalingServerStartError, startSignalingServer, type SignalingServer } from './server'
 
 const port = process.parentPort
 let server: SignalingServer | null = null
+let mapping: Promise<PortMappingSession> | null = null
 let stopping = false
+
+/** Upper bound for removing port mappings on shutdown; main kills us after 5 s anyway. */
+const UNMAP_TIMEOUT_MS = 3000
 
 function send(message: HostToMainMessage): void {
   port.postMessage(message)
@@ -29,12 +35,19 @@ async function start(message: Extract<MainToHostMessage, { type: 'start' }>): Pr
     }
     process.exit(1)
   }
+
+  if (message.portMapping) {
+    mapping = mapHostPort(message.port)
+    const session = await mapping
+    if (!stopping) send({ type: 'port-mapping', state: session.state })
+  }
 }
 
 async function shutdown(): Promise<void> {
   if (stopping) return
   stopping = true
-  // Future: remove port mappings here too.
+  const unmap = mapping?.then((session) => session.close())
+  await Promise.race([unmap, new Promise((resolve) => setTimeout(resolve, UNMAP_TIMEOUT_MS))])
   await server?.close()
   process.exit(0)
 }

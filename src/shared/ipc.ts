@@ -19,6 +19,8 @@ export interface InvokeContract {
 export interface HostStartRequest {
   /** Defaults to DEFAULT_HOST_PORT. */
   port?: number | undefined
+  /** Ask the router to forward the port (PCP / NAT-PMP / UPnP). Defaults to true. */
+  portMapping?: boolean | undefined
 }
 
 /** Main → renderer events (`webContents.send`). */
@@ -34,7 +36,9 @@ export const invokeArgsSchemas: {
   [K in InvokeChannel]: z.ZodType<InvokeContract[K]['args']>
 } = {
   'app:get-info': z.tuple([]),
-  'host:start': z.tuple([z.strictObject({ port: hostPortSchema.optional() })]),
+  'host:start': z.tuple([
+    z.strictObject({ port: hostPortSchema.optional(), portMapping: z.boolean().optional() }),
+  ]),
   'host:stop': z.tuple([]),
   'host:get-state': z.tuple([]),
 }

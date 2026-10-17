@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { HostState, MainToHostMessage } from '@shared/host-protocol'
 import { HostProcess, HostStartError, type HostChild } from './host-process'
 
-const OPTIONS = { port: 47000, dataDir: '/tmp/ratatosk' }
+const OPTIONS = { port: 47000, dataDir: '/tmp/ratatosk', portMapping: true }
 const FINGERPRINT = 'x'.repeat(43)
 
 class FakeChild extends EventEmitter implements HostChild {
@@ -63,15 +63,51 @@ describe('HostProcess', () => {
 
     const started = host.start(OPTIONS)
     expect(host.state).toEqual({ status: 'starting', port: 47000 })
-    expect(children[0]?.sent).toEqual([{ type: 'start', port: 47000, dataDir: '/tmp/ratatosk' }])
+    expect(children[0]?.sent).toEqual([
+      { type: 'start', port: 47000, dataDir: '/tmp/ratatosk', portMapping: true },
+    ])
     children[0]?.ready()
 
     await expect(started).resolves.toEqual({
       status: 'running',
       port: 47000,
       fingerprint: FINGERPRINT,
+      portMapping: { status: 'pending' },
     })
     expect(statuses()).toEqual(['starting', 'running'])
+  })
+
+  it('reports port mapping as disabled when it was not requested', async () => {
+    const { host, children } = setup()
+
+    const started = host.start({ ...OPTIONS, portMapping: false })
+    children[0]?.ready()
+
+    await expect(started).resolves.toMatchObject({ portMapping: { status: 'disabled' } })
+  })
+
+  it('updates the running state with the port mapping result', async () => {
+    const { host, children, states } = await startRunning()
+    const mapped = {
+      status: 'mapped',
+      method: 'upnp',
+      externalAddress: '203.0.113.5',
+      externalPort: 47000,
+      externalUdpPort: 47000,
+    } as const
+
+    children[0]?.emit('message', { type: 'port-mapping', state: mapped })
+
+    expect(host.state).toMatchObject({ status: 'running', portMapping: mapped })
+    expect(states.at(-1)).toMatchObject({ portMapping: mapped })
+  })
+
+  it('ignores malformed port mapping results', async () => {
+    const { host, children } = await startRunning()
+
+    children[0]?.emit('message', { type: 'port-mapping', state: { status: 'mapped' } })
+
+    expect(host.state).toMatchObject({ portMapping: { status: 'pending' } })
   })
 
   it('ignores malformed messages from the child', async () => {
