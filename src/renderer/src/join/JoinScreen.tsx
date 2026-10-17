@@ -1,14 +1,22 @@
 import ArrowLeft from 'lucide-solid/icons/arrow-left'
-import { createSignal, Match, Show, Switch, type JSX } from 'solid-js'
+import Info from 'lucide-solid/icons/info'
+import Link from 'lucide-solid/icons/link'
+import Lock from 'lucide-solid/icons/lock'
+import ShieldAlert from 'lucide-solid/icons/shield-alert'
+import ShieldCheck from 'lucide-solid/icons/shield-check'
+import { createResource, createSignal, Match, Show, Switch, type JSX } from 'solid-js'
 import {
   inviteAddress,
   inviteErrorMessage,
   type Invite,
   type InviteParseResult,
 } from '@shared/invite'
-import type { JoinError, JoinResult } from '@shared/room'
-import { Button, Card, Input } from '../ui'
+import type { JoinError, JoinResult, RoomPreview } from '@shared/room'
+import logo from '../assets/logo.svg'
+import { Button, Card, Chip, Input } from '../ui'
 import { describeJoinError } from './join-errors'
+import { MicCheck } from './MicCheck'
+import type { MicrophoneAccess } from './microphone'
 import './JoinScreen.css'
 
 /** Set when the screen is opened from the recent rooms list. */
@@ -24,50 +32,72 @@ export interface JoinScreenProps {
   /** Prefills the name field. */
   profileName?: string
   onJoined?: () => void
+  microphone?: MicrophoneAccess
 }
 
-/**
- * "Вход по ссылке" opened from an invite link. Shows what the link contains and lets the user
- * enter the room with a name and, if needed, the password (issues #12, #13). The full screen
- * with the microphone check is issue #17.
- */
+const plural = new Intl.PluralRules('ru-RU')
+
+/** Only the number of people, never names (PLAN #17, owner's decision). */
+export function peopleText(preview: RoomPreview | undefined): string {
+  if (preview === undefined) return 'Проверяем комнату…'
+  switch (preview.status) {
+    case 'live': {
+      const n = preview.room.peerCount
+      if (n === 0) return 'Пока никого нет — ты будешь первым'
+      return `В комнате ${n} ${plural.select(n) === 'few' ? 'человека' : 'человек'}`
+    }
+    case 'offline':
+      return 'Хост сейчас не в сети'
+    case 'certificate-changed':
+      return 'Не удалось проверить комнату'
+  }
+}
+
+/** «Вход по ссылке» (mockup 3, PLAN #17). */
 export function JoinScreen(props: JoinScreenProps): JSX.Element {
   const back = (): void => {
     props.onBack()
   }
+  const invite = (): Invite | undefined => (props.result.ok ? props.result.invite : undefined)
+  // A light check before joining: room name, number of people, password needed, certificate.
+  const [preview] = createResource(invite, (inv) =>
+    // The embedded password is not needed for the check and stays out of it.
+    window.ratatosk.room.preview({
+      host: inv.host,
+      hostKind: inv.hostKind,
+      port: inv.port,
+      roomId: inv.roomId,
+      fingerprint: inv.fingerprint,
+    }),
+  )
+  const live = () => {
+    const p = preview.latest
+    return p?.status === 'live' ? p.room : undefined
+  }
+
   return (
     <main class="join">
       <Card as="section" class="join-card" aria-labelledby="join-title">
+        <img class="join-logo" src={logo} alt="" width="48" height="48" />
         <Switch>
-          <Match when={props.result.ok ? props.result.invite : undefined}>
-            {(invite) => (
+          <Match when={invite()}>
+            {(inv) => (
               <>
-                <h1 id="join-title">Вход по ссылке</h1>
-                <dl class="join-details">
-                  <dt>Хост</dt>
-                  <dd class="join-mono">{inviteAddress(invite())}</dd>
-                  <dt>Комната</dt>
-                  <dd class="join-mono">{invite().roomId}</dd>
-                  <dt>Пароль</dt>
-                  <dd>
-                    {invite().password !== undefined
-                      ? 'вшит в ссылку'
-                      : props.recent?.passwordSaved
-                        ? 'сохранён'
-                        : 'спроси у хоста'}
-                  </dd>
-                  <dt>Сертификат</dt>
-                  <dd>
-                    <span class="join-mono">{invite().fingerprint.slice(0, 12)}…</span> — сверим при
-                    подключении
-                  </dd>
-                </dl>
+                <Chip icon={<Link />}>Приглашение</Chip>
+                <div class="join-heading">
+                  <h1 id="join-title">{live()?.name ?? 'Вход по ссылке'}</h1>
+                  <p class="join-people">{peopleText(preview.latest)}</p>
+                  <p class="join-address">{inviteAddress(inv())}</p>
+                </div>
+                <TrustNote preview={preview.latest} />
                 <JoinForm
-                  invite={invite()}
+                  invite={inv()}
                   onBack={back}
                   recent={props.recent}
                   profileName={props.profileName ?? ''}
                   onJoined={() => props.onJoined?.()}
+                  preview={preview.latest}
+                  {...(props.microphone ? { microphone: props.microphone } : {})}
                 />
               </>
             )}
@@ -89,6 +119,31 @@ export function JoinScreen(props: JoinScreenProps): JSX.Element {
   )
 }
 
+function TrustNote(props: { preview: RoomPreview | undefined }): JSX.Element {
+  return (
+    <Switch>
+      <Match when={props.preview?.status === 'live'}>
+        <p class="join-note join-note--ok">
+          <ShieldCheck aria-hidden="true" />
+          Подключение напрямую к хосту · сертификат совпадает со ссылкой
+        </p>
+      </Match>
+      <Match when={props.preview?.status === 'certificate-changed'}>
+        <p class="join-note join-note--bad" role="alert">
+          <ShieldAlert aria-hidden="true" />
+          {describeJoinError('certificate-mismatch').text}
+        </p>
+      </Match>
+      <Match when={props.preview?.status === 'offline'}>
+        <p class="join-note">
+          <Info aria-hidden="true" />
+          Возможно, комната ещё не открыта. Попробуй войти чуть позже.
+        </p>
+      </Match>
+    </Switch>
+  )
+}
+
 type Status =
   | { kind: 'idle' }
   | { kind: 'joining' }
@@ -101,16 +156,28 @@ function JoinForm(props: {
   recent: RecentContext | undefined
   profileName: string
   onJoined: () => void
+  preview: RoomPreview | undefined
+  microphone?: MicrophoneAccess
 }): JSX.Element {
   // eslint-disable-next-line solid/reactivity -- the initial value only; the user edits it
   const [name, setName] = createSignal(props.profileName)
   // A saved password is used until the host rejects it; then the field appears.
   // eslint-disable-next-line solid/reactivity -- the initial value only
   const [useSaved, setUseSaved] = createSignal(props.recent?.passwordSaved === true)
-  const askPassword = () => props.invite.password === undefined && !useSaved()
   const [password, setPassword] = createSignal('')
+  const [micMuted, setMicMuted] = createSignal(false)
   const [nameError, setNameError] = createSignal<string | undefined>(undefined)
   const [status, setStatus] = createSignal<Status>({ kind: 'idle' })
+
+  const roomNeedsPassword = () =>
+    props.preview?.status === 'live' ? props.preview.room.hasPassword : true
+  const askPassword = () =>
+    props.invite.password === undefined && !useSaved() && roomNeedsPassword()
+  const passwordNote = () => {
+    if (!roomNeedsPassword()) return undefined
+    if (props.invite.password !== undefined) return 'Пароль вшит в ссылку'
+    return useSaved() ? 'Пароль сохранён' : undefined
+  }
 
   const failure = () => {
     const current = status()
@@ -167,10 +234,24 @@ function JoinForm(props: {
               maxLength={128}
               value={password()}
               onInput={(e) => setPassword(e.currentTarget.value)}
-              hint="Оставь пустым, если пароля нет"
               error={failure()?.field === 'password' ? failure()?.text : undefined}
             />
           </Show>
+          <Show when={passwordNote()}>
+            {(note) => (
+              <p class="join-password-note">
+                <Lock aria-hidden="true" />
+                {note()}
+              </p>
+            )}
+          </Show>
+          <div class="join-mic">
+            <MicCheck
+              muted={micMuted()}
+              onMutedChange={setMicMuted}
+              {...(props.microphone ? { access: props.microphone } : {})}
+            />
+          </div>
           <Show when={failure()?.field === undefined ? failure()?.text : undefined}>
             {(text) => (
               <p class="join-alert" role="alert">
@@ -181,14 +262,21 @@ function JoinForm(props: {
           <div class="join-actions">
             <Button
               type="button"
-              icon={<ArrowLeft />}
+              size="lg"
               onClick={() => {
                 props.onBack()
               }}
             >
-              Назад
+              Отмена
             </Button>
-            <Button type="submit" variant="primary" disabled={status().kind === 'joining'}>
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              disabled={
+                status().kind === 'joining' || props.preview?.status === 'certificate-changed'
+              }
+            >
               {status().kind === 'joining' ? 'Подключаемся…' : 'Войти в комнату'}
             </Button>
           </div>
@@ -199,7 +287,7 @@ function JoinForm(props: {
         <div class="join-joined" role="status">
           <p>
             Ты в комнате «{result().room.name}». Участников вместе с тобой:{' '}
-            {result().peers.length + 1}.
+            {result().peers.length + 1}.{micMuted() ? ' Микрофон выключен.' : ''}
           </p>
           <Button variant="danger" onClick={() => void leave()}>
             Выйти

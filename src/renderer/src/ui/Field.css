@@ -57,3 +57,27 @@
 .rt-field__message--error {
   color: var(--color-danger-text);
 }
+
+.rt-select {
+  position: relative;
+}
+
+.rt-select__control {
+  appearance: none;
+  min-height: var(--control-height);
+  padding-right: var(--space-12);
+  background: var(--color-surface);
+  font-size: var(--text-md);
+  cursor: pointer;
+}
+
+.rt-select__chevron {
+  position: absolute;
+  top: 50%;
+  right: var(--space-4);
+  width: 18px;
+  height: 18px;
+  color: var(--color-text-muted);
+  transform: translateY(-50%);
+  pointer-events: none;
+}

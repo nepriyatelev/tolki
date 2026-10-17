@@ -226,11 +226,14 @@ describe('host protocol checks', () => {
 })
 
 describe('probeRoom (recent rooms status)', () => {
-  it('reports a running room with the number of people, without joining', async () => {
+  it('reports the room name, number of people and password flag, without joining', async () => {
     const invite = await startHost('secret')
     await enter(invite, 'Дима', 'secret')
 
-    expect(await probeRoom(invite)).toEqual({ status: 'live', peerCount: 1 })
+    expect(await probeRoom(invite)).toEqual({
+      status: 'live',
+      room: { name: 'Вечерний созвон', peerCount: 1, hasPassword: true },
+    })
     expect(room.peers.map((p) => p.name)).toEqual(['Дима'])
   })
 

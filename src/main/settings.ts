@@ -31,6 +31,7 @@ export class SettingsStore {
         ? { speedTest: { ...this.#settings.speedTest, ...patch.speedTest } }
         : {}),
       ...(patch.profile ? { profile: { ...this.#settings.profile, ...patch.profile } } : {}),
+      ...(patch.audio ? { audio: { ...this.#settings.audio, ...patch.audio } } : {}),
     }
     this.backend.write(this.#settings)
     return this.get()

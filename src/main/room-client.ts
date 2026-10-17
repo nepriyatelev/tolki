@@ -4,8 +4,7 @@ import type { TLSSocket } from 'node:tls'
 import { WebSocket, type RawData } from 'ws'
 import { computeAuthHmac } from '@shared/auth'
 import type { Invite } from '@shared/invite'
-import type { RecentStatus } from '@shared/recent'
-import type { JoinResult } from '@shared/room'
+import type { JoinResult, RoomPreview } from '@shared/room'
 import {
   hostMessageSchema,
   parseMessage,
@@ -114,17 +113,18 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
 }
 
 /**
- * Light check for the recent rooms list (PLAN #15): hello → challenge, then disconnect without
- * authenticating. The challenge carries only the number of people inside. Never throws.
+ * Light check (PLAN #15, #17): hello → challenge, then disconnect without authenticating.
+ * The challenge carries the room name, the number of people inside and whether a password is
+ * needed — never names. Never throws.
  */
 export function probeRoom(
   invite: Omit<Invite, 'password'>,
   timeoutMs = 4000,
-): Promise<RecentStatus> {
+): Promise<RoomPreview> {
   const socket = openSocket(invite, timeoutMs)
   return new Promise((resolve) => {
     let settled = false
-    const finish = (status: RecentStatus): void => {
+    const finish = (status: RoomPreview): void => {
       if (settled) return
       settled = true
       clearTimeout(timer)
@@ -150,7 +150,7 @@ export function probeRoom(
       const message = isBinary ? null : parseMessage(hostMessageSchema, frameText(data))
       finish(
         message?.type === 'challenge'
-          ? { status: 'live', peerCount: message.room.peerCount }
+          ? { status: 'live', room: message.room }
           : { status: 'offline' },
       )
     })

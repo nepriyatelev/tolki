@@ -14,14 +14,25 @@ export const settingsSchema = z.object({
       name: z.string().max(32),
     })
     .default({ name: '' }),
+  audio: z
+    .object({
+      /** Chosen microphone; empty: the system default. */
+      inputDeviceId: z.string().max(256),
+    })
+    .default({ inputDeviceId: '' }),
 })
 export type Settings = z.infer<typeof settingsSchema>
 
-export const DEFAULT_SETTINGS: Settings = { speedTest: { enabled: true }, profile: { name: '' } }
+export const DEFAULT_SETTINGS: Settings = {
+  speedTest: { enabled: true },
+  profile: { name: '' },
+  audio: { inputDeviceId: '' },
+}
 
 /** Partial update from the renderer; unknown keys are rejected. */
 export const settingsPatchSchema = z.strictObject({
   speedTest: z.strictObject({ enabled: z.boolean() }).optional(),
   profile: z.strictObject({ name: z.string().trim().max(32) }).optional(),
+  audio: z.strictObject({ inputDeviceId: z.string().max(256) }).optional(),
 })
 export type SettingsPatch = z.infer<typeof settingsPatchSchema>

@@ -21,3 +21,21 @@ export function isTrustedRendererUrl(
   const index = new URL(renderer.indexFileUrl)
   return parsed.pathname === index.pathname
 }
+
+/**
+ * Same decision for permission checks, which only see an origin: the dev server origin in
+ * development, the file:// origin of the bundled renderer in production.
+ */
+export function isTrustedRendererOrigin(
+  origin: string,
+  renderer: { devServerUrl?: string | undefined },
+): boolean {
+  if (renderer.devServerUrl !== undefined) {
+    try {
+      return origin === new URL(renderer.devServerUrl).origin
+    } catch {
+      return false
+    }
+  }
+  return origin === 'file://' || origin === 'file:///'
+}

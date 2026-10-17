@@ -30,13 +30,19 @@ describe('SettingsStore', () => {
     const store = new SettingsStore(b)
 
     expect(store.update({ speedTest: { enabled: false } }).speedTest.enabled).toBe(false)
-    expect(b.written).toEqual([{ speedTest: { enabled: false }, profile: { name: '' } }])
+    expect(b.written).toEqual([
+      { speedTest: { enabled: false }, profile: { name: '' }, audio: { inputDeviceId: '' } },
+    ])
   })
 
   it('keeps choices saved by an older version that had no profile yet', () => {
     const store = new SettingsStore(backend({ speedTest: { enabled: false } }))
 
-    expect(store.get()).toEqual({ speedTest: { enabled: false }, profile: { name: '' } })
+    expect(store.get()).toEqual({
+      speedTest: { enabled: false },
+      profile: { name: '' },
+      audio: { inputDeviceId: '' },
+    })
   })
 
   it('remembers the profile name', () => {

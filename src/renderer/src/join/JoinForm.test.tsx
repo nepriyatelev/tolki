@@ -123,7 +123,7 @@ describe('join form', () => {
         recent={{ id: 'recent-1', passwordSaved: true }}
       />
     ))
-    expect(screen.getByText('сохранён')).toBeTruthy()
+    expect(await screen.findByText('Пароль сохранён')).toBeTruthy()
     expect(screen.queryByLabelText('Пароль комнаты')).toBeNull()
 
     await user.click(screen.getByRole('button', { name: 'Войти в комнату' }))

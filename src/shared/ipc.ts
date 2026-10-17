@@ -3,7 +3,7 @@ import { hostPortSchema, type HostState } from './host-protocol'
 import type { Invite, InviteParseResult } from './invite'
 import type { NetworkCheckResult } from './network'
 import type { RecentRoom, RecentStatus } from './recent'
-import type { JoinResult } from './room'
+import type { JoinResult, RoomPreview } from './room'
 import { peerNameSchema } from './signaling'
 import { settingsPatchSchema, type Settings, type SettingsPatch } from './settings'
 import type { UploadMeasurement } from './upload-capacity'
@@ -36,6 +36,8 @@ export interface InvokeContract {
   /** Connect to a host and authenticate; replaces any current connection. */
   'room:join': { args: [request: JoinRoomRequest]; result: JoinResult }
   'room:leave': { args: []; result: null }
+  /** Room name, number of people and whether a password is needed, before joining. */
+  'room:preview': { args: [invite: Invite]; result: RoomPreview }
   'recent:list': { args: []; result: RecentRoom[] }
   /** Light check of every recent room: only the number of people, no authentication. */
   'recent:probe': { args: []; result: Record<string, RecentStatus> }
@@ -78,6 +80,16 @@ export type InvokeChannel = keyof InvokeContract
 export type EventChannel = keyof EventContract
 
 /** Runtime validation of renderer-supplied arguments, checked in main for every call. */
+const inviteSchema = z.strictObject({
+  host: z.string(),
+  hostKind: z.enum(['ipv4', 'ipv6', 'dns']),
+  port: z.number().int(),
+  roomId: z.string(),
+  fingerprint: z.string(),
+  password: z.string().optional(),
+})
+
+/** Runtime validation of renderer-supplied arguments, checked in main for every call. */
 export const invokeArgsSchemas: {
   [K in InvokeChannel]: z.ZodType<InvokeContract[K]['args']>
 } = {
@@ -103,20 +115,14 @@ export const invokeArgsSchemas: {
   'invite:take-pending': z.tuple([]),
   'room:join': z.tuple([
     z.strictObject({
-      invite: z.strictObject({
-        host: z.string(),
-        hostKind: z.enum(['ipv4', 'ipv6', 'dns']),
-        port: z.number().int(),
-        roomId: z.string(),
-        fingerprint: z.string(),
-        password: z.string().optional(),
-      }),
+      invite: inviteSchema,
       name: peerNameSchema,
       password: z.string().max(128).optional(),
       recentId: z.string().max(64).optional(),
     }),
   ]),
   'room:leave': z.tuple([]),
+  'room:preview': z.tuple([inviteSchema]),
   'recent:list': z.tuple([]),
   'recent:probe': z.tuple([]),
   'recent:remove': z.tuple([z.string().max(64)]),
@@ -145,6 +151,7 @@ export interface RatatoskApi {
     update(patch: SettingsPatch): Promise<Settings>
   }
   room: {
+    preview(invite: Invite): Promise<RoomPreview>
     join(request: JoinRoomRequest): Promise<JoinResult>
     leave(): Promise<null>
   }

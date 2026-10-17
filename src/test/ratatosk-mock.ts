@@ -3,6 +3,7 @@ import type { InviteParseResult } from '@shared/invite'
 import type { RatatoskApi } from '@shared/ipc'
 import type { NetworkCheckResult } from '@shared/network'
 import type { RecentRoom, RecentStatus } from '@shared/recent'
+import type { RoomPreview } from '@shared/room'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 
 export const MOCK_FINGERPRINT = '2_SqXt3l45Ay59VWqBcvcLmeh7BmqvL0m-UwbNw3EiE'
@@ -43,6 +44,7 @@ export interface RatatoskMock {
     remove: Mock<RatatoskApi['recent']['remove']>
   }
   room: {
+    preview: Mock<RatatoskApi['room']['preview']>
     join: Mock<RatatoskApi['room']['join']>
     leave: Mock<RatatoskApi['room']['leave']>
   }
@@ -61,6 +63,12 @@ export interface RatatoskMockOptions extends Partial<RatatoskApi['network']> {
   recentStatuses?: Record<string, RecentStatus>
   profileName?: string
   hostStart?: RatatoskApi['host']['start']
+  preview?: RoomPreview
+}
+
+export const LIVE_PREVIEW: RoomPreview = {
+  status: 'live',
+  room: { name: 'Вечерний созвон', peerCount: 2, hasPassword: true },
 }
 
 /** Installs a fake preload bridge on window for renderer tests. */
@@ -115,6 +123,9 @@ export function installRatatoskMock(options: RatatoskMockOptions = {}): Ratatosk
       update: vi.fn(() => Promise.resolve(DEFAULT_SETTINGS)),
     },
     room: {
+      preview: vi.fn<RatatoskApi['room']['preview']>(() =>
+        Promise.resolve(options.preview ?? LIVE_PREVIEW),
+      ),
       join: vi.fn<RatatoskApi['room']['join']>(
         options.join ??
           (() =>

@@ -50,6 +50,7 @@ const api: RatatoskApi = {
     update: (patch) => invoke('settings:update', patch),
   },
   room: {
+    preview: (invite) => invoke('room:preview', invite),
     join: (request) => invoke('room:join', request),
     leave: () => invoke('room:leave'),
   },

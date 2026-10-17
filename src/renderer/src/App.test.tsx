@@ -22,7 +22,7 @@ describe('App', () => {
     installRatatoskMock({ pendingInvite: parseInvite(LINK) })
     render(() => <App />)
 
-    expect(await screen.findByRole('heading', { name: 'Вход по ссылке' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Вечерний созвон' })).toBeTruthy()
     expect(screen.getByText('203.0.113.5:47000')).toBeTruthy()
   })
 
@@ -33,9 +33,9 @@ describe('App', () => {
     await Promise.resolve()
 
     api.invite.emit(parseInvite(LINK))
-    expect(await screen.findByRole('heading', { name: 'Вход по ссылке' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Вечерний созвон' })).toBeTruthy()
 
-    await user.click(screen.getByRole('button', { name: 'Назад' }))
+    await user.click(screen.getByRole('button', { name: 'Отмена' }))
     expect(screen.getByRole('heading', { name: 'С кем созвонимся?' })).toBeTruthy()
   })
 })
