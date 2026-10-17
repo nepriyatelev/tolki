@@ -30,6 +30,7 @@ test('renderer has no Node APIs, only the typed bridge', async () => {
         Buffer: typeof w['Buffer'],
         bridge: Object.keys(window.ratatosk).sort(),
         hostApi: Object.keys(window.ratatosk.host).sort(),
+        screenApi: Object.keys(window.ratatosk.screen).sort(),
       }
     })
 
@@ -38,8 +39,9 @@ test('renderer has no Node APIs, only the typed bridge', async () => {
       process: 'undefined',
       module: 'undefined',
       Buffer: 'undefined',
-      bridge: ['app', 'host', 'invite', 'network', 'recent', 'room', 'settings'],
+      bridge: ['app', 'host', 'invite', 'network', 'recent', 'room', 'screen', 'settings'],
       hostApi: ['getFingerprint', 'getState', 'onState', 'start', 'stop'],
+      screenApi: ['listSources', 'openPermissionSettings', 'select'],
     })
 
     const info = await page.evaluate(() => window.ratatosk.app.getInfo())

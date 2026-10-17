@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { JoinResult } from '@shared/room'
 import { installRatatoskMock } from '../../../test/ratatosk-mock'
+import type { ScreenSourcesResult } from '@shared/screen'
 import type { MicrophoneAccess } from '../audio/microphone'
 import { collectRoomEvents } from './call'
 import { CallScreen, peopleCount, SPEAKING_HOLD_MS } from './CallScreen'
@@ -30,12 +31,49 @@ const FAKE_DEVICES: MicrophoneAccess = {
   openMeter: () => Promise.resolve(() => undefined),
 }
 
+const SCREENS: ScreenSourcesResult = {
+  picker: 'app',
+  sources: [
+    { id: 'screen:1:0', name: 'Экран 1', kind: 'screen', thumbnail: 'data:a', icon: null },
+    { id: 'screen:2:0', name: 'Экран 2', kind: 'screen', thumbnail: 'data:b', icon: null },
+    { id: 'window:42:0', name: 'Редактор', kind: 'window', thumbnail: 'data:c', icon: 'data:i' },
+  ],
+}
+
+function fakeScreen(sources: ScreenSourcesResult = SCREENS) {
+  const stop = vi.fn()
+  let ended: () => void = () => undefined
+  const track = {
+    stop,
+    addEventListener: (_type: string, listener: () => void) => {
+      ended = listener
+    },
+  }
+  const stream = {
+    getTracks: () => [track],
+    getVideoTracks: () => [track],
+  } as unknown as MediaStream
+  const access = {
+    listSources: vi.fn(() => Promise.resolve(sources)),
+    capture: vi.fn<(id: string | null) => Promise<MediaStream>>(() => Promise.resolve(stream)),
+    openPermissionSettings: vi.fn(() => Promise.resolve()),
+  }
+  return {
+    access,
+    stop,
+    end: () => {
+      ended()
+    },
+  }
+}
+
 function setup(
   options: {
     muted?: boolean
     sending?: boolean
     mutedPeers?: string[]
     peerVolumes?: Record<string, number>
+    screenSources?: ScreenSourcesResult
   } = {},
 ) {
   const api = installRatatoskMock({ peerVolumes: options.peerVolumes ?? {} })
@@ -45,9 +83,11 @@ function setup(
   const onLeft = vi.fn()
   const events = collectRoomEvents()
   const playTestSound = vi.fn<(outputDeviceId: string) => Promise<void>>(() => Promise.resolve())
+  const screenAccess = fakeScreen(options.screenSources)
   render(() => (
     <CallScreen
       microphone={FAKE_DEVICES}
+      screen={screenAccess.access}
       playTestSound={playTestSound}
       session={{
         result: { ...RESULT, mutedPeers: options.mutedPeers ?? [] },
@@ -71,6 +111,7 @@ function setup(
     setMuted,
     setInputDevice,
     playTestSound,
+    screen: screenAccess,
     onLeft,
     labels,
     user: userEvent.setup(),
@@ -377,5 +418,94 @@ describe('«Настройки звука» during a call (#24)', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     await user.keyboard('m')
     expect(setMuted).toHaveBeenCalledWith(true)
+  })
+})
+
+describe('showing your screen: picking the source (#26)', () => {
+  async function openPicker() {
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(screen.getByRole('button', { name: 'Показать экран' }))
+    const dialog = screen.getByRole('dialog', { name: 'Что показать' })
+    return { ...ctx, dialog }
+  }
+
+  it('lists screens and windows on tabs, and shows the picked one', async () => {
+    const { screen: capture, dialog, user } = await openPicker()
+    const show = within(dialog).getByRole<HTMLButtonElement>('button', { name: 'Показать' })
+
+    expect(await within(dialog).findByRole('radio', { name: 'Экран 1' })).toBeTruthy()
+    expect(within(dialog).getAllByRole('radio')).toHaveLength(2)
+    expect(show.disabled).toBe(true)
+    await user.click(within(dialog).getByRole('tab', { name: /Окна/ }))
+    await user.click(within(dialog).getByRole('radio', { name: 'Редактор' }))
+    expect(
+      within(dialog).getByRole('radio', { name: 'Редактор' }).getAttribute('aria-checked'),
+    ).toBe('true')
+    await user.click(show)
+
+    expect(capture.access.capture).toHaveBeenCalledWith('window:42:0')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(await screen.findByRole('listitem', { name: 'Твой экран' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Остановить показ экрана' })).toBeTruthy()
+  })
+
+  it('stops showing from the button or when the system ends it', async () => {
+    const { screen: capture, dialog, user } = await openPicker()
+    await user.click(await within(dialog).findByRole('radio', { name: 'Экран 1' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Показать' }))
+    await screen.findByRole('listitem', { name: 'Твой экран' })
+
+    await user.click(screen.getByRole('button', { name: 'Остановить показ экрана' }))
+    expect(capture.stop).toHaveBeenCalled()
+    expect(screen.queryByRole('listitem', { name: 'Твой экран' })).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Показать экран' }))
+    const again = screen.getByRole('dialog', { name: 'Что показать' })
+    await user.dblClick(await within(again).findByRole('radio', { name: 'Экран 2' }))
+    await screen.findByRole('listitem', { name: 'Твой экран' })
+    capture.end()
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('listitem', { name: 'Твой экран' })).toBeNull()
+    })
+  })
+
+  it('explains the missing permission on macOS', async () => {
+    const ctx = setup({ screenSources: { picker: 'denied' } })
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(screen.getByRole('button', { name: 'Показать экран' }))
+
+    expect(await screen.findByText(/Нет разрешения на запись экрана/)).toBeTruthy()
+    await ctx.user.click(screen.getByRole('button', { name: 'Открыть настройки' }))
+    expect(ctx.screen.access.openPermissionSettings).toHaveBeenCalled()
+  })
+
+  it('lets the system pick on Wayland', async () => {
+    const ctx = setup({ screenSources: { picker: 'system' } })
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(screen.getByRole('button', { name: 'Показать экран' }))
+
+    await ctx.user.click(await screen.findByRole('button', { name: 'Выбрать экран' }))
+    expect(ctx.screen.access.capture).toHaveBeenCalledWith(null)
+  })
+
+  it('stays quiet when the user cancels, and says so when capture fails', async () => {
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const pickFirst = async () => {
+      await ctx.user.click(screen.getByRole('button', { name: 'Показать экран' }))
+      const dialog = screen.getByRole('dialog', { name: 'Что показать' })
+      await ctx.user.click(await within(dialog).findByRole('radio', { name: 'Экран 1' }))
+      await ctx.user.click(within(dialog).getByRole('button', { name: 'Показать' }))
+    }
+
+    ctx.screen.access.capture.mockRejectedValueOnce(new DOMException('no', 'NotAllowedError'))
+    await pickFirst()
+    expect(screen.queryByRole('alert')).toBeNull()
+
+    ctx.screen.access.capture.mockRejectedValueOnce(new Error('boom'))
+    await pickFirst()
+    expect(await screen.findByRole('alert')).toBeTruthy()
   })
 })

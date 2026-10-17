@@ -85,6 +85,18 @@
   opacity: 1;
 }
 
+/* Your own screen, as you share it. */
+.call-tile--screen {
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+.call-screen-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .call-tile-name {
   position: absolute;
   right: 14px;
@@ -282,6 +294,12 @@
 .call-control--off:not(:disabled):hover .call-control-icon {
   background: var(--color-danger-soft);
   color: var(--color-danger-text);
+}
+
+.call-control--active .call-control-icon,
+.call-control--active:not(:disabled):hover .call-control-icon {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-soft-text);
 }
 
 .call-control-icon svg {

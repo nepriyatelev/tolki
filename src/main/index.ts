@@ -10,6 +10,8 @@ import {
   session,
   shell,
   utilityProcess,
+  desktopCapturer,
+  systemPreferences,
 } from 'electron'
 import Store from 'electron-store'
 import { APP_NAME, DOWNLOAD_PAGE } from '@shared/app'
@@ -28,6 +30,7 @@ import { measureUpload } from './speed-test'
 import { UploadEstimator } from './upload-estimator'
 import { registerIpcHandlers } from './ipc'
 import { isTrustedRendererOrigin, isTrustedRendererUrl } from './trusted-url'
+import { ScreenCapture } from './screen-capture'
 import { mainWindowOptions } from './window-options'
 
 // Lets e2e tests isolate the certificate and settings from the real profile.
@@ -75,6 +78,21 @@ const network = new NetworkChecker({
   spawn: () =>
     utilityProcess.fork(join(__dirname, 'host.js'), [], { serviceName: 'Ratatosk Network Check' }),
 })
+
+const screenCapture = new ScreenCapture({
+  getSources: (options) => desktopCapturer.getSources(options),
+  platform: process.platform,
+  screenAccess: () =>
+    process.platform === 'darwin' ? systemPreferences.getMediaAccessStatus('screen') : 'granted',
+  env: process.env,
+})
+// Wayland: screen capture goes through the desktop portal (PipeWire).
+if (process.platform === 'linux')
+  app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer')
+
+/** macOS privacy pane for «Запись экрана». */
+const SCREEN_PRIVACY_SETTINGS =
+  'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
 
 const inviteLinks = new InviteLinks((result) => {
   BrowserWindow.getAllWindows()[0]?.webContents.send('invite:opened', result)
@@ -288,6 +306,12 @@ registerIpcHandlers(
       )
     },
     'recent:remove': (id) => recentRooms().remove(id),
+    'screen:list-sources': () => screenCapture.list(),
+    'screen:select': (id) => screenCapture.select(id),
+    'screen:open-permission-settings': async () => {
+      if (process.platform === 'darwin') await shell.openExternal(SCREEN_PRIVACY_SETTINGS)
+      return null
+    },
   },
   isTrustedUrl,
 )
@@ -309,6 +333,22 @@ void app.whenReady().then(() => {
     (_contents, permission, requestingOrigin) =>
       permission === 'media' && isTrustedRendererOrigin(requestingOrigin, { devServerUrl }),
   )
+
+  // getDisplayMedia() gets only the source the user picked in our dialog (or the Wayland portal).
+  session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+    if (!isTrustedUrl(request.frame?.url ?? '')) {
+      callback({})
+      return
+    }
+    void screenCapture.take().then(
+      (source) => {
+        callback(source ? { video: source as Electron.DesktopCapturerSource } : {})
+      },
+      () => {
+        callback({})
+      },
+    )
+  })
 
   createMainWindow()
 
