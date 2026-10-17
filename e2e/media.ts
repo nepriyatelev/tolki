@@ -81,8 +81,12 @@ export function receivedVideo(
         kind?: string
         framesDecoded?: number
         frameHeight?: number
+        mid?: string
       }[]
-      const inbound = stats.find((s) => s.type === 'inbound-rtp' && s.kind === 'video')
+      // mediasoup's 'probator' stream only probes bandwidth; the screen is the other one.
+      const inbound = stats.find(
+        (s) => s.type === 'inbound-rtp' && s.kind === 'video' && s.mid !== 'probator',
+      )
       if (inbound) {
         return { framesDecoded: inbound.framesDecoded ?? 0, frameHeight: inbound.frameHeight ?? 0 }
       }

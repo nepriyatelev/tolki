@@ -177,37 +177,14 @@ test('others see the shared screen at a layer that fits, and nothing while minim
 
       // Misha sees it, big: the ≈1080p layer.
       await expect(misha.page.getByRole('listitem', { name: 'Экран: Катя' })).toBeVisible()
-      await misha.page.waitForTimeout(5000)
-      console.log(
-        'debug inbound:',
-        await misha.page.evaluate(async () => {
-          const { connections } = window as unknown as { connections: RTCPeerConnection[] }
-          const out: unknown[] = []
-          for (const pc of connections) {
-            for (const s of (await pc.getStats()).values()) {
-              const r = s as Record<string, unknown>
-              if (r['type'] === 'inbound-rtp' || r['type'] === 'codec') out.push(r)
-            }
-          }
-          return JSON.stringify(out)
-        }),
-      )
-      console.log('debug sent:', JSON.stringify(await sentVideo(katya.page)))
-      console.log(
-        'debug tile:',
-        await misha.page.evaluate(() => {
-          const v = document.querySelector('[data-consumer-id] video') as HTMLVideoElement | null
-          return JSON.stringify({
-            h: v?.getBoundingClientRect().height,
-            vw: v?.videoWidth,
-            state: document.visibilityState,
-          })
-        }),
-      )
       await expect
-        .poll(async () => (await receivedVideo(misha.page))?.frameHeight ?? 0, { timeout: 20_000 })
+        .poll(async () => (await receivedVideo(misha.page))?.frameHeight ?? 0, { timeout: 30_000 })
         .toBeGreaterThan(600)
-      console.log('big window:', JSON.stringify(await receivedVideo(misha.page)))
+      console.log(
+        'big window:',
+        JSON.stringify(await receivedVideo(misha.page)),
+        JSON.stringify(await sentVideo(katya.page)),
+      )
 
       // A small window: the ≈360p layer is enough.
       await resize(960, 640)
