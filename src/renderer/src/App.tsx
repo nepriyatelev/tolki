@@ -3,6 +3,7 @@ import Plus from 'lucide-solid/icons/plus'
 import type { JSX } from 'solid-js'
 import { APP_NAME } from '@shared/app'
 import logo from './assets/logo.svg'
+import { NetworkStatusBar } from './home/NetworkStatusBar'
 import { Card } from './ui'
 import './App.css'
 
@@ -33,6 +34,7 @@ export function App(): JSX.Element {
           </Card>
         </div>
       </main>
+      <NetworkStatusBar />
     </div>
   )
 }

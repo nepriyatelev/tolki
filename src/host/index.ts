@@ -43,6 +43,16 @@ async function start(message: Extract<MainToHostMessage, { type: 'start' }>): Pr
   }
 }
 
+async function check(message: Extract<MainToHostMessage, { type: 'check' }>): Promise<void> {
+  const session = await mapHostPort(message.port)
+  await Promise.race([
+    session.close(),
+    new Promise((resolve) => setTimeout(resolve, UNMAP_TIMEOUT_MS)),
+  ])
+  send({ type: 'check-result', portMapping: session.state })
+  process.exit(0)
+}
+
 async function shutdown(): Promise<void> {
   if (stopping) return
   stopping = true
@@ -62,6 +72,9 @@ port.on('message', (event) => {
   switch (message?.type) {
     case 'start':
       void start(message)
+      return
+    case 'check':
+      void check(message)
       return
     case 'shutdown':
       void shutdown()
