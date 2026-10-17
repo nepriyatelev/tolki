@@ -1,0 +1,23 @@
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Dependencies and build output
+node_modules/
+out/
+dist/
+release/
+coverage/
+
+# Tooling
+.playwright-mcp/
+*.log
+.DS_Store
+
+# Secrets and certificates
+.env
+.env.*
+*.pem
+*.key
+*.p12
