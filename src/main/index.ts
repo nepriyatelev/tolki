@@ -221,13 +221,14 @@ registerIpcHandlers(
       version: app.getVersion(),
       platform: process.platform,
     }),
-    'host:start': async ({ port, portMapping, roomName, password }) => {
+    'host:start': async ({ port, portMapping, roomName, password, screenMode }) => {
       try {
         return await host.start({
           port: port ?? DEFAULT_HOST_PORT,
           portMapping: portMappingEnabled && (portMapping ?? true),
           roomName: roomName ?? 'Комната',
           password: password ?? '',
+          screenMode: screenMode ?? 'auto',
           dataDir: app.getPath('userData'),
         })
       } catch (error) {

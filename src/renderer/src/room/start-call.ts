@@ -1,3 +1,4 @@
+import type { ScreenMode } from '@shared/screen'
 import { openMicrophoneTrack } from '../audio/microphone'
 import { Call, type RemoteAudio, type RoomEventSource } from './call'
 
@@ -7,6 +8,9 @@ export interface CallHandle {
   setMuted(muted: boolean): Promise<void>
   /** Switches to another microphone on the fly (PLAN #24). */
   setInputDevice(deviceId: string): Promise<void>
+  /** Sends a captured screen to the room (PLAN #27); the track stays the caller's. */
+  startScreen(track: MediaStreamTrack, mode: ScreenMode): Promise<void>
+  stopScreen(): Promise<void>
   close(): void
 }
 
@@ -29,6 +33,8 @@ export async function startCall(options: StartCallOptions): Promise<CallHandle> 
     return {
       sending: call.producing,
       setMuted: (muted) => call.setMuted(muted),
+      startScreen: (track, mode) => call.startScreen(track, mode),
+      stopScreen: () => call.stopScreen(),
       setInputDevice: async (deviceId) => {
         if (!call.producing) return
         const track = await openMicrophoneTrack(deviceId)

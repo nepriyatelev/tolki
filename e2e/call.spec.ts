@@ -1,6 +1,7 @@
 import { createServer, type AddressInfo } from 'node:net'
 import { expect, test, type Page } from '@playwright/test'
 import { launchApp } from './app'
+import { tapPeerConnections } from './media'
 
 // Chromium's fake capture device plays a beeping tone instead of using a real microphone.
 const FAKE_MEDIA = '--use-fake-device-for-media-stream'
@@ -77,21 +78,6 @@ function outputLevel(page: Page): Promise<number> {
     }
     master.disconnect(analyser)
     return loudest
-  })
-}
-
-/** Records the app's peer connections, to read what is actually negotiated and sent. */
-function tapPeerConnections(page: Page): Promise<void> {
-  return page.evaluate(() => {
-    const connections: RTCPeerConnection[] = []
-    Object.assign(window, { connections })
-    const Original = window.RTCPeerConnection
-    window.RTCPeerConnection = class extends Original {
-      constructor(config?: RTCConfiguration) {
-        super(config)
-        connections.push(this)
-      }
-    }
   })
 }
 

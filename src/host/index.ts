@@ -47,7 +47,12 @@ async function start(message: Extract<MainToHostMessage, { type: 'start' }>): Pr
     })
     const sfu = media
     room = new Room(
-      { name: message.roomName, password: message.password, fingerprint: certificate.fingerprint },
+      {
+        name: message.roomName,
+        password: message.password,
+        fingerprint: certificate.fingerprint,
+        screenMode: message.screenMode,
+      },
       { media: sfu },
     )
     stopMonitor = monitorUpload(

@@ -189,16 +189,18 @@ describe('media on the host (mediasoup)', () => {
     const alice = await connect(port, 'Алиса')
 
     const welcome = await alice.next('welcome')
-    // Opus with FEC and DTX, mono (PLAN #25).
-    expect(welcome.routerRtpCapabilities).toMatchObject({
-      codecs: [
-        {
-          mimeType: 'audio/opus',
-          clockRate: 48000,
-          parameters: { useinbandfec: 1, usedtx: 1, stereo: 0 },
-        },
-      ],
+    // Opus with FEC and DTX, mono (PLAN #25); H.264 before VP8 for the screen (PLAN #27).
+    const codecs = (welcome.routerRtpCapabilities as { codecs: { mimeType: string }[] }).codecs
+    expect(codecs[0]).toMatchObject({
+      mimeType: 'audio/opus',
+      clockRate: 48000,
+      parameters: { useinbandfec: 1, usedtx: 1, stereo: 0 },
     })
+    const video = codecs
+      .map((c) => c.mimeType)
+      .filter((m) => m.startsWith('video/') && !m.endsWith('rtx'))
+    expect(video).toEqual(['video/H264', 'video/VP8'])
+    expect(welcome.screenMode).toBe('auto')
 
     const transport = await alice.ok<Transport>({ method: 'createTransport', direction: 'send' })
     expect(transport.iceCandidates.map((c) => [c.protocol, c.port]).sort()).toEqual([
@@ -346,6 +348,81 @@ describe('media on the host (mediasoup)', () => {
       ),
     )
     expect(burst.some((r) => r.error === 'too many requests')).toBe(true)
+  })
+
+  it('takes a simulcast screen and closes it on request (#27)', async () => {
+    const { port } = await startRoom()
+    const alice = await connect(port, 'Алиса')
+    await alice.next('welcome')
+    const bob = await connect(port, 'Боб')
+    const { routerRtpCapabilities: caps } = await bob.next('welcome')
+    const send = await alice.ok<Transport>({ method: 'createTransport', direction: 'send' })
+    await alice.ok({ method: 'connectTransport', transportId: send.id, dtlsParameters: DTLS })
+
+    const screenProducer = await alice.ok<{ id: string }>({
+      method: 'produce',
+      transportId: send.id,
+      kind: 'video',
+      rtpParameters: {
+        mid: '1',
+        codecs: [
+          {
+            mimeType: 'video/VP8',
+            payloadType: 96,
+            clockRate: 90000,
+            parameters: {},
+            rtcpFeedback: [],
+          },
+        ],
+        headerExtensions: [
+          { uri: 'urn:ietf:params:rtp-hdrext:sdes:mid', id: 1 },
+          { uri: 'urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id', id: 2 },
+        ],
+        encodings: [
+          { rid: 'low', scaleResolutionDownBy: 3, maxBitrate: 500000 },
+          { rid: 'high', scaleResolutionDownBy: 1, maxBitrate: 2800000 },
+        ],
+        rtcp: { cname: 'screen' },
+      },
+    })
+    expect(await bob.next('new-producer')).toMatchObject({
+      producerId: screenProducer.id,
+      kind: 'video',
+    })
+
+    const recv = await bob.ok<Transport>({ method: 'createTransport', direction: 'recv' })
+    const consumer = await bob.ok<{ id: string; kind: string }>({
+      method: 'consume',
+      transportId: recv.id,
+      producerId: screenProducer.id,
+      rtpCapabilities: caps,
+    })
+    expect(consumer.kind).toBe('video')
+
+    expect(await alice.ok({ method: 'closeProducer', producerId: screenProducer.id })).toEqual({})
+    expect(await bob.next('consumer-closed')).toMatchObject({ consumerId: consumer.id })
+    expect(
+      (await alice.request({ method: 'closeProducer', producerId: screenProducer.id })).error,
+    ).toBe('unknown producer')
+  })
+
+  it('tells everyone the room’s screen mode', async () => {
+    const port = await freePort()
+    media = await MediaServer.start({ port })
+    const room = new Room(
+      { name: 'Игры', password: '', fingerprint: certificate.fingerprint, screenMode: 'motion' },
+      { media },
+    )
+    server = await startSignalingServer({
+      port,
+      key: certificate.key,
+      cert: certificate.cert,
+      onConnection: (socket, address) => {
+        room.accept(socket, address ?? '')
+      },
+    })
+    const alice = await connect(port, 'Алиса')
+    expect((await alice.next('welcome')).screenMode).toBe('motion')
   })
 
   it('reports a busy UDP port', async () => {

@@ -36,6 +36,10 @@
   gap: var(--space-2);
 }
 
+.screen-picker-refresh {
+  margin-left: auto;
+}
+
 .screen-picker-tab {
   display: inline-flex;
   align-items: center;

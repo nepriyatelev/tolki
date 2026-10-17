@@ -3,7 +3,7 @@ import { hostPortSchema, type HostState } from './host-protocol'
 import type { Invite, InviteParseResult } from './invite'
 import type { NetworkCheckResult } from './network'
 import type { RecentRoom, RecentStatus } from './recent'
-import type { ScreenSourcesResult } from './screen'
+import { SCREEN_MODES, type ScreenMode, type ScreenSourcesResult } from './screen'
 import type { JoinResult, MediaResponse, RoomClosedEvent, RoomEvent, RoomPreview } from './room'
 import { mediaRequestSchema, peerNameSchema, type MediaRequest } from './signaling'
 import { settingsPatchSchema, type Settings, type SettingsPatch } from './settings'
@@ -78,6 +78,8 @@ export interface HostStartRequest {
   roomName?: string | undefined
   /** Empty or absent: no password. */
   password?: string | undefined
+  /** How screens are shared in this room; defaults to auto. */
+  screenMode?: ScreenMode | undefined
 }
 
 /** Main → renderer events (`webContents.send`). */
@@ -117,6 +119,7 @@ export const invokeArgsSchemas: {
       portMapping: z.boolean().optional(),
       roomName: z.string().trim().min(1).max(64).optional(),
       password: z.string().max(128).optional(),
+      screenMode: z.enum(SCREEN_MODES).optional(),
     }),
   ]),
   'host:stop': z.tuple([]),

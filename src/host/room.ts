@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { RawData, WebSocket } from 'ws'
 import { newNonce, verifyAuthHmac } from '@shared/auth'
 import type { types } from 'mediasoup'
+import type { ScreenMode } from '@shared/screen'
 import { MAX_PARTICIPANTS } from '@shared/upload-capacity'
 import {
   clientMessageSchema,
@@ -23,6 +24,8 @@ export interface RoomConfig {
   password: string
   /** Our certificate's fingerprint, bound into the password HMAC. */
   fingerprint: string
+  /** How screens are shared here (PLAN #27); auto when absent. */
+  screenMode?: ScreenMode
 }
 
 export interface RoomOptions {
@@ -226,6 +229,7 @@ export class Room {
       peers: others.map((member) => member.peer),
       routerRtpCapabilities: { ...this.#media?.rtpCapabilities },
       mutedPeers: others.filter((member) => member.muted).map((member) => member.peer.id),
+      screenMode: this.config.screenMode ?? 'auto',
     })
     // Whoever is already talking can be consumed right away.
     for (const member of others) {

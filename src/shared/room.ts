@@ -1,3 +1,4 @@
+import type { ScreenMode } from './screen'
 import type { HostMessage, Peer, RoomInfo, SignalingErrorCode } from './signaling'
 
 export type JoinError =
@@ -20,6 +21,8 @@ export type JoinResult =
       routerRtpCapabilities: Record<string, unknown>
       /** Participants whose microphone is off. */
       mutedPeers: string[]
+      /** How screens are shared in this room. */
+      screenMode: ScreenMode
     }
   | { ok: false; error: JoinError; room?: RoomInfo }
 

@@ -1,4 +1,5 @@
 import Monitor from 'lucide-solid/icons/monitor'
+import RefreshCw from 'lucide-solid/icons/refresh-cw'
 import X from 'lucide-solid/icons/x'
 import {
   createEffect,
@@ -142,6 +143,15 @@ export function ScreenSourceDialog(props: {
                   </button>
                 )}
               </For>
+              {/* A window opened after the dialog, or a display the system listed late. */}
+              <IconButton
+                class="screen-picker-refresh"
+                label="Обновить список"
+                icon={<RefreshCw />}
+                variant="ghost"
+                disabled={sources.loading}
+                onClick={() => void refetch()}
+              />
             </div>
             <Show
               when={shown().length > 0}

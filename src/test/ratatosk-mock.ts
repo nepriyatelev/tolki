@@ -166,6 +166,7 @@ export function installRatatoskMock(options: RatatoskMockOptions = {}): Ratatosk
               room: { name: 'Комната', peerCount: 0, hasPassword: false },
               routerRtpCapabilities: {},
               mutedPeers: [],
+              screenMode: 'auto',
             })),
       ),
       leave: vi.fn<RatatoskApi['room']['leave']>(() => Promise.resolve(null)),

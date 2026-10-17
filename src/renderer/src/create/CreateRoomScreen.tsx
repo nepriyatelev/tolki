@@ -10,7 +10,9 @@ import { createInviteLink, linkAddress } from './invite-link'
 import { generatePassword, generateRoomId } from './password'
 import './CreateRoomScreen.css'
 
-export type ScreenMode = 'auto' | 'text' | 'motion'
+import type { ScreenMode } from '@shared/screen'
+
+export type { ScreenMode }
 
 export function startFailureText(reason: HostStartFailure, port: number): string {
   switch (reason) {
@@ -117,6 +119,7 @@ export function CreateRoomScreen(props: {
       port,
       roomName: roomName().trim(),
       password: password(),
+      screenMode: mode(),
     })
     if (state.status !== 'running') {
       const reason = state.status === 'stopped' ? (state.lastError ?? 'unknown') : 'unknown'

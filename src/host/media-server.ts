@@ -7,7 +7,7 @@ import { FORWARDED_VOICES } from './speakers'
 
 /**
  * Codecs the room's router speaks. Opus is always "/48000/2" in WebRTC; the voice itself is mono
- * (stereo=0). Video codecs join with screen sharing (M3).
+ * (stereo=0).
  */
 const MEDIA_CODECS: types.RouterRtpCodecCapability[] = [
   {
@@ -17,6 +17,18 @@ const MEDIA_CODECS: types.RouterRtpCodecCapability[] = [
     channels: 2,
     parameters: { ...VOICE_OPUS_PARAMETERS },
   },
+  // Screen sharing (PLAN #27): H.264 first, as computers encode it in hardware; VP8 as fallback.
+  {
+    kind: 'video',
+    mimeType: 'video/H264',
+    clockRate: 90000,
+    parameters: {
+      'packetization-mode': 1,
+      'profile-level-id': '42e01f',
+      'level-asymmetry-allowed': 1,
+    },
+  },
+  { kind: 'video', mimeType: 'video/VP8', clockRate: 90000 },
 ]
 
 export class MediaServerStartError extends Error {

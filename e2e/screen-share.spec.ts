@@ -1,6 +1,7 @@
 import { createServer, type AddressInfo } from 'node:net'
 import { expect, test } from '@playwright/test'
 import { launchApp } from './app'
+import { cpuPercent, sentVideo, tapPeerConnections } from './media'
 
 async function freePort(): Promise<number> {
   const probe = createServer()
@@ -40,7 +41,13 @@ test('the user picks a screen and sees what they are showing', async () => {
     const port = await freePort()
     const state = await host.page.evaluate(
       (p) =>
-        window.ratatosk.host.start({ port: p, portMapping: false, roomName: 'Кино', password: '' }),
+        window.ratatosk.host.start({
+          port: p,
+          portMapping: false,
+          roomName: 'Кино',
+          password: '',
+          screenMode: 'motion',
+        }),
       port,
     )
     if (state.status !== 'running') throw new Error('host did not start')
@@ -61,11 +68,22 @@ test('the user picks a screen and sees what they are showing', async () => {
       if (mustRun) expect(hasScreen).toBe(true)
       test.skip(!hasScreen, 'no screen to capture (no «Запись экрана» permission?)')
 
+      await tapPeerConnections(page)
       await page.getByLabel('Твоё имя').fill('Катя')
       await page.getByRole('button', { name: 'Войти в комнату' }).click()
       await page.getByRole('button', { name: 'Показать экран' }).click()
       const dialog = page.getByRole('dialog', { name: 'Что показать' })
-      await dialog.getByRole('radio').first().click()
+      const firstSource = dialog.getByRole('radio').first()
+      // The virtual display is sometimes listed late: refresh once, and say what was shown.
+      const listed = await firstSource.waitFor({ timeout: 10_000 }).then(
+        () => true,
+        () => false,
+      )
+      if (!listed) {
+        console.log('picker before refresh:', await dialog.innerText())
+        await dialog.getByRole('button', { name: 'Обновить список' }).click()
+      }
+      await firstSource.click()
       await dialog.getByRole('button', { name: 'Показать' }).click()
 
       const preview = page.getByRole('listitem', { name: 'Твой экран' }).locator('video')
@@ -74,7 +92,32 @@ test('the user picks a screen and sees what they are showing', async () => {
         .poll(() => preview.evaluate((v: HTMLVideoElement) => v.videoWidth), { timeout: 15_000 })
         .toBeGreaterThan(0)
 
+      // Sent to the room (#27): two simulcast layers (≈360p and ≈1080p), both encoding,
+      // H.264 or VP8, tuned for motion.
+      const encoded = await expect
+        .poll(
+          async () => (await sentVideo(page))?.layers.every((l) => l.framesEncoded > 0) ?? false,
+          { timeout: 20_000 },
+        )
+        .toBe(true)
+        .then(
+          () => true,
+          () => false,
+        )
+      const video = await sentVideo(page)
+      console.log('sent video:', JSON.stringify(video))
+      expect(video?.codec).toMatch(/^video\/(H264|VP8)$/)
+      expect(video?.contentHint).toBe('motion')
+      expect(video?.layers).toHaveLength(2)
+      expect(encoded).toBe(true)
+      expect(video?.layers.map((l) => l.frameHeight).sort((a, b) => a - b)[0]).toBeLessThanOrEqual(
+        360,
+      )
+      // Reported, not asserted: CI encodes in software on a tiny virtual screen.
+      console.log('cpu while sharing, % of one core:', (await cpuPercent(client.app)).toFixed(1))
+
       await page.getByRole('button', { name: 'Остановить показ экрана' }).click()
+      await expect.poll(async () => (await sentVideo(page))?.layers.length ?? 0).toBe(0)
       await expect(page.getByRole('listitem', { name: 'Твой экран' })).toHaveCount(0)
     } finally {
       await client.app.close()

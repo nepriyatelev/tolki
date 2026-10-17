@@ -2,7 +2,7 @@ import { Device, FakeHandler, testFakeParameters } from 'mediasoup-client'
 import { describe, expect, it, vi } from 'vitest'
 import type { MediaResponse, RoomEvent } from '@shared/room'
 import type { MediaRequest } from '@shared/signaling'
-import { Call, collectRoomEvents, type RemoteAudio } from './call'
+import { Call, collectRoomEvents, preferredScreenCodec, type RemoteAudio } from './call'
 
 function fakeEvents() {
   let emit: (event: RoomEvent) => void = () => undefined
@@ -80,6 +80,24 @@ async function start(options: { microphone?: MediaStreamTrack | null; muted?: bo
     createDevice,
   })
   return { call, host, events, onRemoteAudio }
+}
+
+function fakeScreenTrack(height = 1080) {
+  const applyConstraints = vi.fn(() => Promise.resolve())
+  const track = {
+    id: 'screen',
+    kind: 'video',
+    enabled: true,
+    readyState: 'live',
+    contentHint: '',
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    stop: vi.fn(),
+    applyConstraints,
+    getSettings: () => ({ height }),
+  }
+  const fake = Object.assign(track, { clone: () => ({ ...track }) }) as unknown as MediaStreamTrack
+  return { track: fake, applyConstraints }
 }
 
 describe('Call', () => {
@@ -227,5 +245,98 @@ describe('Call', () => {
 
     expect(events.unsubscribe).toHaveBeenCalledOnce()
     expect(onRemoteAudio).toHaveBeenLastCalledWith([])
+  })
+})
+
+describe('sending the screen (#27)', () => {
+  it('goes out as two layers in the preferred codec, tuned by the room mode', async () => {
+    const { call, host } = await start()
+    const { track, applyConstraints } = fakeScreenTrack(1080)
+
+    await call.startScreen(track, 'text')
+
+    expect(track.contentHint).toBe('detail')
+    expect(applyConstraints).toHaveBeenCalledWith({
+      width: { max: 1920 },
+      height: { max: 1080 },
+      frameRate: { max: 15 },
+    })
+    const produce = host.request.mock.calls
+      .map((c) => c[0])
+      .find((r) => r.method === 'produce' && r.kind === 'video')
+    expect(produce).toBeDefined()
+    const rtp = (produce as unknown as { rtpParameters: { encodings: { maxBitrate?: number }[] } })
+      .rtpParameters
+    // ≈360p at 500 kbit/s and ≈1080p at the text mode's 1.5 Mbit/s.
+    expect(rtp.encodings.map((e) => e.maxBitrate)).toEqual([500_000, 1_500_000])
+    expect(call.screenCodec).toMatch(/^video\//)
+  })
+
+  it('starts the screen at 1 Mbit/s, not the browser default', async () => {
+    const device = createDevice()
+    const produced: unknown[] = []
+    const createSendTransport = device.createSendTransport.bind(device)
+    vi.spyOn(device, 'createSendTransport').mockImplementation((options) => {
+      const transport = createSendTransport(options)
+      const produce = transport.produce.bind(transport)
+      vi.spyOn(transport, 'produce').mockImplementation((args) => {
+        produced.push(args)
+        return produce(args)
+      })
+      return transport
+    })
+    const call = await Call.start({
+      routerRtpCapabilities: { ...testFakeParameters.generateRouterRtpCapabilities() },
+      events: fakeEvents().source,
+      request: fakeHost().request,
+      microphone: null,
+      muted: false,
+      onRemoteAudio: () => undefined,
+      createDevice: () => device,
+    })
+
+    await call.startScreen(fakeScreenTrack().track, 'auto')
+
+    expect(produced.at(-1)).toMatchObject({
+      codecOptions: { videoGoogleStartBitrate: 1000 },
+      appData: { source: 'screen' },
+    })
+  })
+
+  it('stops: closes the producer here and on the host', async () => {
+    const { call, host } = await start({ microphone: null })
+    await call.startScreen(fakeScreenTrack().track, 'motion')
+
+    await call.stopScreen()
+
+    expect(host.methods().at(-1)).toBe('closeProducer')
+    expect(call.screenCodec).toBeNull()
+    await call.stopScreen()
+    expect(host.methods().filter((m) => m === 'closeProducer')).toHaveLength(1)
+  })
+
+  it('works without a microphone: the send transport is created for the screen', async () => {
+    const { call, host } = await start({ microphone: null })
+    await call.startScreen(fakeScreenTrack().track, 'auto')
+    expect(host.methods().filter((m) => m === 'createTransport')).toHaveLength(2)
+  })
+})
+
+describe('preferredScreenCodec', () => {
+  const codec = (mimeType: string) => ({
+    kind: mimeType.startsWith('audio') ? ('audio' as const) : ('video' as const),
+    mimeType,
+    clockRate: 90000,
+    preferredPayloadType: 100,
+  })
+
+  it('prefers H.264, falls back to VP8, else nothing', () => {
+    expect(
+      preferredScreenCodec({
+        codecs: [codec('audio/opus'), codec('video/VP8'), codec('video/H264')],
+      })?.mimeType,
+    ).toBe('video/H264')
+    expect(preferredScreenCodec({ codecs: [codec('video/VP8')] })?.mimeType).toBe('video/VP8')
+    expect(preferredScreenCodec({ codecs: [codec('audio/opus')] })).toBeUndefined()
   })
 })

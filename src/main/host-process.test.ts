@@ -9,7 +9,8 @@ const OPTIONS = {
   portMapping: true,
   roomName: 'Комната',
   password: '',
-}
+  screenMode: 'auto',
+} as const
 const FINGERPRINT = 'x'.repeat(43)
 
 class FakeChild extends EventEmitter implements HostChild {
@@ -77,6 +78,7 @@ describe('HostProcess', () => {
         portMapping: true,
         roomName: 'Комната',
         password: '',
+        screenMode: 'auto',
       },
     ])
     children[0]?.ready()
