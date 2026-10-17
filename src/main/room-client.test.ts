@@ -253,3 +253,45 @@ describe('probeRoom (recent rooms status)', () => {
     })
   })
 })
+
+describe('when a joined room ends', () => {
+  it('reports host-closed when the host closes the room', async () => {
+    const invite = await startHost('')
+    const connection = await joinRoom({ invite, name: 'Катя', password: undefined })
+    connections.push(connection)
+    const closed = new Promise((resolve) => {
+      connection.onClosed(resolve)
+    })
+
+    room.close()
+
+    expect(await closed).toBe('host-closed')
+  })
+
+  it('reports connection-lost when the host disappears without closing', async () => {
+    const invite = await startHost('')
+    const connection = await joinRoom({ invite, name: 'Катя', password: undefined })
+    const closed = new Promise((resolve) => {
+      connection.onClosed(resolve)
+    })
+
+    await server?.close()
+    server = null
+
+    expect(await closed).toBe('connection-lost')
+  })
+
+  it('stays silent when the user leaves', async () => {
+    const invite = await startHost('')
+    const connection = await joinRoom({ invite, name: 'Катя', password: undefined })
+    let called = false
+    connection.onClosed(() => {
+      called = true
+    })
+
+    connection.close()
+    await new Promise((r) => setTimeout(r, 200))
+
+    expect(called).toBe(false)
+  })
+})

@@ -46,6 +46,16 @@ export class Room {
     return [...this.#peers.values()]
   }
 
+  /** Tells every participant the host closed the room, then disconnects them. */
+  close(): void {
+    for (const socket of this.#peers.keys()) {
+      const message: HostMessage = { type: 'room-closed' }
+      socket.send(JSON.stringify(message))
+      socket.close(1001, 'Room closed by the host')
+    }
+    this.#peers.clear()
+  }
+
   accept(socket: WebSocket, address: string): void {
     let stage: 'hello' | 'auth' | 'joined' = 'hello'
     let nonce = ''

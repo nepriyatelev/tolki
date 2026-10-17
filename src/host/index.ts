@@ -10,6 +10,7 @@ import { SignalingServerStartError, startSignalingServer, type SignalingServer }
 
 const port = process.parentPort
 let server: SignalingServer | null = null
+let room: Room | null = null
 let mapping: Promise<PortMappingSession> | null = null
 let stopping = false
 
@@ -23,7 +24,7 @@ function send(message: HostToMainMessage): void {
 async function start(message: Extract<MainToHostMessage, { type: 'start' }>): Promise<void> {
   try {
     const certificate = await loadOrCreateCertificate(message.dataDir)
-    const room = new Room({
+    room = new Room({
       name: message.roomName,
       password: message.password,
       fingerprint: certificate.fingerprint,
@@ -33,7 +34,7 @@ async function start(message: Extract<MainToHostMessage, { type: 'start' }>): Pr
       key: certificate.key,
       cert: certificate.cert,
       onConnection: (socket, address) => {
-        room.accept(socket, normalizeAddress(address))
+        room?.accept(socket, normalizeAddress(address))
       },
     })
     send({ type: 'ready', port: server.port, fingerprint: certificate.fingerprint })
@@ -66,6 +67,8 @@ async function check(message: Extract<MainToHostMessage, { type: 'check' }>): Pr
 async function shutdown(): Promise<void> {
   if (stopping) return
   stopping = true
+  // Participants learn the room was closed on purpose before the connection drops.
+  room?.close()
   const unmap = mapping?.then((session) => session.close())
   await Promise.race([unmap, new Promise((resolve) => setTimeout(resolve, UNMAP_TIMEOUT_MS))])
   await server?.close()

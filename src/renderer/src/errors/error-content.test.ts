@@ -1,0 +1,74 @@
+import { describe, expect, it } from 'vitest'
+import type { HostingProblem } from '@shared/network'
+import { errorContent, type ErrorKind } from './error-content'
+
+const cannotHost = (problem: HostingProblem, localAddress: string | null = '192.168.1.42') =>
+  errorContent({ kind: 'cannot-host', problem, port: 47000, localAddress })
+
+describe('errorContent', () => {
+  it.each<[ErrorKind, string]>([
+    [
+      { kind: 'cannot-host', problem: 'unsupported', port: 47000, localAddress: null },
+      'Нельзя хостить',
+    ],
+    [{ kind: 'host-offline' }, 'Хост не в сети'],
+    [{ kind: 'too-many-attempts' }, 'Неверный пароль'],
+    [{ kind: 'host-closed', roomName: 'Кино' }, 'Хост закрыл комнату'],
+    [{ kind: 'connection-lost', roomName: 'Кино' }, 'Связь с комнатой потеряна'],
+    [{ kind: 'room-full' }, 'Комната заполнена'],
+    [{ kind: 'update-required', reason: 'newer-link' }, 'Обнови приложение'],
+  ])('%j has the title «%s»', (error, title) => {
+    expect(errorContent(error).title).toBe(title)
+  })
+
+  it('gives the plan’s tips when the router does not forward the port', () => {
+    const titles = cannotHost('unsupported').tips.map((t) => t.title)
+
+    expect(titles).toEqual([
+      'Пробрось порт вручную',
+      'Включи IPv6',
+      'Пусть хостит другой',
+      'Tailscale',
+    ])
+    expect(cannotHost('unsupported').tips[0]?.text).toContain(
+      'порт 47000 для TCP и UDP на 192.168.1.42',
+    )
+    expect(cannotHost('unsupported', null).tips[0]?.text).toContain('на адрес этого компьютера')
+  })
+
+  it('gives only the owner’s two tips for a VPN (#60)', () => {
+    const content = cannotHost('vpn')
+
+    expect(content.text).toContain('VPN')
+    expect(content.tips.map((t) => t.title)).toEqual([
+      'Выключи VPN',
+      'Или добавь Ratatosk в исключения VPN',
+    ])
+    expect(JSON.stringify(content)).not.toContain('Tailscale')
+  })
+
+  it('does not suggest manual forwarding where it cannot help', () => {
+    expect(cannotHost('cgnat').tips[0]?.title).toBe('Попроси у провайдера белый IP')
+    expect(cannotHost('double-nat').tips[0]?.title).toBe('Убери второй роутер')
+    expect(cannotHost('no-gateway').tips[0]?.title).toBe('Проверь подключение')
+  })
+
+  it.each<HostingProblem>(['refused', 'bad-address', 'mapping-disabled'])(
+    'explains «%s» and suggests manual forwarding',
+    (problem) => {
+      expect(cannotHost(problem).text).not.toBe('')
+      expect(cannotHost(problem).tips[0]?.title).toBe('Пробрось порт вручную')
+    },
+  )
+
+  it('names the closed room and tells newer links from version mismatch', () => {
+    expect(errorContent({ kind: 'host-closed', roomName: 'Кино' }).text).toContain('«Кино»')
+    expect(errorContent({ kind: 'connection-lost', roomName: 'Кино' }).text).toContain('«Кино»')
+    expect(errorContent({ kind: 'update-required', reason: 'newer-link' }).text).toContain(
+      'более новой',
+    )
+    expect(errorContent({ kind: 'update-required', reason: 'host-version' }).text).toContain(
+      'разные версии',
+    )
+  })
+})

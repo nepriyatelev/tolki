@@ -4,6 +4,7 @@ import Copy from 'lucide-solid/icons/copy'
 import { createResource, createSignal, onCleanup, onMount, Show, type JSX } from 'solid-js'
 import { DEFAULT_HOST_PORT, type HostStartFailure, type HostState } from '@shared/host-protocol'
 import { Button, Card, Checkbox, IconButton, Input, RadioPillGroup } from '../ui'
+import { ErrorScreen } from '../errors/ErrorScreen'
 import { NetworkCheckCard } from './NetworkCheckCard'
 import { createInviteLink, linkAddress } from './invite-link'
 import { generatePassword, generateRoomId } from './password'
@@ -48,6 +49,8 @@ export function CreateRoomScreen(props: {
   const [phase, setPhase] = createSignal<Phase>({ kind: 'editing' })
   const [hostState, setHostState] = createSignal<HostState>({ status: 'stopped' })
   const [copied, setCopied] = createSignal(false)
+  // «Нельзя хостить» is shown in place of the form so typed values survive going back.
+  const [showHelp, setShowHelp] = createSignal(false)
 
   const [fingerprint] = createResource(() => window.ratatosk.host.getFingerprint())
   let forceCheck = false
@@ -147,168 +150,214 @@ export function CreateRoomScreen(props: {
     setPhase({ kind: 'editing' })
   }
 
+  const cannotHost = () => {
+    const result = check.latest
+    return result !== undefined && !result.verdict.canHost
+      ? {
+          kind: 'cannot-host' as const,
+          problem: result.verdict.problem,
+          port: result.port,
+          localAddress: result.localAddress,
+        }
+      : undefined
+  }
+
   return (
-    <main class="create">
-      <div class="create-title">
-        <Show when={!isOpen()}>
-          <IconButton
-            label="Назад"
-            icon={<ArrowLeft />}
-            onClick={() => {
-              props.onBack()
-            }}
-          />
-        </Show>
-        <h1>Новая комната</h1>
-      </div>
-
-      <div class="create-grid">
-        <Card as="section" class="create-form" aria-label="Настройки комнаты">
-          <fieldset class="create-fields" disabled={phase().kind !== 'editing'}>
-            <Input
-              label="Название комнаты"
-              placeholder="Вечерний созвон"
-              maxLength={64}
-              value={roomName()}
-              onInput={(e) => setRoomName(e.currentTarget.value)}
-              error={errors().roomName}
-            />
-            <Show when={!props.profileName}>
-              <Input
-                label="Твоё имя"
-                placeholder="Алексей"
-                maxLength={32}
-                value={name()}
-                onInput={(e) => setName(e.currentTarget.value)}
-                error={errors().name}
-              />
-            </Show>
-            <div class="create-password">
-              <Input
-                label="Пароль"
-                mono
-                placeholder="лиса-маяк-42"
-                maxLength={128}
-                autocomplete="off"
-                spellcheck={false}
-                value={password()}
-                onInput={(e) => setPassword(e.currentTarget.value)}
-                hint="Пустой пароль — войти сможет любой, у кого есть ссылка."
-              />
-              <Button
-                size="lg"
-                onClick={() => {
-                  setPassword(generatePassword())
-                }}
-              >
-                Сгенерировать
-              </Button>
-            </div>
-            <Checkbox
-              label="Вшить пароль в ссылку"
-              description="Удобнее: друзьям не нужно ничего вводить. Безопаснее — отправить пароль отдельно."
-              checked={embedPassword()}
-              onChange={(e) => setEmbedPassword(e.currentTarget.checked)}
-            />
-            <RadioPillGroup
-              legend="Демонстрация экрана"
-              value={mode()}
-              onChange={setMode}
-              options={[
-                { value: 'auto', label: 'Авто', description: 'Подстраивается под сеть' },
-                { value: 'text', label: 'Чёткий текст', description: 'Код, документы · 15 к/с' },
-                { value: 'motion', label: 'Плавно', description: 'Игры, видео · 60 к/с' },
-              ]}
-            />
-            <details class="create-advanced">
-              <summary>Дополнительно</summary>
-              <Input
-                label="Порт"
-                mono
-                inputMode="numeric"
-                maxLength={5}
-                value={portText()}
-                onInput={(e) => setPortText(e.currentTarget.value)}
-                onBlur={applyPort}
-                hint="Один номер для TCP и UDP. Если пробрасываешь порт на роутере вручную — укажи его здесь."
-                error={errors().port}
-              />
-            </details>
-          </fieldset>
-        </Card>
-
-        <div class="create-side">
-          <NetworkCheckCard
-            result={check.latest}
-            loading={check.loading}
-            onRetry={() => {
-              forceCheck = true
-              void recheck()
-            }}
-          />
-
-          <Card as="section" padding="md" class="link-card" aria-labelledby="link-card-title">
-            <h2 id="link-card-title">Ссылка-приглашение</h2>
-            <Show
-              when={link()}
-              fallback={
-                <p class="link-card-muted">
-                  {check.loading || fingerprint.loading
-                    ? 'Ссылка появится после проверки сети.'
-                    : 'Ссылку не из чего собрать: друзья не смогут подключиться к этому компьютеру из интернета.'}
-                </p>
-              }
+    <Show when={showHelp() ? cannotHost() : undefined} fallback={renderForm()}>
+      {(error) => (
+        <ErrorScreen
+          error={error()}
+          actions={
+            <Button
+              icon={<ArrowLeft />}
+              onClick={() => {
+                setShowHelp(false)
+              }}
             >
-              {(text) => (
-                <>
-                  <output class="link-card-link">{text()}</output>
-                  <Button icon={<Copy />} block onClick={() => void copy()}>
-                    {copied() ? 'Ссылка скопирована' : 'Скопировать ссылку'}
-                  </Button>
-                  <p class="link-card-muted">Ссылка работает, пока комната открыта у тебя.</p>
-                </>
-              )}
-            </Show>
+              Назад к настройкам комнаты
+            </Button>
+          }
+        />
+      )}
+    </Show>
+  )
+
+  function renderForm(): JSX.Element {
+    return (
+      <main class="create">
+        <div class="create-title">
+          <Show when={!isOpen()}>
+            <IconButton
+              label="Назад"
+              icon={<ArrowLeft />}
+              onClick={() => {
+                props.onBack()
+              }}
+            />
+          </Show>
+          <h1>Новая комната</h1>
+        </div>
+
+        <div class="create-grid">
+          <Card as="section" class="create-form" aria-label="Настройки комнаты">
+            <fieldset class="create-fields" disabled={phase().kind !== 'editing'}>
+              <Input
+                label="Название комнаты"
+                placeholder="Вечерний созвон"
+                maxLength={64}
+                value={roomName()}
+                onInput={(e) => setRoomName(e.currentTarget.value)}
+                error={errors().roomName}
+              />
+              <Show when={!props.profileName}>
+                <Input
+                  label="Твоё имя"
+                  placeholder="Алексей"
+                  maxLength={32}
+                  value={name()}
+                  onInput={(e) => setName(e.currentTarget.value)}
+                  error={errors().name}
+                />
+              </Show>
+              <div class="create-password">
+                <Input
+                  label="Пароль"
+                  mono
+                  placeholder="лиса-маяк-42"
+                  maxLength={128}
+                  autocomplete="off"
+                  spellcheck={false}
+                  value={password()}
+                  onInput={(e) => setPassword(e.currentTarget.value)}
+                  hint="Пустой пароль — войти сможет любой, у кого есть ссылка."
+                />
+                <Button
+                  size="lg"
+                  onClick={() => {
+                    setPassword(generatePassword())
+                  }}
+                >
+                  Сгенерировать
+                </Button>
+              </div>
+              <Checkbox
+                label="Вшить пароль в ссылку"
+                description="Удобнее: друзьям не нужно ничего вводить. Безопаснее — отправить пароль отдельно."
+                checked={embedPassword()}
+                onChange={(e) => setEmbedPassword(e.currentTarget.checked)}
+              />
+              <RadioPillGroup
+                legend="Демонстрация экрана"
+                value={mode()}
+                onChange={setMode}
+                options={[
+                  { value: 'auto', label: 'Авто', description: 'Подстраивается под сеть' },
+                  { value: 'text', label: 'Чёткий текст', description: 'Код, документы · 15 к/с' },
+                  { value: 'motion', label: 'Плавно', description: 'Игры, видео · 60 к/с' },
+                ]}
+              />
+              <details class="create-advanced">
+                <summary>Дополнительно</summary>
+                <Input
+                  label="Порт"
+                  mono
+                  inputMode="numeric"
+                  maxLength={5}
+                  value={portText()}
+                  onInput={(e) => setPortText(e.currentTarget.value)}
+                  onBlur={applyPort}
+                  hint="Один номер для TCP и UDP. Если пробрасываешь порт на роутере вручную — укажи его здесь."
+                  error={errors().port}
+                />
+              </details>
+            </fieldset>
           </Card>
 
-          <Show
-            when={phase().kind === 'editing' ? (phase() as { error?: string }).error : undefined}
-          >
-            {(error) => (
-              <p class="create-error" role="alert">
-                {error()}
-              </p>
-            )}
-          </Show>
+          <div class="create-side">
+            <NetworkCheckCard
+              result={check.latest}
+              loading={check.loading}
+              onRetry={() => {
+                forceCheck = true
+                void recheck()
+              }}
+            />
 
-          <Show
-            when={isOpen()}
-            fallback={
-              <Button
-                variant="primary"
-                size="lg"
-                block
-                iconEnd={<ArrowRight />}
-                disabled={phase().kind === 'opening'}
-                onClick={() => void open()}
+            <Card as="section" padding="md" class="link-card" aria-labelledby="link-card-title">
+              <h2 id="link-card-title">Ссылка-приглашение</h2>
+              <Show
+                when={link()}
+                fallback={
+                  <>
+                    <p class="link-card-muted">
+                      {check.loading || fingerprint.loading
+                        ? 'Ссылка появится после проверки сети.'
+                        : 'Ссылку не из чего собрать: друзья не смогут подключиться к этому компьютеру из интернета.'}
+                    </p>
+                    <Show when={!check.loading && cannotHost()}>
+                      <Button
+                        block
+                        onClick={() => {
+                          setShowHelp(true)
+                        }}
+                      >
+                        Почему и что делать?
+                      </Button>
+                    </Show>
+                  </>
+                }
               >
-                {phase().kind === 'opening' ? 'Открываем…' : 'Открыть комнату'}
-              </Button>
-            }
-          >
-            <div class="create-open" role="status">
-              <p>
-                {link() !== undefined
-                  ? 'Комната открыта. Отправь ссылку друзьям.'
-                  : 'Комната открыта, но из интернета к ней пока не подключиться.'}
-              </p>
-              <Button variant="danger" block onClick={() => void close()}>
-                Закрыть комнату
-              </Button>
-            </div>
-          </Show>
+                {(text) => (
+                  <>
+                    <output class="link-card-link">{text()}</output>
+                    <Button icon={<Copy />} block onClick={() => void copy()}>
+                      {copied() ? 'Ссылка скопирована' : 'Скопировать ссылку'}
+                    </Button>
+                    <p class="link-card-muted">Ссылка работает, пока комната открыта у тебя.</p>
+                  </>
+                )}
+              </Show>
+            </Card>
+
+            <Show
+              when={phase().kind === 'editing' ? (phase() as { error?: string }).error : undefined}
+            >
+              {(error) => (
+                <p class="create-error" role="alert">
+                  {error()}
+                </p>
+              )}
+            </Show>
+
+            <Show
+              when={isOpen()}
+              fallback={
+                <Button
+                  variant="primary"
+                  size="lg"
+                  block
+                  iconEnd={<ArrowRight />}
+                  disabled={phase().kind === 'opening'}
+                  onClick={() => void open()}
+                >
+                  {phase().kind === 'opening' ? 'Открываем…' : 'Открыть комнату'}
+                </Button>
+              }
+            >
+              <div class="create-open" role="status">
+                <p>
+                  {link() !== undefined
+                    ? 'Комната открыта. Отправь ссылку друзьям.'
+                    : 'Комната открыта, но из интернета к ней пока не подключиться.'}
+                </p>
+                <Button variant="danger" block onClick={() => void close()}>
+                  Закрыть комнату
+                </Button>
+              </div>
+            </Show>
+          </div>
         </div>
-      </div>
-    </main>
-  )
+      </main>
+    )
+  }
 }

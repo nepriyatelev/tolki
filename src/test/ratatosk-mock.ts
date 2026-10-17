@@ -3,7 +3,7 @@ import type { InviteParseResult } from '@shared/invite'
 import type { RatatoskApi } from '@shared/ipc'
 import type { NetworkCheckResult } from '@shared/network'
 import type { RecentRoom, RecentStatus } from '@shared/recent'
-import type { RoomPreview } from '@shared/room'
+import type { RoomClosedEvent, RoomPreview } from '@shared/room'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 
 export const MOCK_FINGERPRINT = '2_SqXt3l45Ay59VWqBcvcLmeh7BmqvL0m-UwbNw3EiE'
@@ -19,6 +19,7 @@ export const PUBLIC_IPV4_CHECK: NetworkCheckResult = {
     externalUdpPort: 47000,
   },
   ipv6Address: null,
+  localAddress: '192.168.1.42',
   verdict: {
     canHost: true,
     via: 'ipv4',
@@ -29,7 +30,10 @@ export const PUBLIC_IPV4_CHECK: NetworkCheckResult = {
 }
 
 export interface RatatoskMock {
-  app: { copyText: Mock<RatatoskApi['app']['copyText']> }
+  app: {
+    copyText: Mock<RatatoskApi['app']['copyText']>
+    openDownloadPage: Mock<RatatoskApi['app']['openDownloadPage']>
+  }
   host: {
     start: Mock<RatatoskApi['host']['start']>
     stop: Mock<RatatoskApi['host']['stop']>
@@ -45,6 +49,8 @@ export interface RatatoskMock {
   }
   room: {
     preview: Mock<RatatoskApi['room']['preview']>
+    /** Simulates main reporting that the joined room ended. */
+    emitClosed(event: RoomClosedEvent): void
     join: Mock<RatatoskApi['room']['join']>
     leave: Mock<RatatoskApi['room']['leave']>
   }
@@ -74,6 +80,7 @@ export const LIVE_PREVIEW: RoomPreview = {
 /** Installs a fake preload bridge on window for renderer tests. */
 export function installRatatoskMock(options: RatatoskMockOptions = {}): RatatoskMock {
   const inviteListeners = new Set<(result: InviteParseResult) => void>()
+  const closedListeners = new Set<(event: RoomClosedEvent) => void>()
   let recent = options.recentRooms ?? []
   const api = {
     app: {
@@ -81,6 +88,7 @@ export function installRatatoskMock(options: RatatoskMockOptions = {}): Ratatosk
         Promise.resolve({ name: 'Ratatosk', version: '0.0.0', platform: 'test' }),
       ),
       copyText: vi.fn<RatatoskApi['app']['copyText']>(() => Promise.resolve(null)),
+      openDownloadPage: vi.fn<RatatoskApi['app']['openDownloadPage']>(() => Promise.resolve(null)),
     },
     host: {
       start: vi.fn<RatatoskApi['host']['start']>(
@@ -126,6 +134,13 @@ export function installRatatoskMock(options: RatatoskMockOptions = {}): Ratatosk
       preview: vi.fn<RatatoskApi['room']['preview']>(() =>
         Promise.resolve(options.preview ?? LIVE_PREVIEW),
       ),
+      onClosed: (listener: (event: RoomClosedEvent) => void) => {
+        closedListeners.add(listener)
+        return () => closedListeners.delete(listener)
+      },
+      emitClosed: (event: RoomClosedEvent) => {
+        for (const listener of closedListeners) listener(event)
+      },
       join: vi.fn<RatatoskApi['room']['join']>(
         options.join ??
           (() =>

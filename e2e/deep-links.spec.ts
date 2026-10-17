@@ -36,12 +36,12 @@ test('a second launch with a link quits and hands the link to the running app', 
   }
 })
 
-test('a broken link explains what is wrong', async () => {
+test('a link from a newer version asks to update the app', async () => {
   const { app, page } = await launchApp({ args: ['ratatosk://join?v=9'] })
   try {
-    await expect(page.getByRole('heading', { name: 'Не получилось открыть ссылку' })).toBeVisible()
-    await expect(page.getByText(/Обнови приложение/)).toBeVisible()
-    await page.getByRole('button', { name: 'Назад' }).click()
+    await expect(page.getByRole('heading', { name: 'Обнови приложение' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Скачать новую версию' })).toBeVisible()
+    await page.getByRole('button', { name: 'На главный экран' }).click()
     await expect(page.getByRole('heading', { name: 'С кем созвонимся?' })).toBeVisible()
   } finally {
     await app.close()

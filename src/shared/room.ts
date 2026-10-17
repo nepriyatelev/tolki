@@ -20,3 +20,15 @@ export type RoomPreview =
   | { status: 'offline' }
   /** The host answered with a different certificate than the one in the link. */
   | { status: 'certificate-changed' }
+
+/** Why a joined room ended without the user leaving it. */
+export type RoomClosedReason =
+  /** The host closed the room on purpose. */
+  | 'host-closed'
+  /** The connection dropped (network, host computer went to sleep…). */
+  | 'connection-lost'
+
+export interface RoomClosedEvent {
+  reason: RoomClosedReason
+  roomName: string
+}
