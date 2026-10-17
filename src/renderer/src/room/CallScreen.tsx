@@ -3,10 +3,13 @@ import Headphones from 'lucide-solid/icons/headphones'
 import LogOut from 'lucide-solid/icons/log-out'
 import Mic from 'lucide-solid/icons/mic'
 import MicOff from 'lucide-solid/icons/mic-off'
+import Settings from 'lucide-solid/icons/settings'
 import { createSignal, For, Match, onCleanup, onMount, Show, Switch, type JSX } from 'solid-js'
 import type { JoinResult } from '@shared/room'
 import { volumeKey } from '@shared/settings'
 import type { Peer } from '@shared/signaling'
+import { AudioSettingsDialog } from '../audio/AudioSettingsDialog'
+import type { MicrophoneAccess } from '../audio/microphone'
 import { Avatar, Button } from '../ui'
 import { createEventBuffer, type RemoteAudio as Voice, type RoomEventSource } from './call'
 import { RemoteAudio } from './RemoteAudio'
@@ -30,6 +33,9 @@ export function CallScreen(props: {
   onLeft: () => void
   /** Tests replace the real call (mediasoup needs WebRTC). */
   startCall?: typeof startRealCall
+  /** Tests replace devices and the test sound in «Настройки звука». */
+  microphone?: MicrophoneAccess
+  playTestSound?: (outputDeviceId: string) => Promise<void>
 }): JSX.Element {
   // eslint-disable-next-line solid/reactivity -- a session never changes while the screen lives
   const { result, events, name } = props.session
@@ -40,6 +46,8 @@ export function CallScreen(props: {
   const [deafened, setDeafened] = createSignal(false)
   /** Whether the microphone was on before deafening: undeafening turns it back on. */
   let mutedBeforeDeafen = false
+  const [settingsOpen, setSettingsOpen] = createSignal(false)
+  const [outputDeviceId, setOutputDeviceId] = createSignal('')
   /** Remembered volumes by name (PLAN #23); loaded from settings. */
   const [volumes, setVolumes] = createSignal<Record<string, number>>({})
   const volumeOfName = (peerName: string): number => volumes()[volumeKey(peerName)] ?? 100
@@ -93,6 +101,7 @@ export function CallScreen(props: {
   onMount(() => {
     void window.ratatosk.settings.get().then((settings) => {
       setVolumes((current) => ({ ...settings.audio.peerVolumes, ...current }))
+      setOutputDeviceId(settings.audio.outputDeviceId)
     })
     void (props.startCall ?? startRealCall)({
       routerRtpCapabilities: result.routerRtpCapabilities,
@@ -150,7 +159,7 @@ export function CallScreen(props: {
   // Hotkeys work while the window has focus, but not while typing.
   const onKeyDown = (event: KeyboardEvent): void => {
     if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return
-    if (isTyping(event.target)) return
+    if (isTyping(event.target) || settingsOpen()) return
     // event.code: the same physical keys on the Russian layout (Ь and В).
     if (event.code === 'KeyM') toggleMic()
     else if (event.code === 'KeyD') toggleSound()
@@ -163,6 +172,13 @@ export function CallScreen(props: {
       window.removeEventListener('keydown', onKeyDown)
     })
   })
+
+  /** Another microphone mid-call: the producer swaps tracks, nobody reconnects (PLAN #24). */
+  const switchMicrophone = (deviceId: string): void => {
+    void call?.setInputDevice(deviceId).catch((error: unknown) => {
+      console.warn('[call] could not switch the microphone:', error)
+    })
+  }
 
   const end = (): void => {
     left = true
@@ -294,11 +310,36 @@ export function CallScreen(props: {
           <span class="call-control-icon">{deafened() ? <HeadphoneOff /> : <Headphones />}</span>
           {deafened() ? 'Звук выкл.' : 'Звук'}
         </button>
+        <button
+          type="button"
+          class="call-control"
+          aria-haspopup="dialog"
+          onClick={() => setSettingsOpen(true)}
+        >
+          <span class="call-control-icon">
+            <Settings />
+          </span>
+          Настройки
+        </button>
       </div>
+      <AudioSettingsDialog
+        open={settingsOpen()}
+        onClose={() => setSettingsOpen(false)}
+        onInputChange={switchMicrophone}
+        outputDeviceId={outputDeviceId()}
+        onOutputChange={setOutputDeviceId}
+        {...(props.microphone ? { access: props.microphone } : {})}
+        {...(props.playTestSound ? { playTestSound: props.playTestSound } : {})}
+      />
       <p class="call-hotkeys">
         <kbd>M</kbd> — микрофон · <kbd>D</kbd> — звук
       </p>
-      <RemoteAudio voices={voices()} deafened={deafened()} volumeOf={volumeOf} />
+      <RemoteAudio
+        voices={voices()}
+        deafened={deafened()}
+        volumeOf={volumeOf}
+        outputDeviceId={outputDeviceId()}
+      />
     </main>
   )
 }

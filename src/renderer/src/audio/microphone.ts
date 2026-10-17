@@ -15,6 +15,8 @@ export class MicrophoneError extends Error {
 /** Microphone access for the join screen; tests swap in a fake. */
 export interface MicrophoneAccess {
   listInputs(): Promise<AudioInput[]>
+  /** Speakers and headphones (labels need microphone access first). */
+  listOutputs(): Promise<AudioInput[]>
   /** Starts reporting the input level (0..1) for a device; resolves with a stop function. */
   openMeter(deviceId: string, onLevel: (level: number) => void): Promise<() => void>
 }
@@ -28,24 +30,45 @@ function toMicrophoneError(error: unknown): MicrophoneError {
   return new MicrophoneError('unavailable')
 }
 
+async function listDevices(kind: MediaDeviceKind, fallback: string): Promise<AudioInput[]> {
+  const devices = await navigator.mediaDevices.enumerateDevices()
+  return devices
+    .filter((d) => d.kind === kind && d.deviceId !== 'default' && d.deviceId !== '')
+    .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `${fallback} ${i + 1}` }))
+}
+
+/** Voice processing for calls (PLAN #25 keeps it on). */
+export function microphoneConstraints(deviceId: string): MediaTrackConstraints {
+  return {
+    ...(deviceId !== '' ? { deviceId: { exact: deviceId } } : {}),
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+  }
+}
+
+/** The microphone track for the call. */
+export async function openMicrophoneTrack(deviceId: string): Promise<MediaStreamTrack> {
+  let stream: MediaStream
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: microphoneConstraints(deviceId) })
+  } catch (error) {
+    throw toMicrophoneError(error)
+  }
+  const track = stream.getAudioTracks()[0]
+  if (!track) throw new MicrophoneError('not-found')
+  return track
+}
+
 export const browserMicrophone: MicrophoneAccess = {
-  async listInputs() {
-    const devices = await navigator.mediaDevices.enumerateDevices()
-    return devices
-      .filter((d) => d.kind === 'audioinput' && d.deviceId !== 'default' && d.deviceId !== '')
-      .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Микрофон ${i + 1}` }))
-  },
+  listInputs: () => listDevices('audioinput', 'Микрофон'),
+  listOutputs: () => listDevices('audiooutput', 'Динамики'),
 
   async openMeter(deviceId, onLevel) {
     let stream: MediaStream
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          ...(deviceId !== '' ? { deviceId: { exact: deviceId } } : {}),
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
+        audio: microphoneConstraints(deviceId),
       })
     } catch (error) {
       throw toMicrophoneError(error)

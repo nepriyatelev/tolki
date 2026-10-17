@@ -34,7 +34,7 @@ describe('SettingsStore', () => {
       {
         speedTest: { enabled: false },
         profile: { name: '' },
-        audio: { inputDeviceId: '', peerVolumes: {} },
+        audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: {} },
       },
     ])
   })
@@ -45,7 +45,7 @@ describe('SettingsStore', () => {
     expect(store.get()).toEqual({
       speedTest: { enabled: false },
       profile: { name: '' },
-      audio: { inputDeviceId: '', peerVolumes: {} },
+      audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: {} },
     })
   })
 
@@ -72,6 +72,7 @@ describe('SettingsStore', () => {
     store.update({ audio: { peerVolumes: { '  Катя ': 150 } } })
     expect(store.get().audio).toEqual({
       inputDeviceId: 'mic',
+      outputDeviceId: '',
       peerVolumes: { миша: 50, катя: 150 },
     })
 
@@ -86,6 +87,18 @@ describe('SettingsStore', () => {
     const names = Object.keys(store.get().audio.peerVolumes)
     expect(names).toHaveLength(200)
     expect(names[0]).toBe('друг 5')
+  })
+
+  it('remembers the output device without touching the rest', () => {
+    const store = new SettingsStore(backend({ audio: { inputDeviceId: 'mic' } }))
+
+    store.update({ audio: { outputDeviceId: 'headphones' } })
+
+    expect(store.get().audio).toEqual({
+      inputDeviceId: 'mic',
+      outputDeviceId: 'headphones',
+      peerVolumes: {},
+    })
   })
 
   it('rejects volumes out of range', () => {

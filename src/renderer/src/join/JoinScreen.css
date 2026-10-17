@@ -102,38 +102,6 @@
   background: var(--color-panel);
 }
 
-.mic-check {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.mic-level {
-  display: grid;
-  grid-template-columns: repeat(20, 1fr);
-  gap: 4px;
-}
-
-.mic-level__segment {
-  height: 14px;
-  border-radius: 3px;
-  background: var(--color-raised);
-  transition: background-color 60ms linear;
-}
-
-.mic-level__segment--on {
-  background: var(--color-accent);
-}
-
-.mic-hint {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-}
-
-.mic-hint--problem {
-  color: var(--color-danger-text);
-}
-
 .join-alert {
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);

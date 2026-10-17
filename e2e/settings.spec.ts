@@ -7,7 +7,7 @@ test('settings default to the speed test being on and survive a restart', async 
     expect(await first.page.evaluate(() => window.ratatosk.settings.get())).toEqual({
       speedTest: { enabled: true },
       profile: { name: '' },
-      audio: { inputDeviceId: '', peerVolumes: {} },
+      audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: {} },
     })
     expect(
       await first.page.evaluate(() =>
@@ -16,7 +16,7 @@ test('settings default to the speed test being on and survive a restart', async 
     ).toEqual({
       speedTest: { enabled: false },
       profile: { name: '' },
-      audio: { inputDeviceId: '', peerVolumes: {} },
+      audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: {} },
     })
     // A friend's volume is remembered by name (PLAN #23).
     await first.page.evaluate(() =>
@@ -31,7 +31,7 @@ test('settings default to the speed test being on and survive a restart', async 
     expect(await second.page.evaluate(() => window.ratatosk.settings.get())).toEqual({
       speedTest: { enabled: false },
       profile: { name: '' },
-      audio: { inputDeviceId: '', peerVolumes: { катя: 150 } },
+      audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: { катя: 150 } },
     })
   } finally {
     await second.app.close()

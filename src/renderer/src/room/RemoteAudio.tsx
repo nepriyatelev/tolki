@@ -10,6 +10,8 @@ export function RemoteAudio(props: {
   deafened: boolean
   /** Percent, 100 by default. */
   volumeOf: (peerId: string) => number
+  /** Speakers or headphones; empty: the system default (PLAN #24). */
+  outputDeviceId: string
 }): JSX.Element {
   // Created with the first voice: no audio machinery while alone in the room.
   let context: AudioContext | null = null
@@ -20,9 +22,15 @@ export function RemoteAudio(props: {
       master = context.createGain()
       master.connect(context.destination)
       master.gain.value = props.deafened ? 0 : 1
+      routeTo(context, props.outputDeviceId)
     }
     return { context, master }
   }
+  // A new output applies on the fly, without touching the call.
+  createEffect(() => {
+    const deviceId = props.outputDeviceId
+    if (context) routeTo(context, deviceId)
+  })
   createEffect(() => {
     const deafened = props.deafened
     if (master) master.gain.value = deafened ? 0 : 1
@@ -63,4 +71,10 @@ export function RemoteAudio(props: {
       </For>
     </div>
   )
+}
+
+function routeTo(context: AudioContext, deviceId: string): void {
+  void context.setSinkId(deviceId).catch((error: unknown) => {
+    console.warn('[call] could not switch the output device:', error)
+  })
 }

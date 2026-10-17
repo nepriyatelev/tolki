@@ -125,6 +125,15 @@ export class Call {
     })
   }
 
+  /**
+   * Another microphone, without reconnecting (PLAN #24). The producer keeps its id and
+   * mute state; the old track is the caller's to stop.
+   */
+  async replaceMicrophone(track: MediaStreamTrack): Promise<void> {
+    if (!this.#producer || this.#closed) return
+    await this.#producer.replaceTrack({ track })
+  }
+
   /** Stops sending and receiving; the microphone track is the caller's to stop. */
   close(): void {
     if (this.#closed) return

@@ -31,6 +31,7 @@ function setup(invite: Invite, result: JoinResult, startCall?: StartCall) {
           Promise.resolve({
             sending: true,
             setMuted: () => Promise.resolve(),
+            setInputDevice: () => Promise.resolve(),
             close: () => undefined,
           }))
       }
@@ -172,7 +173,12 @@ describe('the call after joining', () => {
   it('starts with the router capabilities and the «join muted» choice, and ends on leave', async () => {
     const close = vi.fn()
     const startCall = vi.fn<StartCall>(() =>
-      Promise.resolve({ sending: true, setMuted: () => Promise.resolve(), close }),
+      Promise.resolve({
+        sending: true,
+        setMuted: () => Promise.resolve(),
+        setInputDevice: () => Promise.resolve(),
+        close,
+      }),
     )
     const { user } = setup(INVITE, ok, startCall)
     await user.type(screen.getByLabelText('Твоё имя'), 'Алексей')
@@ -193,6 +199,7 @@ describe('the call after joining', () => {
       Promise.resolve({
         sending: false,
         setMuted: () => Promise.resolve(),
+        setInputDevice: () => Promise.resolve(),
         close: () => undefined,
       }),
     )

@@ -15,6 +15,11 @@ function fakeMic(options: { fail?: MicrophoneError } = {}) {
         { deviceId: 'usb', label: 'USB Audio Device' },
         { deviceId: 'built-in', label: 'Встроенный микрофон' },
       ]),
+    listOutputs: () =>
+      Promise.resolve([
+        { deviceId: 'headphones', label: 'Наушники' },
+        { deviceId: 'speakers', label: 'Динамики MacBook' },
+      ]),
     openMeter: vi.fn((deviceId: string, onLevel: (level: number) => void) => {
       if (options.fail) return Promise.reject(options.fail)
       opened.push(deviceId)
@@ -102,5 +107,10 @@ describe('MicCheck', () => {
     unmount()
 
     expect(mic.stops).toEqual([''])
+  })
+
+  it('has no «join muted» checkbox outside the join screen', () => {
+    render(() => <MicCheck access={fakeMic().access} />)
+    expect(screen.queryByRole('checkbox')).toBeNull()
   })
 })

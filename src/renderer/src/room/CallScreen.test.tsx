@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { JoinResult } from '@shared/room'
 import { installRatatoskMock } from '../../../test/ratatosk-mock'
+import type { MicrophoneAccess } from '../audio/microphone'
 import { collectRoomEvents } from './call'
 import { CallScreen } from './CallScreen'
 
@@ -13,6 +14,20 @@ const RESULT: Extract<JoinResult, { ok: true }> = {
   room: { name: 'Вечерний созвон', peerCount: 1, hasPassword: false },
   routerRtpCapabilities: {},
   mutedPeers: [],
+}
+
+const FAKE_DEVICES: MicrophoneAccess = {
+  listInputs: () =>
+    Promise.resolve([
+      { deviceId: 'usb', label: 'USB-микрофон' },
+      { deviceId: 'built-in', label: 'Встроенный микрофон' },
+    ]),
+  listOutputs: () =>
+    Promise.resolve([
+      { deviceId: 'headphones', label: 'Наушники' },
+      { deviceId: 'speakers', label: 'Динамики' },
+    ]),
+  openMeter: () => Promise.resolve(() => undefined),
 }
 
 function setup(
@@ -26,10 +41,14 @@ function setup(
   const api = installRatatoskMock({ peerVolumes: options.peerVolumes ?? {} })
   const close = vi.fn()
   const setMuted = vi.fn<(muted: boolean) => Promise<void>>(() => Promise.resolve())
+  const setInputDevice = vi.fn<(deviceId: string) => Promise<void>>(() => Promise.resolve())
   const onLeft = vi.fn()
   const events = collectRoomEvents()
+  const playTestSound = vi.fn<(outputDeviceId: string) => Promise<void>>(() => Promise.resolve())
   render(() => (
     <CallScreen
+      microphone={FAKE_DEVICES}
+      playTestSound={playTestSound}
       session={{
         result: { ...RESULT, mutedPeers: options.mutedPeers ?? [] },
         events,
@@ -37,14 +56,25 @@ function setup(
         muted: options.muted ?? false,
       }}
       onLeft={onLeft}
-      startCall={() => Promise.resolve({ sending: options.sending ?? true, setMuted, close })}
+      startCall={() =>
+        Promise.resolve({ sending: options.sending ?? true, setMuted, setInputDevice, close })
+      }
     />
   ))
   const labels = () =>
     within(screen.getByRole('list', { name: 'Участники' }))
       .getAllByRole('listitem')
       .map((tile) => tile.getAttribute('aria-label'))
-  return { api, close, setMuted, onLeft, labels, user: userEvent.setup() }
+  return {
+    api,
+    close,
+    setMuted,
+    setInputDevice,
+    playTestSound,
+    onLeft,
+    labels,
+    user: userEvent.setup(),
+  }
 }
 
 describe('CallScreen', () => {
@@ -236,5 +266,50 @@ describe('volume of each participant (#23)', () => {
     api.room.emitEvent({ type: 'peer-left', peerId: 'dima' })
     expect(screen.getByText('Пока никого нет')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'В комнате · 1' })).toBeTruthy()
+  })
+})
+
+describe('«Настройки звука» during a call (#24)', () => {
+  async function openSettings() {
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(screen.getByRole('button', { name: 'Настройки' }))
+    const dialog = screen.getByRole('dialog', { name: 'Настройки звука' })
+    return { ...ctx, dialog }
+  }
+
+  it('switches the microphone on the fly and remembers it', async () => {
+    const { api, setInputDevice, dialog, user } = await openSettings()
+    const mic = within(dialog).getByLabelText('Микрофон')
+    await within(mic).findByRole('option', { name: 'USB-микрофон' })
+
+    await user.selectOptions(mic, 'usb')
+
+    expect(setInputDevice).toHaveBeenCalledWith('usb')
+    expect(api.settings.update).toHaveBeenCalledWith({ audio: { inputDeviceId: 'usb' } })
+  })
+
+  it('switches the output, remembers it, and plays the test sound there', async () => {
+    const { api, playTestSound, dialog, user } = await openSettings()
+    const output = within(dialog).getByLabelText('Динамики или наушники')
+    await within(output).findByRole('option', { name: 'Наушники' })
+
+    await user.selectOptions(output, 'headphones')
+    expect(api.settings.update).toHaveBeenCalledWith({ audio: { outputDeviceId: 'headphones' } })
+
+    await user.click(within(dialog).getByRole('button', { name: 'Проверить звук' }))
+    expect(playTestSound).toHaveBeenCalledWith('headphones')
+  })
+
+  it('closes, and hotkeys stay quiet while it is open', async () => {
+    const { setMuted, dialog, user } = await openSettings()
+
+    await user.keyboard('m')
+    expect(setMuted).not.toHaveBeenCalled()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Закрыть' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await user.keyboard('m')
+    expect(setMuted).toHaveBeenCalledWith(true)
   })
 })
