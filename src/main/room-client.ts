@@ -167,6 +167,7 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
                   routerRtpCapabilities: message.routerRtpCapabilities,
                   mutedPeers: message.mutedPeers,
                   screenMode: message.screenMode,
+                  sharerId: message.sharerId,
                 },
           )
           return
@@ -186,6 +187,10 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
         case 'consumer-closed':
         case 'active-speakers':
         case 'peer-muted':
+        case 'screen-share-started':
+        case 'screen-share-stopped':
+        case 'screen-request':
+        case 'screen-request-answer':
           if (eventListener) eventListener(message)
           else earlyEvents.push(message)
           return

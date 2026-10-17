@@ -6,8 +6,18 @@ import MicOff from 'lucide-solid/icons/mic-off'
 import ScreenShare from 'lucide-solid/icons/screen-share'
 import ScreenShareOff from 'lucide-solid/icons/screen-share-off'
 import Settings from 'lucide-solid/icons/settings'
-import { createSignal, For, Match, onCleanup, onMount, Show, Switch, type JSX } from 'solid-js'
-import type { JoinResult } from '@shared/room'
+import {
+  createSignal,
+  For,
+  Match,
+  onCleanup,
+  onMount,
+  Show,
+  Switch,
+  untrack,
+  type JSX,
+} from 'solid-js'
+import type { JoinResult, RoomEvent } from '@shared/room'
 import { volumeKey } from '@shared/settings'
 import type { Peer } from '@shared/signaling'
 import { AudioSettingsDialog } from '../audio/AudioSettingsDialog'
@@ -77,6 +87,18 @@ export function CallScreen(props: {
   /** What this user is showing (PLAN #26); sending it to the others comes with #27. */
   const [myScreen, setMyScreen] = createSignal<MediaStream | null>(null)
   const [screenError, setScreenError] = createSignal(false)
+  /** One screen at a time (PLAN #29): who shares now, and «Показать свой» in progress. */
+  const [sharerId, setSharerId] = createSignal<string | null>(result.sharerId)
+  const [askingToShare, setAskingToShare] = createSignal(false)
+  const [screenNote, setScreenNote] = createSignal<string | null>(null)
+  /** Who asked the user (the sharer) to give way, oldest first. */
+  const [screenRequests, setScreenRequests] = createSignal<string[]>([])
+  const nameOf = (peerId: string | null): string =>
+    peers().find((p) => p.id === peerId)?.name ?? 'Участник'
+  const someoneElseShares = (): boolean => {
+    const id = sharerId()
+    return id !== null && id !== result.peerId
+  }
   const [outputDeviceId, setOutputDeviceId] = createSignal('')
   /** Remembered volumes by name (PLAN #23); loaded from settings. */
   const [volumes, setVolumes] = createSignal<Record<string, number>>({})
@@ -133,7 +155,8 @@ export function CallScreen(props: {
   // A function, not the variable: the user may leave while the call is starting.
   const hasLeft = (): boolean => left
 
-  events.listen((event) => {
+  // Room events come from IPC, outside any tracking scope; untrack makes that explicit.
+  const onRoomEvent = (event: RoomEvent): void => {
     switch (event.type) {
       case 'peer-joined':
         setPeers((list) => [...list.filter((p) => p.id !== event.peer.id), event.peer])
@@ -143,6 +166,30 @@ export function CallScreen(props: {
         break
       case 'active-speakers':
         showSpeakers(event.peerIds)
+        break
+      case 'screen-share-started':
+        setSharerId(event.peerId)
+        break
+      case 'screen-share-stopped':
+        setSharerId((id) => (id === event.peerId ? null : id))
+        setScreenRequests([])
+        // The screen is free now: whoever asked can pick theirs.
+        if (askingToShare()) {
+          setAskingToShare(false)
+          setPickerOpen(true)
+        }
+        break
+      case 'screen-request':
+        setScreenRequests((list) => [
+          ...list.filter((id) => id !== event.fromPeerId),
+          event.fromPeerId,
+        ])
+        break
+      case 'screen-request-answer':
+        if (!askingToShare()) break
+        setAskingToShare(false)
+        if (event.accepted) setPickerOpen(true)
+        else setScreenNote(`${nameOf(sharerId())} продолжает показ`)
         break
       case 'peer-muted':
         setMutedPeers((set) => {
@@ -156,6 +203,11 @@ export function CallScreen(props: {
         break
     }
     callEvents.push(event)
+  }
+  events.listen((event) => {
+    untrack(() => {
+      onRoomEvent(event)
+    })
   })
 
   onMount(() => {
@@ -263,12 +315,47 @@ export function CallScreen(props: {
       // Everyone else gets it in the room's mode (sharp text, smooth motion or auto).
       if (track && call) await call.startScreen(track, result.screenMode)
     } catch (error) {
+      // Someone else started first: the room shows one screen at a time.
+      if (error instanceof Error && error.message.includes('SCREEN_BUSY')) {
+        stopScreen()
+        setScreenNote(`Сейчас показывает ${nameOf(sharerId())}`)
+        return
+      }
       // Cancelling the system picker is not an error worth showing.
       if (!(error instanceof DOMException && error.name === 'NotAllowedError')) {
         console.warn('[screen] could not start:', error)
         setScreenError(true)
       }
     }
+  }
+
+  const screenButton = (): { label: string; text: string } => {
+    if (myScreen()) return { label: 'Остановить показ экрана', text: 'Остановить' }
+    if (askingToShare()) return { label: 'Ждём ответа на запрос показа', text: 'Ждём ответа…' }
+    if (someoneElseShares())
+      return { label: 'Попросить показать свой экран', text: 'Показать свой' }
+    return { label: 'Показать экран', text: 'Экран' }
+  }
+
+  /** «Показать свой»: the sharer decides; meanwhile the button waits. */
+  const askToShare = async (): Promise<void> => {
+    setScreenNote(null)
+    setAskingToShare(true)
+    try {
+      await call?.requestScreen()
+    } catch (error) {
+      setAskingToShare(false)
+      // The sharer stopped in the meantime: just pick a screen.
+      if (error instanceof Error && error.message.includes('nobody is sharing')) setPickerOpen(true)
+      else console.warn('[screen] could not ask:', error)
+    }
+  }
+
+  /** The user shares and someone asks to show theirs. */
+  const answerRequest = async (fromPeerId: string, accept: boolean): Promise<void> => {
+    setScreenRequests((list) => list.filter((id) => id !== fromPeerId))
+    await call?.answerScreenRequest(fromPeerId, accept).catch(() => undefined)
+    if (accept) stopScreen()
   }
 
   const end = (): void => {
@@ -366,6 +453,26 @@ export function CallScreen(props: {
             </Match>
           </Switch>
         </p>
+        <For each={screenRequests().slice(0, 1)}>
+          {(fromPeerId) => (
+            <div class="call-request" role="alert">
+              <span>{nameOf(fromPeerId)} просит показать свой экран</span>
+              <Button onClick={() => void answerRequest(fromPeerId, false)}>
+                Продолжить показ
+              </Button>
+              <Button variant="primary" onClick={() => void answerRequest(fromPeerId, true)}>
+                Уступить
+              </Button>
+            </div>
+          )}
+        </For>
+        <Show when={screenNote()}>
+          {(note) => (
+            <p class="call-sound" role="status">
+              {note()}
+            </p>
+          )}
+        </Show>
         <Show when={screenError()}>
           <p class="call-sound call-sound--failed" role="alert">
             Не получилось начать показ экрана. Попробуй ещё раз или выбери другое окно.
@@ -400,16 +507,18 @@ export function CallScreen(props: {
             class="call-control"
             classList={{ 'call-control--active': myScreen() !== null }}
             aria-pressed={myScreen() !== null}
-            aria-label={myScreen() ? 'Остановить показ экрана' : 'Показать экран'}
+            aria-label={screenButton().label}
+            disabled={askingToShare()}
             onClick={() => {
               if (myScreen()) stopScreen()
+              else if (someoneElseShares()) void askToShare()
               else setPickerOpen(true)
             }}
           >
             <span class="call-control-icon">
               {myScreen() ? <ScreenShareOff /> : <ScreenShare />}
             </span>
-            {myScreen() ? 'Остановить' : 'Экран'}
+            {screenButton().text}
           </button>
           <button
             type="button"

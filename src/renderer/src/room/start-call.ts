@@ -20,6 +20,9 @@ export interface CallHandle {
   /** Others' screens: shown or hidden, and the layer for the size shown (PLAN #28). */
   setScreenVisible(consumerId: string, visible: boolean): Promise<void>
   setScreenLayer(consumerId: string, layer: ScreenLayer): Promise<void>
+  /** One screen at a time (PLAN #29): ask the sharer, or answer as the sharer. */
+  requestScreen(): Promise<void>
+  answerScreenRequest(fromPeerId: string, accept: boolean): Promise<void>
   close(): void
 }
 
@@ -47,6 +50,8 @@ export async function startCall(options: StartCallOptions): Promise<CallHandle> 
       stopScreen: () => call.stopScreen(),
       setScreenVisible: (consumerId, visible) => call.setScreenVisible(consumerId, visible),
       setScreenLayer: (consumerId, layer) => call.setScreenLayer(consumerId, layer),
+      requestScreen: () => call.requestScreen(),
+      answerScreenRequest: (fromPeerId, accept) => call.answerScreenRequest(fromPeerId, accept),
       setInputDevice: async (deviceId) => {
         if (!call.producing) return
         const track = await openMicrophoneTrack(deviceId)
