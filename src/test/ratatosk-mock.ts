@@ -1,4 +1,5 @@
 import { vi, type Mock } from 'vitest'
+import type { InviteParseResult } from '@shared/invite'
 import type { RatatoskApi } from '@shared/ipc'
 import type { NetworkCheckResult } from '@shared/network'
 import { DEFAULT_SETTINGS } from '@shared/settings'
@@ -28,10 +29,21 @@ export interface RatatoskMock {
     check: Mock<RatatoskApi['network']['check']>
     measureUpload: Mock<RatatoskApi['network']['measureUpload']>
   }
+  invite: {
+    takePending: Mock<RatatoskApi['invite']['takePending']>
+    /** Simulates main delivering a link while the app is open. */
+    emit(result: InviteParseResult): void
+  }
+}
+
+export interface RatatoskMockOptions extends Partial<RatatoskApi['network']> {
+  /** A link that "started the app". */
+  pendingInvite?: InviteParseResult
 }
 
 /** Installs a fake preload bridge on window for renderer tests. */
-export function installRatatoskMock(overrides: Partial<RatatoskApi['network']> = {}): RatatoskMock {
+export function installRatatoskMock(options: RatatoskMockOptions = {}): RatatoskMock {
+  const inviteListeners = new Set<(result: InviteParseResult) => void>()
   const api = {
     app: {
       getInfo: vi.fn(() =>
@@ -46,15 +58,27 @@ export function installRatatoskMock(overrides: Partial<RatatoskApi['network']> =
     },
     network: {
       check: vi.fn<RatatoskApi['network']['check']>(
-        overrides.check ?? (() => Promise.resolve(PUBLIC_IPV4_CHECK)),
+        options.check ?? (() => Promise.resolve(PUBLIC_IPV4_CHECK)),
       ),
       measureUpload: vi.fn<RatatoskApi['network']['measureUpload']>(
-        overrides.measureUpload ?? (() => Promise.resolve({ status: 'disabled' })),
+        options.measureUpload ?? (() => Promise.resolve({ status: 'disabled' })),
       ),
     },
     settings: {
       get: vi.fn(() => Promise.resolve(DEFAULT_SETTINGS)),
       update: vi.fn(() => Promise.resolve(DEFAULT_SETTINGS)),
+    },
+    invite: {
+      takePending: vi.fn<RatatoskApi['invite']['takePending']>(() =>
+        Promise.resolve(options.pendingInvite ?? null),
+      ),
+      onOpened: (listener: (result: InviteParseResult) => void) => {
+        inviteListeners.add(listener)
+        return () => inviteListeners.delete(listener)
+      },
+      emit: (result: InviteParseResult) => {
+        for (const listener of inviteListeners) listener(result)
+      },
     },
   }
   Object.defineProperty(window, 'ratatosk', { value: api, configurable: true })

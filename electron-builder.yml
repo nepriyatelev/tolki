@@ -21,6 +21,16 @@ asarUnpack:
 extraResources:
   - from: build/licenses
     to: licenses
+  # Icon for the user-level .desktop entry an AppImage writes on first start.
+  - from: build/icons/ratatosk-256.png
+    to: icons/ratatosk.png
+
+# ratatosk:// invite links: Info.plist on macOS, MimeType in .desktop on Linux.
+# Windows registers at runtime (app.setAsDefaultProtocolClient), NSIS does not.
+protocols:
+  - name: Ratatosk invite
+    schemes:
+      - ratatosk
 
 # Only the UI languages we ship; trims ~40 MB of Chromium locales.
 electronLanguages:

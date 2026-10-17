@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { hostPortSchema, type HostState } from './host-protocol'
+import type { InviteParseResult } from './invite'
 import type { NetworkCheckResult } from './network'
 import { settingsPatchSchema, type Settings, type SettingsPatch } from './settings'
 import type { UploadMeasurement } from './upload-capacity'
@@ -23,6 +24,8 @@ export interface InvokeContract {
   'network:measure-upload': { args: [options: NetworkCheckRequest]; result: UploadMeasurement }
   'settings:get': { args: []; result: Settings }
   'settings:update': { args: [patch: SettingsPatch]; result: Settings }
+  /** An invite link that arrived before the renderer was ready, if any. */
+  'invite:take-pending': { args: []; result: InviteParseResult | null }
 }
 
 export interface NetworkCheckRequest {
@@ -39,6 +42,8 @@ export interface HostStartRequest {
 /** Main → renderer events (`webContents.send`). */
 export interface EventContract {
   'host:state': HostState
+  /** The user opened a ratatosk:// link (already parsed strictly in main). */
+  'invite:opened': InviteParseResult
 }
 
 export type InvokeChannel = keyof InvokeContract
@@ -58,6 +63,7 @@ export const invokeArgsSchemas: {
   'network:measure-upload': z.tuple([z.strictObject({ force: z.boolean().optional() })]),
   'settings:get': z.tuple([]),
   'settings:update': z.tuple([settingsPatchSchema]),
+  'invite:take-pending': z.tuple([]),
 }
 
 /** The API the preload script exposes to the renderer as `window.ratatosk`. */
@@ -79,5 +85,10 @@ export interface RatatoskApi {
   settings: {
     get(): Promise<Settings>
     update(patch: SettingsPatch): Promise<Settings>
+  }
+  invite: {
+    takePending(): Promise<InviteParseResult | null>
+    /** Returns an unsubscribe function. */
+    onOpened(listener: (result: InviteParseResult) => void): () => void
   }
 }

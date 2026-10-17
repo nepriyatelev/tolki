@@ -1,0 +1,46 @@
+.join {
+  display: grid;
+  flex: 1;
+  place-items: start center;
+  padding: var(--space-12) var(--space-8);
+}
+
+.join-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-6);
+  width: 100%;
+  max-width: 520px;
+}
+
+.join-card h1 {
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+}
+
+.join-details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-3) var(--space-6);
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+.join-details dt {
+  color: var(--color-text-muted);
+}
+
+.join-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.join-mono {
+  font-family: var(--font-mono);
+}
+
+.join-error {
+  color: var(--color-text-soft);
+}
