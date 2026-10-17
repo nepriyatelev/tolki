@@ -50,6 +50,12 @@ test('the user picks a screen and sees what they are showing', async () => {
     try {
       const page = client.page
       const sources = await page.evaluate(() => window.ratatosk.screen.listSources())
+      console.log(
+        'screen sources:',
+        JSON.stringify(sources, (key, value: unknown) =>
+          key === 'thumbnail' || key === 'icon' ? typeof value : value,
+        ),
+      )
       test.skip(
         sources.picker !== 'app' || !sources.sources.some((s) => s.kind === 'screen'),
         `no screen to capture here (${sources.picker})`,
