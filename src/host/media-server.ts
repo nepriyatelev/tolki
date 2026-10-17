@@ -63,7 +63,7 @@ export class MediaServer {
       const audioLevels = await router.createAudioLevelObserver({
         maxEntries: FORWARDED_VOICES,
         // dBov: quieter than this is background noise, not speech.
-        threshold: -55,
+        threshold: -70,
         interval: 300,
       })
       return new MediaServer(options.port, tcpPort, worker, router, webRtcServer, audioLevels)
