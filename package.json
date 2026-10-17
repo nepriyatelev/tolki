@@ -25,6 +25,8 @@
     "dist": "electron-vite build && electron-builder --publish never"
   },
   "dependencies": {
+    "selfsigned": "5.5.0",
+    "ws": "8.22.0",
     "zod": "4.6.7"
   },
   "devDependencies": {
@@ -35,6 +37,7 @@
     "@solidjs/testing-library": "^0.8.10",
     "@testing-library/user-event": "14.6.8",
     "@types/node": "^24.19.2",
+    "@types/ws": "8.18.2",
     "electron": "44.7.2",
     "electron-builder": "26.17.0",
     "electron-vite": "^6.0.0",

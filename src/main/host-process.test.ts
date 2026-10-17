@@ -1,8 +1,10 @@
-// @vitest-environment node
 import { EventEmitter } from 'node:events'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { MainToHostMessage } from '@shared/host-protocol'
-import { HostProcess, type HostChild } from './host-process'
+import type { HostState, MainToHostMessage } from '@shared/host-protocol'
+import { HostProcess, HostStartError, type HostChild } from './host-process'
+
+const OPTIONS = { port: 47000, dataDir: '/tmp/ratatosk' }
+const FINGERPRINT = 'x'.repeat(43)
 
 class FakeChild extends EventEmitter implements HostChild {
   readonly sent: MainToHostMessage[] = []
@@ -18,8 +20,8 @@ class FakeChild extends EventEmitter implements HostChild {
     return true
   }
 
-  ready(): void {
-    this.emit('message', { type: 'ready' })
+  ready(port = 47000): void {
+    this.emit('message', { type: 'ready', port, fingerprint: FINGERPRINT })
   }
 
   exit(code = 0): void {
@@ -37,9 +39,18 @@ function setup(options: { readyTimeoutMs?: number; stopTimeoutMs?: number } = {}
     },
     ...options,
   })
-  const statuses: string[] = []
-  host.onStatus((s) => statuses.push(s))
-  return { host, children, statuses }
+  const states: HostState[] = []
+  host.onState((s) => states.push(s))
+  const statuses = () => states.map((s) => s.status)
+  return { host, children, states, statuses }
+}
+
+async function startRunning() {
+  const ctx = setup()
+  const started = ctx.host.start(OPTIONS)
+  ctx.children[0]?.ready()
+  await started
+  return ctx
 }
 
 afterEach(() => {
@@ -47,116 +58,155 @@ afterEach(() => {
 })
 
 describe('HostProcess', () => {
-  it('starts and becomes running after the ready message', async () => {
+  it('asks the child to start on the port and becomes running with the fingerprint', async () => {
     const { host, children, statuses } = setup()
 
-    const started = host.start()
-    expect(host.status).toBe('starting')
+    const started = host.start(OPTIONS)
+    expect(host.state).toEqual({ status: 'starting', port: 47000 })
+    expect(children[0]?.sent).toEqual([{ type: 'start', port: 47000, dataDir: '/tmp/ratatosk' }])
     children[0]?.ready()
 
-    await expect(started).resolves.toBe('running')
-    expect(statuses).toEqual(['starting', 'running'])
+    await expect(started).resolves.toEqual({
+      status: 'running',
+      port: 47000,
+      fingerprint: FINGERPRINT,
+    })
+    expect(statuses()).toEqual(['starting', 'running'])
   })
 
   it('ignores malformed messages from the child', async () => {
     const { host, children } = setup()
 
-    const started = host.start()
+    const started = host.start(OPTIONS)
     children[0]?.emit('message', { type: 'bogus' })
+    children[0]?.emit('message', { type: 'ready', port: 80, fingerprint: FINGERPRINT })
     children[0]?.emit('message', 'ready')
-    expect(host.status).toBe('starting')
+    expect(host.state.status).toBe('starting')
     children[0]?.ready()
 
-    await expect(started).resolves.toBe('running')
+    await expect(started).resolves.toMatchObject({ status: 'running' })
   })
 
-  it('reuses a running process instead of spawning a second one', async () => {
+  it('reuses a running process on the same port', async () => {
     const { host, children } = setup()
 
-    const first = host.start()
-    const second = host.start()
+    const first = host.start(OPTIONS)
+    const second = host.start(OPTIONS)
     children[0]?.ready()
 
-    await expect(first).resolves.toBe('running')
-    await expect(second).resolves.toBe('running')
-    await expect(host.start()).resolves.toBe('running')
+    await expect(first).resolves.toMatchObject({ status: 'running' })
+    await expect(second).resolves.toMatchObject({ status: 'running' })
+    await expect(host.start(OPTIONS)).resolves.toMatchObject({ status: 'running' })
     expect(children).toHaveLength(1)
   })
 
-  it('stops gracefully with a shutdown message', async () => {
-    const { host, children, statuses } = setup()
-    const started = host.start()
-    children[0]?.ready()
-    await started
+  it('restarts on a different port', async () => {
+    const { host, children } = await startRunning()
 
-    const stopped = host.stop()
-    expect(host.status).toBe('stopping')
-    expect(children[0]?.sent).toEqual([{ type: 'shutdown' }])
+    const restarted = host.start({ ...OPTIONS, port: 47001 })
+    await vi.waitFor(() => {
+      expect(children[0]?.sent.at(-1)).toEqual({ type: 'shutdown' })
+    })
     children[0]?.exit(0)
+    await vi.waitFor(() => {
+      expect(children).toHaveLength(2)
+    })
+    children[1]?.ready(47001)
 
-    await expect(stopped).resolves.toBe('stopped')
-    expect(children[0]?.killed).toBe(false)
-    expect(statuses).toEqual(['starting', 'running', 'stopping', 'stopped'])
+    await expect(restarted).resolves.toMatchObject({ status: 'running', port: 47001 })
   })
 
-  it('kills the child if it ignores shutdown', async () => {
-    vi.useFakeTimers()
-    const { host, children } = setup({ stopTimeoutMs: 100 })
-    const started = host.start()
-    children[0]?.ready()
-    await started
+  it('reports the reason when the server cannot start', async () => {
+    const { host, children } = setup()
 
-    const stopped = host.stop()
-    await vi.advanceTimersByTimeAsync(100)
+    const started = host.start(OPTIONS)
+    children[0]?.emit('message', {
+      type: 'start-failed',
+      reason: 'port-in-use',
+      message: 'Port 47000 is already in use',
+    })
+    children[0]?.exit(1)
 
-    await expect(stopped).resolves.toBe('stopped')
-    expect(children[0]?.killed).toBe(true)
+    const error = await started.catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(HostStartError)
+    expect((error as HostStartError).reason).toBe('port-in-use')
+    expect(host.state).toEqual({ status: 'stopped', lastError: 'port-in-use' })
   })
 
-  it('fails and kills the child if it never reports ready', async () => {
+  it('reports a crash when the child exits during startup without a reason', async () => {
+    const { host, children } = setup()
+
+    const started = host.start(OPTIONS)
+    children[0]?.exit(3)
+
+    await expect(started).rejects.toMatchObject({ reason: 'crashed' })
+    expect(host.state).toEqual({ status: 'stopped', lastError: 'crashed' })
+  })
+
+  it('fails with timeout and kills the child if it never reports ready', async () => {
     vi.useFakeTimers()
     const { host, children } = setup({ readyTimeoutMs: 100 })
 
-    const started = host.start()
-    const assertion = expect(started).rejects.toThrow(/did not report ready/)
+    const started = host.start(OPTIONS)
+    const assertion = expect(started).rejects.toMatchObject({ reason: 'timeout' })
     await vi.advanceTimersByTimeAsync(100)
 
     await assertion
     expect(children[0]?.killed).toBe(true)
-    expect(host.status).toBe('stopped')
+    expect(host.state).toEqual({ status: 'stopped', lastError: 'timeout' })
   })
 
-  it('reports stopped when the child crashes while running', async () => {
-    const { host, children } = setup()
-    const started = host.start()
-    children[0]?.ready()
+  it('stops gracefully with a shutdown message', async () => {
+    const { host, children, statuses } = await startRunning()
+
+    const stopped = host.stop()
+    expect(host.state).toEqual({ status: 'stopping', port: 47000 })
+    expect(children[0]?.sent.at(-1)).toEqual({ type: 'shutdown' })
+    children[0]?.exit(0)
+
+    await expect(stopped).resolves.toEqual({ status: 'stopped' })
+    expect(children[0]?.killed).toBe(false)
+    expect(statuses()).toEqual(['starting', 'running', 'stopping', 'stopped'])
+  })
+
+  it('kills the child if it ignores shutdown', async () => {
+    vi.useFakeTimers()
+    const ctx = setup({ stopTimeoutMs: 100 })
+    const started = ctx.host.start(OPTIONS)
+    ctx.children[0]?.ready()
     await started
+
+    const stopped = ctx.host.stop()
+    await vi.advanceTimersByTimeAsync(100)
+
+    await expect(stopped).resolves.toEqual({ status: 'stopped' })
+    expect(ctx.children[0]?.killed).toBe(true)
+  })
+
+  it('reports stopped without an error when the child crashes while running', async () => {
+    const { host, children } = await startRunning()
 
     children[0]?.exit(1)
 
-    expect(host.status).toBe('stopped')
+    expect(host.state).toEqual({ status: 'stopped' })
   })
 
-  it('can start again after stopping', async () => {
+  it('can start again after a failed start', async () => {
     const { host, children } = setup()
-    const started = host.start()
-    children[0]?.ready()
-    await started
-    const stopped = host.stop()
-    children[0]?.exit(0)
-    await stopped
+    const failed = host.start(OPTIONS)
+    children[0]?.exit(1)
+    await failed.catch(() => undefined)
 
-    const restarted = host.start()
+    const retried = host.start(OPTIONS)
     children[1]?.ready()
 
-    await expect(restarted).resolves.toBe('running')
-    expect(children).toHaveLength(2)
+    await expect(retried).resolves.toMatchObject({ status: 'running' })
   })
 
   it('stop() on a stopped host is a no-op', async () => {
     const { host, children } = setup()
 
-    await expect(host.stop()).resolves.toBe('stopped')
+    await expect(host.stop()).resolves.toEqual({ status: 'stopped' })
     expect(children).toHaveLength(0)
   })
 })

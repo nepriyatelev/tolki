@@ -39,7 +39,7 @@ test('renderer has no Node APIs, only the typed bridge', async () => {
       module: 'undefined',
       Buffer: 'undefined',
       bridge: ['app', 'host'],
-      hostApi: ['getStatus', 'onStatus', 'start', 'stop'],
+      hostApi: ['getState', 'onState', 'start', 'stop'],
     })
 
     const info = await page.evaluate(() => window.ratatosk.app.getInfo())
