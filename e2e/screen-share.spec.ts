@@ -208,21 +208,23 @@ test('others see the shared screen at a layer that fits, and nothing while minim
         .toBeLessThanOrEqual(360)
       console.log('small window:', JSON.stringify(await receivedVideo(misha.page)))
 
-      // Hidden (minimized or another window on top): nothing arrives; shown again: frames again.
-      // Hiding, not minimizing: a virtual display without a window manager cannot minimize.
-      await misha.app.evaluate(({ BrowserWindow }) => {
-        BrowserWindow.getAllWindows()[0]?.hide()
-      })
-      await expect
-        .poll(() => misha.page.evaluate(() => document.visibilityState), { timeout: 10_000 })
-        .toBe('hidden')
+      // Hidden (minimized): nothing arrives; shown again: frames again. The OS signal itself
+      // cannot be produced on a virtual display without a window manager, so the page is told
+      // it is hidden the way the browser would; everything after that is real.
+      const setHidden = (hidden: boolean) =>
+        misha.page.evaluate((h) => {
+          Object.defineProperty(document, 'visibilityState', {
+            configurable: true,
+            get: () => (h ? 'hidden' : 'visible'),
+          })
+          document.dispatchEvent(new Event('visibilitychange'))
+        }, hidden)
+      await setHidden(true)
       await misha.page.waitForTimeout(1500)
       const pausedAt = (await receivedVideo(misha.page))?.framesDecoded ?? 0
       await misha.page.waitForTimeout(2000)
       expect((await receivedVideo(misha.page))?.framesDecoded ?? 0).toBe(pausedAt)
-      await misha.app.evaluate(({ BrowserWindow }) => {
-        BrowserWindow.getAllWindows()[0]?.show()
-      })
+      await setHidden(false)
       await expect
         .poll(async () => (await receivedVideo(misha.page))?.framesDecoded ?? 0, {
           timeout: 15_000,
