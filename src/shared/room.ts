@@ -18,6 +18,8 @@ export type JoinResult =
       room: RoomInfo
       /** For the renderer's mediasoup Device. */
       routerRtpCapabilities: Record<string, unknown>
+      /** Participants whose microphone is off. */
+      mutedPeers: string[]
     }
   | { ok: false; error: JoinError; room?: RoomInfo }
 
@@ -43,7 +45,15 @@ export interface RoomClosedEvent {
 /** What happens in a joined room: people come and go, voices start and stop. */
 export type RoomEvent = Extract<
   HostMessage,
-  { type: 'peer-joined' | 'peer-left' | 'new-producer' | 'consumer-closed' | 'active-speakers' }
+  {
+    type:
+      | 'peer-joined'
+      | 'peer-left'
+      | 'new-producer'
+      | 'consumer-closed'
+      | 'active-speakers'
+      | 'peer-muted'
+  }
 >
 
 /** The host's answer to a media request. */

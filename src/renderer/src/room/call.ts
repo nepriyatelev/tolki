@@ -110,6 +110,21 @@ export class Call {
     return this.#producer !== null
   }
 
+  /**
+   * Mute stops sending (PLAN #22): the producer pauses here and on the host, which tells the
+   * others. Without a microphone there is nothing to do.
+   */
+  async setMuted(muted: boolean): Promise<void> {
+    const producer = this.#producer
+    if (!producer || this.#closed) return
+    if (muted) producer.pause()
+    else producer.resume()
+    await this.#request({
+      method: muted ? 'pauseProducer' : 'resumeProducer',
+      producerId: producer.id,
+    })
+  }
+
   /** Stops sending and receiving; the microphone track is the caller's to stop. */
   close(): void {
     if (this.#closed) return
@@ -157,7 +172,7 @@ export class Call {
       stopTracks: false,
       disableTrackOnPause: true,
     })
-    if (this.options.muted) this.#producer.pause()
+    if (this.options.muted) await this.setMuted(true)
   }
 
   /** mediasoup-client asks for DTLS parameters on first use of a transport. */

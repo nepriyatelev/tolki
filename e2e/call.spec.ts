@@ -80,6 +80,21 @@ test('two app instances on one machine hear each other through the host', async 
           timeout: 15_000,
         })
 
+        // Katya presses M: Misha sees her microphone is off and hears silence.
+        await katya.page.keyboard.press('m')
+        await expect(katya.page.getByRole('button', { name: 'Включить микрофон' })).toBeVisible()
+        await expect(
+          misha.page.getByRole('listitem', { name: 'Катя' }).getByRole('img', {
+            name: 'Микрофон выключен',
+          }),
+        ).toBeVisible()
+        await expect.poll(() => heardLevel(misha.page), { timeout: 15_000 }).toBeLessThan(0.001)
+
+        // Misha presses D: the sound is off and so is his microphone.
+        await misha.page.keyboard.press('d')
+        await expect(misha.page.getByRole('button', { name: 'Включить звук' })).toBeVisible()
+        await expect(misha.page.getByRole('button', { name: 'Включить микрофон' })).toBeVisible()
+
         // Misha leaves: Katya stops playing his voice.
         await misha.page.getByRole('button', { name: 'Выйти' }).click()
         await expect(katya.page.locator('audio[data-peer-id]')).toHaveCount(0)
