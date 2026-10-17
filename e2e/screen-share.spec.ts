@@ -127,7 +127,7 @@ test('the user picks a screen and sees what they are showing', async () => {
   }
 })
 
-test('others see the shared screen at a layer that fits, and nothing while minimized', async () => {
+test('others see the shared screen at a layer that fits, and nothing while hidden', async () => {
   test.setTimeout(120_000)
   const host = await launchApp()
   try {
