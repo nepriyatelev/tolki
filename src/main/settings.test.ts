@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_SETTINGS, type Settings } from '@shared/settings'
+import { DEFAULT_SETTINGS, settingsPatchSchema, type Settings } from '@shared/settings'
 import { SettingsStore } from './settings'
 
 function backend(initial: unknown) {
@@ -31,7 +31,11 @@ describe('SettingsStore', () => {
 
     expect(store.update({ speedTest: { enabled: false } }).speedTest.enabled).toBe(false)
     expect(b.written).toEqual([
-      { speedTest: { enabled: false }, profile: { name: '' }, audio: { inputDeviceId: '' } },
+      {
+        speedTest: { enabled: false },
+        profile: { name: '' },
+        audio: { inputDeviceId: '', peerVolumes: {} },
+      },
     ])
   })
 
@@ -41,7 +45,7 @@ describe('SettingsStore', () => {
     expect(store.get()).toEqual({
       speedTest: { enabled: false },
       profile: { name: '' },
-      audio: { inputDeviceId: '' },
+      audio: { inputDeviceId: '', peerVolumes: {} },
     })
   })
 
@@ -58,5 +62,36 @@ describe('SettingsStore', () => {
     store.get().speedTest.enabled = false
 
     expect(store.get().speedTest.enabled).toBe(true)
+  })
+
+  it('remembers volumes by name, forgets 100 % and keeps the microphone choice', () => {
+    const store = new SettingsStore(
+      backend({ audio: { inputDeviceId: 'mic', peerVolumes: { миша: 50 } } }),
+    )
+
+    store.update({ audio: { peerVolumes: { '  Катя ': 150 } } })
+    expect(store.get().audio).toEqual({
+      inputDeviceId: 'mic',
+      peerVolumes: { миша: 50, катя: 150 },
+    })
+
+    store.update({ audio: { peerVolumes: { Миша: 100 } } })
+    expect(store.get().audio.peerVolumes).toEqual({ катя: 150 })
+  })
+
+  it('keeps at most 200 remembered volumes, dropping the oldest', () => {
+    const store = new SettingsStore(backend({}))
+    for (let i = 0; i < 205; i++) store.update({ audio: { peerVolumes: { [`друг ${i}`]: 120 } } })
+
+    const names = Object.keys(store.get().audio.peerVolumes)
+    expect(names).toHaveLength(200)
+    expect(names[0]).toBe('друг 5')
+  })
+
+  it('rejects volumes out of range', () => {
+    expect(settingsPatchSchema.safeParse({ audio: { peerVolumes: { a: 201 } } }).success).toBe(
+      false,
+    )
+    expect(settingsPatchSchema.safeParse({ audio: { peerVolumes: { a: -1 } } }).success).toBe(false)
   })
 })

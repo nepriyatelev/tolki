@@ -1,6 +1,8 @@
 import {
   DEFAULT_SETTINGS,
+  MAX_REMEMBERED_VOLUMES,
   settingsSchema,
+  volumeKey,
   type Settings,
   type SettingsPatch,
 } from '@shared/settings'
@@ -31,9 +33,27 @@ export class SettingsStore {
         ? { speedTest: { ...this.#settings.speedTest, ...patch.speedTest } }
         : {}),
       ...(patch.profile ? { profile: { ...this.#settings.profile, ...patch.profile } } : {}),
-      ...(patch.audio ? { audio: { ...this.#settings.audio, ...patch.audio } } : {}),
+      ...(patch.audio ? { audio: mergeAudio(this.#settings.audio, patch.audio) } : {}),
     }
     this.backend.write(this.#settings)
     return this.get()
+  }
+}
+
+function mergeAudio(
+  current: Settings['audio'],
+  patch: NonNullable<SettingsPatch['audio']>,
+): Settings['audio'] {
+  const volumes = new Map(Object.entries(current.peerVolumes))
+  for (const [name, volume] of Object.entries(patch.peerVolumes ?? {})) {
+    const key = volumeKey(name)
+    // Re-inserting moves the entry to the end: the oldest are dropped first.
+    volumes.delete(key)
+    if (volume !== 100) volumes.set(key, volume)
+  }
+  const kept = [...volumes].slice(-MAX_REMEMBERED_VOLUMES)
+  return {
+    inputDeviceId: patch.inputDeviceId ?? current.inputDeviceId,
+    peerVolumes: Object.fromEntries(kept),
   }
 }

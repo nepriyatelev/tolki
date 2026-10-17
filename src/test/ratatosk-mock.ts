@@ -42,6 +42,10 @@ export interface RatatoskMock {
     check: Mock<RatatoskApi['network']['check']>
     measureUpload: Mock<RatatoskApi['network']['measureUpload']>
   }
+  settings: {
+    get: Mock<RatatoskApi['settings']['get']>
+    update: Mock<RatatoskApi['settings']['update']>
+  }
   recent: {
     list: Mock<RatatoskApi['recent']['list']>
     probe: Mock<RatatoskApi['recent']['probe']>
@@ -69,6 +73,8 @@ export interface RatatoskMockOptions extends Partial<RatatoskApi['network']> {
   /** A link that "started the app". */
   pendingInvite?: InviteParseResult
   join?: RatatoskApi['room']['join']
+  /** Remembered volumes by name (settings.audio.peerVolumes). */
+  peerVolumes?: Record<string, number>
   recentRooms?: RecentRoom[]
   recentStatuses?: Record<string, RecentStatus>
   profileName?: string
@@ -130,10 +136,14 @@ export function installRatatoskMock(options: RatatoskMockOptions = {}): Ratatosk
       }),
     },
     settings: {
-      get: vi.fn(() =>
-        Promise.resolve({ ...DEFAULT_SETTINGS, profile: { name: options.profileName ?? '' } }),
+      get: vi.fn<RatatoskApi['settings']['get']>(() =>
+        Promise.resolve({
+          ...DEFAULT_SETTINGS,
+          profile: { name: options.profileName ?? '' },
+          audio: { ...DEFAULT_SETTINGS.audio, peerVolumes: options.peerVolumes ?? {} },
+        }),
       ),
-      update: vi.fn(() => Promise.resolve(DEFAULT_SETTINGS)),
+      update: vi.fn<RatatoskApi['settings']['update']>(() => Promise.resolve(DEFAULT_SETTINGS)),
     },
     room: {
       preview: vi.fn<RatatoskApi['room']['preview']>(() =>
