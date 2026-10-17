@@ -4,6 +4,7 @@ import {
   type HostState,
   type MainToHostMessage,
 } from '@shared/host-protocol'
+import type { ScreenMode } from '@shared/screen'
 
 /** The part of Electron's UtilityProcess that HostProcess relies on. */
 export interface HostChild {
@@ -18,6 +19,7 @@ export interface HostStartOptions {
   portMapping: boolean
   roomName: string
   password: string
+  screenMode: ScreenMode
   /** Where the host keeps its certificate (Electron userData). */
   dataDir: string
 }
@@ -165,6 +167,7 @@ export class HostProcess {
         portMapping: options.portMapping,
         roomName: options.roomName,
         password: options.password,
+        screenMode: options.screenMode,
       })
     })
   }

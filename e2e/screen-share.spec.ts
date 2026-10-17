@@ -1,6 +1,7 @@
 import { createServer, type AddressInfo } from 'node:net'
 import { expect, test } from '@playwright/test'
 import { launchApp } from './app'
+import { cpuPercent, sentVideo, tapPeerConnections } from './media'
 
 async function freePort(): Promise<number> {
   const probe = createServer()
@@ -40,7 +41,13 @@ test('the user picks a screen and sees what they are showing', async () => {
     const port = await freePort()
     const state = await host.page.evaluate(
       (p) =>
-        window.ratatosk.host.start({ port: p, portMapping: false, roomName: 'Кино', password: '' }),
+        window.ratatosk.host.start({
+          port: p,
+          portMapping: false,
+          roomName: 'Кино',
+          password: '',
+          screenMode: 'motion',
+        }),
       port,
     )
     if (state.status !== 'running') throw new Error('host did not start')
@@ -61,6 +68,7 @@ test('the user picks a screen and sees what they are showing', async () => {
       if (mustRun) expect(hasScreen).toBe(true)
       test.skip(!hasScreen, 'no screen to capture (no «Запись экрана» permission?)')
 
+      await tapPeerConnections(page)
       await page.getByLabel('Твоё имя').fill('Катя')
       await page.getByRole('button', { name: 'Войти в комнату' }).click()
       await page.getByRole('button', { name: 'Показать экран' }).click()
@@ -74,7 +82,25 @@ test('the user picks a screen and sees what they are showing', async () => {
         .poll(() => preview.evaluate((v: HTMLVideoElement) => v.videoWidth), { timeout: 15_000 })
         .toBeGreaterThan(0)
 
+      // Sent to the room (#27): two simulcast layers, H.264 or VP8, tuned for motion.
+      await expect
+        .poll(
+          async () => (await sentVideo(page))?.layers.every((l) => l.framesEncoded > 0) ?? false,
+          {
+            timeout: 15_000,
+          },
+        )
+        .toBe(true)
+      const video = await sentVideo(page)
+      console.log('sent video:', JSON.stringify(video))
+      expect(video?.codec).toMatch(/^video\/(H264|VP8)$/)
+      expect(video?.contentHint).toBe('motion')
+      expect(video?.layers.map((l) => l.rid)).toEqual(['high', 'low'])
+      // Reported, not asserted: CI encodes in software on a tiny virtual screen.
+      console.log('cpu while sharing, % of one core:', (await cpuPercent(client.app)).toFixed(1))
+
       await page.getByRole('button', { name: 'Остановить показ экрана' }).click()
+      await expect.poll(async () => (await sentVideo(page))?.layers.length ?? 0).toBe(0)
       await expect(page.getByRole('listitem', { name: 'Твой экран' })).toHaveCount(0)
     } finally {
       await client.app.close()

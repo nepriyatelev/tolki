@@ -133,6 +133,14 @@ export class PeerMedia {
       case 'resumeProducer':
         await this.#setPaused(request.producerId, false)
         return {}
+
+      case 'closeProducer': {
+        const producer = this.#producers.get(request.producerId)
+        if (!producer) throw new MediaRequestError('unknown producer')
+        // Consumers of it end with 'producerclose'; their owners get consumer-closed.
+        producer.close()
+        return {}
+      }
     }
   }
 

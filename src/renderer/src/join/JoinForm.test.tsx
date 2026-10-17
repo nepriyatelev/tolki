@@ -32,6 +32,8 @@ function setup(invite: Invite, result: JoinResult, startCall?: StartCall) {
             sending: true,
             setMuted: () => Promise.resolve(),
             setInputDevice: () => Promise.resolve(),
+            startScreen: () => Promise.resolve(),
+            stopScreen: () => Promise.resolve(),
             close: () => undefined,
           }))
       }
@@ -47,6 +49,7 @@ const ok: JoinResult = {
   room: { name: 'Вечерний созвон', peerCount: 1, hasPassword: true },
   routerRtpCapabilities: {},
   mutedPeers: [],
+  screenMode: 'auto',
 }
 
 describe('join form', () => {
@@ -177,6 +180,8 @@ describe('the call after joining', () => {
         sending: true,
         setMuted: () => Promise.resolve(),
         setInputDevice: () => Promise.resolve(),
+        startScreen: () => Promise.resolve(),
+        stopScreen: () => Promise.resolve(),
         close,
       }),
     )
@@ -200,6 +205,8 @@ describe('the call after joining', () => {
         sending: false,
         setMuted: () => Promise.resolve(),
         setInputDevice: () => Promise.resolve(),
+        startScreen: () => Promise.resolve(),
+        stopScreen: () => Promise.resolve(),
         close: () => undefined,
       }),
     )

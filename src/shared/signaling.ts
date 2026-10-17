@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SCREEN_MODES } from './screen'
 
 /**
  * Signalling protocol over WSS between a client and the host (PLAN §5):
@@ -74,6 +75,8 @@ export const mediaRequestSchema = z.discriminatedUnion('method', [
   /** Mute and unmute: the host stops forwarding the producer and tells everyone. */
   z.object({ method: z.literal('pauseProducer'), producerId: mediaIdSchema }),
   z.object({ method: z.literal('resumeProducer'), producerId: mediaIdSchema }),
+  /** The participant stopped sending it (e.g. ended screen sharing). */
+  z.object({ method: z.literal('closeProducer'), producerId: mediaIdSchema }),
 ])
 export type MediaRequest = z.infer<typeof mediaRequestSchema>
 export type MediaMethod = MediaRequest['method']
@@ -103,6 +106,7 @@ export interface MediaResults {
   resumeConsumer: Record<string, never>
   pauseProducer: Record<string, never>
   resumeProducer: Record<string, never>
+  closeProducer: Record<string, never>
 }
 
 export const clientMessageSchema = z.discriminatedUnion('type', [
@@ -130,6 +134,8 @@ export const hostMessageSchema = z.discriminatedUnion('type', [
     routerRtpCapabilities: mediaObjectSchema,
     /** Participants whose microphone is off right now. */
     mutedPeers: z.array(z.string()),
+    /** How screens are shared in this room (PLAN #27). */
+    screenMode: z.enum(SCREEN_MODES).catch('auto'),
   }),
   z.object({ type: z.literal('error'), code: errorCodeSchema }),
   /** Answer to the client's `request` with the same id: `data` on success, otherwise `error`. */

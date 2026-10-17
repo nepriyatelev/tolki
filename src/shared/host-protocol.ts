@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { ScreenMode } from './screen'
 import type { UploadCapacity } from './upload-capacity'
 
 export const DEFAULT_HOST_PORT = 47000
@@ -55,6 +56,7 @@ export type MainToHostMessage =
       roomName: string
       /** Empty: no password. Stays in memory only. */
       password: string
+      screenMode: ScreenMode
     }
   /** One-shot network check: try to forward the port, report, remove the mapping, exit. */
   | { type: 'check'; port: number }

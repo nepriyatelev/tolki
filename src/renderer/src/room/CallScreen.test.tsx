@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { JoinResult } from '@shared/room'
 import { installRatatoskMock } from '../../../test/ratatosk-mock'
-import type { ScreenSourcesResult } from '@shared/screen'
+import type { ScreenMode, ScreenSourcesResult } from '@shared/screen'
 import type { MicrophoneAccess } from '../audio/microphone'
 import { collectRoomEvents } from './call'
 import { CallScreen, peopleCount, SPEAKING_HOLD_MS } from './CallScreen'
@@ -15,6 +15,7 @@ const RESULT: Extract<JoinResult, { ok: true }> = {
   room: { name: 'Вечерний созвон', peerCount: 1, hasPassword: false },
   routerRtpCapabilities: {},
   mutedPeers: [],
+  screenMode: 'auto',
 }
 
 const FAKE_DEVICES: MicrophoneAccess = {
@@ -80,6 +81,10 @@ function setup(
   const close = vi.fn()
   const setMuted = vi.fn<(muted: boolean) => Promise<void>>(() => Promise.resolve())
   const setInputDevice = vi.fn<(deviceId: string) => Promise<void>>(() => Promise.resolve())
+  const startScreen = vi.fn<(track: MediaStreamTrack, mode: ScreenMode) => Promise<void>>(() =>
+    Promise.resolve(),
+  )
+  const stopScreen = vi.fn(() => Promise.resolve())
   const onLeft = vi.fn()
   const events = collectRoomEvents()
   const playTestSound = vi.fn<(outputDeviceId: string) => Promise<void>>(() => Promise.resolve())
@@ -97,7 +102,14 @@ function setup(
       }}
       onLeft={onLeft}
       startCall={() =>
-        Promise.resolve({ sending: options.sending ?? true, setMuted, setInputDevice, close })
+        Promise.resolve({
+          sending: options.sending ?? true,
+          setMuted,
+          setInputDevice,
+          startScreen,
+          stopScreen,
+          close,
+        })
       }
     />
   ))
@@ -110,6 +122,8 @@ function setup(
     close,
     setMuted,
     setInputDevice,
+    startScreen,
+    stopScreen,
     playTestSound,
     screen: screenAccess,
     onLeft,
@@ -431,7 +445,7 @@ describe('showing your screen: picking the source (#26)', () => {
   }
 
   it('lists screens and windows on tabs, and shows the picked one', async () => {
-    const { screen: capture, dialog, user } = await openPicker()
+    const { screen: capture, dialog, user, startScreen: startScreenSpy } = await openPicker()
     const show = within(dialog).getByRole<HTMLButtonElement>('button', { name: 'Показать' })
 
     expect(await within(dialog).findByRole('radio', { name: 'Экран 1' })).toBeTruthy()
@@ -446,18 +460,23 @@ describe('showing your screen: picking the source (#26)', () => {
 
     expect(capture.access.capture).toHaveBeenCalledWith('window:42:0')
     expect(screen.queryByRole('dialog')).toBeNull()
+    // Sent to everyone in the room's mode (#27).
+    await vi.waitFor(() => {
+      expect(startScreenSpy).toHaveBeenCalledWith(expect.anything(), 'auto')
+    })
     expect(await screen.findByRole('listitem', { name: 'Твой экран' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Остановить показ экрана' })).toBeTruthy()
   })
 
   it('stops showing from the button or when the system ends it', async () => {
-    const { screen: capture, dialog, user } = await openPicker()
+    const { screen: capture, dialog, user, stopScreen: stopScreenSpy } = await openPicker()
     await user.click(await within(dialog).findByRole('radio', { name: 'Экран 1' }))
     await user.click(within(dialog).getByRole('button', { name: 'Показать' }))
     await screen.findByRole('listitem', { name: 'Твой экран' })
 
     await user.click(screen.getByRole('button', { name: 'Остановить показ экрана' }))
     expect(capture.stop).toHaveBeenCalled()
+    expect(stopScreenSpy).toHaveBeenCalled()
     expect(screen.queryByRole('listitem', { name: 'Твой экран' })).toBeNull()
 
     await user.click(screen.getByRole('button', { name: 'Показать экран' }))

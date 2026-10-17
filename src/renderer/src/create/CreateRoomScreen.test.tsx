@@ -89,6 +89,7 @@ describe('CreateRoomScreen', () => {
       port: 47000,
       roomName: 'Вечерний созвон',
       password: 'secret',
+      screenMode: 'auto',
     })
     expect(api.room.join).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'Алексей', password: 'secret' }) as unknown,

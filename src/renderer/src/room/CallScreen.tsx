@@ -236,6 +236,9 @@ export function CallScreen(props: {
   const stopScreen = (): void => {
     for (const track of myScreen()?.getTracks() ?? []) track.stop()
     setMyScreen(null)
+    void call?.stopScreen().catch((error: unknown) => {
+      console.warn('[screen] could not stop sending:', error)
+    })
   }
   const shareScreen = async (sourceId: string | null): Promise<void> => {
     setPickerOpen(false)
@@ -244,10 +247,13 @@ export function CallScreen(props: {
       const stream = await (props.screen ?? browserScreen).capture(sourceId)
       stopScreen()
       // The system's own «stop sharing» or a closed window ends it too.
-      stream.getVideoTracks()[0]?.addEventListener('ended', () => {
-        if (myScreen() === stream) setMyScreen(null)
+      const track = stream.getVideoTracks()[0]
+      track?.addEventListener('ended', () => {
+        if (myScreen() === stream) stopScreen()
       })
       setMyScreen(stream)
+      // Everyone else gets it in the room's mode (sharp text, smooth motion or auto).
+      if (track && call) await call.startScreen(track, result.screenMode)
     } catch (error) {
       // Cancelling the system picker is not an error worth showing.
       if (!(error instanceof DOMException && error.name === 'NotAllowedError')) {

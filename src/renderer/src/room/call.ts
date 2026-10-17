@@ -1,6 +1,7 @@
 import { Device, type types } from 'mediasoup-client'
 import type { MediaResponse, RoomEvent } from '@shared/room'
 import type { MediaRequest, MediaResults, TransportParameters } from '@shared/signaling'
+import { SCREEN_ENCODING, SCREEN_LAYERS, screenEncodings, type ScreenMode } from '@shared/screen'
 import { VOICE } from '@shared/voice'
 
 /** How the microphone is encoded (PLAN #25). */
@@ -92,6 +93,8 @@ export class Call {
   #send: types.Transport | null = null
   #recv: types.Transport | null = null
   #producer: types.Producer | null = null
+  #screen: types.Producer | null = null
+  #sending: Promise<types.Transport> | null = null
   #closed = false
 
   private constructor(
@@ -174,18 +177,7 @@ export class Call {
   }
 
   async #startSending(track: MediaStreamTrack): Promise<void> {
-    const parameters = await this.#request({ method: 'createTransport', direction: 'send' })
-    const transport = this.device.createSendTransport(asTransportOptions(parameters))
-    this.#send = transport
-    this.#connectOnDemand(transport)
-    transport.on('produce', ({ kind, rtpParameters }, callback, errback) => {
-      this.#request({
-        method: 'produce',
-        transportId: transport.id,
-        kind,
-        rtpParameters: { ...rtpParameters },
-      }).then(callback, errback)
-    })
+    const transport = await this.#sendTransport()
     this.#producer = await transport.produce({
       track,
       codecOptions: VOICE_CODEC_OPTIONS,
@@ -194,6 +186,68 @@ export class Call {
       disableTrackOnPause: true,
     })
     if (this.options.muted) await this.setMuted(true)
+  }
+
+  /** One send transport for the microphone and the screen, created on first use. */
+  #sendTransport(): Promise<types.Transport> {
+    this.#sending ??= (async () => {
+      const parameters = await this.#request({ method: 'createTransport', direction: 'send' })
+      const transport = this.device.createSendTransport(asTransportOptions(parameters))
+      this.#send = transport
+      this.#connectOnDemand(transport)
+      transport.on('produce', ({ kind, rtpParameters }, callback, errback) => {
+        this.#request({
+          method: 'produce',
+          transportId: transport.id,
+          kind,
+          rtpParameters: { ...rtpParameters },
+        }).then(callback, errback)
+      })
+      return transport
+    })()
+    return this.#sending
+  }
+
+  /**
+   * Sends the captured screen (PLAN #27): two simulcast layers (≈1080p and ≈360p), H.264 when
+   * this computer can (usually in hardware), VP8 otherwise; sharpness or smoothness by the
+   * room's mode. The track stays the caller's.
+   */
+  async startScreen(track: MediaStreamTrack, mode: ScreenMode): Promise<void> {
+    if (this.#closed) return
+    await this.stopScreen()
+    const { contentHint, frameRate } = SCREEN_ENCODING[mode]
+    track.contentHint = contentHint
+    await track
+      .applyConstraints({
+        width: { max: 1920 },
+        height: { max: SCREEN_LAYERS.high },
+        frameRate: { max: frameRate },
+      })
+      .catch(() => undefined)
+    const transport = await this.#sendTransport()
+    const codec = preferredScreenCodec(this.device.sendRtpCapabilities)
+    this.#screen = await transport.produce({
+      track,
+      encodings: screenEncodings(mode, track.getSettings().height ?? SCREEN_LAYERS.high),
+      ...(codec ? { codec } : {}),
+      stopTracks: false,
+      appData: { source: 'screen' },
+    })
+  }
+
+  /** Stops sending the screen; others' consumers of it end. */
+  async stopScreen(): Promise<void> {
+    const producer = this.#screen
+    this.#screen = null
+    if (!producer || producer.closed) return
+    producer.close()
+    if (!this.#closed) await this.#request({ method: 'closeProducer', producerId: producer.id })
+  }
+
+  /** The codec the screen goes out with, e.g. "video/H264"; null when not sharing. */
+  get screenCodec(): string | null {
+    return this.#screen?.rtpParameters.codecs[0]?.mimeType ?? null
   }
 
   /** mediasoup-client asks for DTLS parameters on first use of a transport. */
@@ -273,4 +327,15 @@ function asTransportOptions(parameters: TransportParameters): types.TransportOpt
     iceCandidates: parameters.iceCandidates as unknown as types.IceCandidate[],
     dtlsParameters: parameters.dtlsParameters as unknown as types.DtlsParameters,
   }
+}
+
+/** H.264 first (hardware encoders), VP8 when the browser cannot send H.264 to this router. */
+export function preferredScreenCodec(
+  capabilities: types.RtpCapabilities,
+): types.RtpCodecCapability | undefined {
+  const video = (capabilities.codecs ?? []).filter((c) => c.kind === 'video')
+  return (
+    video.find((c) => c.mimeType.toLowerCase() === 'video/h264') ??
+    video.find((c) => c.mimeType.toLowerCase() === 'video/vp8')
+  )
 }

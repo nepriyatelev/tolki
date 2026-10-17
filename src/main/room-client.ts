@@ -166,6 +166,7 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
                   room: roomInfo,
                   routerRtpCapabilities: message.routerRtpCapabilities,
                   mutedPeers: message.mutedPeers,
+                  screenMode: message.screenMode,
                 },
           )
           return
