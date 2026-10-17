@@ -319,6 +319,35 @@ describe('media on the host (mediasoup)', () => {
     )
   })
 
+  it('does not let a participant pile up work on the host', async () => {
+    const { port } = await startRoom()
+    const alice = await connect(port, 'Алиса')
+    await alice.next('welcome')
+    const { producer } = await startSending(alice)
+    const bob = await connect(port, 'Боб')
+    const { routerRtpCapabilities: caps } = await bob.next('welcome')
+    const recv = await bob.ok<Transport>({ method: 'createTransport', direction: 'recv' })
+    const consume = () =>
+      bob.request({
+        method: 'consume',
+        transportId: recv.id,
+        producerId: producer.id,
+        rtpCapabilities: caps,
+      })
+
+    expect((await consume()).error).toBeUndefined()
+    expect((await consume()).error).toBe('already consuming')
+
+    // A burst of requests: those beyond the in-flight limit are refused, nothing crashes.
+    // Each one waits for the mediasoup worker, so they are all in flight at once.
+    const burst = await Promise.all(
+      Array.from({ length: 40 }, () =>
+        bob.request({ method: 'connectTransport', transportId: recv.id, dtlsParameters: DTLS }),
+      ),
+    )
+    expect(burst.some((r) => r.error === 'too many requests')).toBe(true)
+  })
+
   it('reports a busy UDP port', async () => {
     const port = await freePort()
     media = await MediaServer.start({ port })

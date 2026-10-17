@@ -4,17 +4,28 @@ import LogOut from 'lucide-solid/icons/log-out'
 import Mic from 'lucide-solid/icons/mic'
 import MicOff from 'lucide-solid/icons/mic-off'
 import Settings from 'lucide-solid/icons/settings'
-import { createSignal, For, Match, onCleanup, onMount, Show, Switch, type JSX } from 'solid-js'
+import { createSignal, For, Match, onCleanup, onMount, Switch, type JSX } from 'solid-js'
 import type { JoinResult } from '@shared/room'
 import { volumeKey } from '@shared/settings'
 import type { Peer } from '@shared/signaling'
 import { AudioSettingsDialog } from '../audio/AudioSettingsDialog'
 import type { MicrophoneAccess } from '../audio/microphone'
-import { Avatar, Button } from '../ui'
+import { Button } from '../ui'
 import { createEventBuffer, type RemoteAudio as Voice, type RoomEventSource } from './call'
+import { ParticipantTile } from './ParticipantTile'
 import { RemoteAudio } from './RemoteAudio'
 import { startCall as startRealCall, type CallHandle } from './start-call'
 import './CallScreen.css'
+
+const plural = new Intl.PluralRules('ru-RU')
+
+/** «1 участник», «3 участника», «5 участников». */
+export function peopleCount(n: number): string {
+  const word = { one: 'участник', few: 'участника', many: 'участников', other: 'участника' }[
+    plural.select(n) as 'one' | 'few' | 'many' | 'other'
+  ]
+  return `${n} ${word}`
+}
 
 export interface CallSession {
   result: Extract<JoinResult, { ok: true }>
@@ -24,6 +35,9 @@ export interface CallSession {
   name: string
   muted: boolean
 }
+
+/** How long the speaking frame stays after the last report of someone's voice. */
+export const SPEAKING_HOLD_MS = 600
 
 type Sound = 'connecting' | 'on' | 'listen-only' | 'failed'
 
@@ -66,6 +80,35 @@ export function CallScreen(props: {
   const [speaking, setSpeaking] = createSignal<ReadonlySet<string>>(new Set())
   const [voices, setVoices] = createSignal<Voice[]>([])
   const [sound, setSound] = createSignal<Sound>('connecting')
+  // The frame follows the host's reports (every 300 ms) but lingers a little after someone stops:
+  // short pauses between words should not make it blink.
+  const releaseTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  let shown = new Set<string>()
+  const show = (next: Set<string>): void => {
+    shown = next
+    setSpeaking(next)
+  }
+  const showSpeakers = (peerIds: string[]): void => {
+    const now = new Set(peerIds)
+    for (const id of now) {
+      clearTimeout(releaseTimers.get(id))
+      releaseTimers.delete(id)
+    }
+    const stopped = [...shown].filter((id) => !now.has(id) && !releaseTimers.has(id))
+    show(new Set([...shown, ...now]))
+    for (const id of stopped) {
+      releaseTimers.set(
+        id,
+        setTimeout(() => {
+          releaseTimers.delete(id)
+          show(new Set([...shown].filter((p) => p !== id)))
+        }, SPEAKING_HOLD_MS),
+      )
+    }
+  }
+  onCleanup(() => {
+    for (const timer of releaseTimers.values()) clearTimeout(timer)
+  })
   // The call gets its own copy of the events; the screen keeps the list of people.
   const callEvents = createEventBuffer()
   let call: CallHandle | null = null
@@ -82,7 +125,7 @@ export function CallScreen(props: {
         setPeers((list) => list.filter((p) => p.id !== event.peerId))
         break
       case 'active-speakers':
-        setSpeaking(new Set(event.peerIds))
+        showSpeakers(event.peerIds)
         break
       case 'peer-muted':
         setMutedPeers((set) => {
@@ -203,137 +246,94 @@ export function CallScreen(props: {
     <main class="call">
       <header class="call-header">
         <h1>{result.room.name}</h1>
+        <span class="call-count">{peopleCount(everyone().length)}</span>
         <Button variant="danger" icon={<LogOut />} onClick={() => void leave()}>
           Выйти
         </Button>
       </header>
-      <div class="call-body">
-        <ul class="call-tiles" aria-label="Участники">
-          <For each={everyone()}>
-            {(person) => {
-              const isSpeaking = (): boolean => speaking().has(person.id)
-              return (
-                <li
-                  class="call-tile"
-                  classList={{ 'call-tile--speaking': isSpeaking() }}
-                  data-peer-id={person.id}
-                  aria-label={`${person.name}${person.me ? ' (ты)' : ''}${isSpeaking() ? ', говорит' : ''}`}
-                >
-                  <Avatar name={person.name} size="xl" speaking={isSpeaking()} />
-                  <span class="call-tile-name">
-                    {person.name}
-                    <Show when={person.me}>
-                      <span class="call-tile-you">ты</span>
-                    </Show>
-                  </span>
-                  <Show when={person.me ? muted() : mutedPeers().has(person.id)}>
-                    <span class="call-tile-muted" role="img" aria-label="Микрофон выключен">
-                      <MicOff />
-                    </span>
-                  </Show>
-                </li>
-              )
-            }}
-          </For>
-        </ul>
-        <aside class="call-side" aria-labelledby="call-side-title">
-          <h2 id="call-side-title">В комнате · {everyone().length}</h2>
-          <Show when={peers().length > 0} fallback={<p class="call-side-alone">Пока никого нет</p>}>
-            <ul class="call-volumes">
-              <For each={peers()}>
-                {(peer) => (
-                  <li class="call-volume">
-                    <div class="call-volume-head">
-                      <Avatar name={peer.name} size="sm" speaking={speaking().has(peer.id)} />
-                      <span class="call-volume-name">{peer.name}</span>
-                      <Show
-                        when={!mutedPeers().has(peer.id)}
-                        fallback={<span class="call-volume-muted">микрофон выкл.</span>}
-                      >
-                        <span class="call-volume-value">{volumeOfName(peer.name)}%</span>
-                      </Show>
-                    </div>
-                    <input
-                      type="range"
-                      class="call-volume-slider"
-                      min="0"
-                      max="200"
-                      step="5"
-                      value={volumeOfName(peer.name)}
-                      aria-label={`Громкость: ${peer.name}`}
-                      aria-valuetext={`${volumeOfName(peer.name)} %`}
-                      onInput={(e) => {
-                        previewVolume(peer.name, e.currentTarget.valueAsNumber)
-                      }}
-                      onChange={(e) => {
-                        saveVolume(peer.name, e.currentTarget.valueAsNumber)
-                      }}
-                    />
-                  </li>
-                )}
-              </For>
-            </ul>
-          </Show>
-        </aside>
-      </div>
-      <p class="call-sound" classList={{ 'call-sound--failed': sound() === 'failed' }}>
-        <Switch>
-          <Match when={sound() === 'connecting'}>Подключаем звук…</Match>
-          <Match when={sound() === 'on'}>Звук подключён</Match>
-          <Match when={sound() === 'listen-only'}>Микрофон недоступен — ты только слушаешь</Match>
-          <Match when={sound() === 'failed'}>
-            Не получилось подключить звук. Выйди и зайди снова.
-          </Match>
-        </Switch>
-      </p>
-      <div class="call-controls" role="toolbar" aria-label="Управление звонком">
-        <button
-          type="button"
-          class="call-control"
-          classList={{ 'call-control--off': muted() }}
-          aria-pressed={muted()}
-          aria-label={muted() ? 'Включить микрофон' : 'Выключить микрофон'}
-          disabled={!canSpeak()}
-          onClick={toggleMic}
+      <ul class="call-tiles" aria-label="Участники">
+        <For each={everyone()}>
+          {(person) => (
+            <ParticipantTile
+              person={person}
+              speaking={speaking().has(person.id)}
+              muted={person.me ? muted() : mutedPeers().has(person.id)}
+              volume={volumeOfName(person.name)}
+              onVolumePreview={(volume) => {
+                previewVolume(person.name, volume)
+              }}
+              onVolumeSave={(volume) => {
+                saveVolume(person.name, volume)
+              }}
+              onOpenSettings={() => setSettingsOpen(true)}
+            />
+          )}
+        </For>
+      </ul>
+      <footer class="call-footer">
+        <p
+          class="call-sound"
+          role="status"
+          classList={{ 'call-sound--failed': sound() === 'failed' }}
         >
-          <span class="call-control-icon">{muted() ? <MicOff /> : <Mic />}</span>
-          {muted() ? 'Выкл.' : 'Микрофон'}
-        </button>
-        <button
-          type="button"
-          class="call-control"
-          classList={{ 'call-control--off': deafened() }}
-          aria-pressed={deafened()}
-          aria-label={deafened() ? 'Включить звук' : 'Выключить звук'}
-          onClick={toggleSound}
-        >
-          <span class="call-control-icon">{deafened() ? <HeadphoneOff /> : <Headphones />}</span>
-          {deafened() ? 'Звук выкл.' : 'Звук'}
-        </button>
-        <button
-          type="button"
-          class="call-control"
-          aria-haspopup="dialog"
-          onClick={() => setSettingsOpen(true)}
-        >
-          <span class="call-control-icon">
-            <Settings />
-          </span>
-          Настройки
-        </button>
-      </div>
-      <AudioSettingsDialog
-        open={settingsOpen()}
-        onClose={() => setSettingsOpen(false)}
-        onInputChange={switchMicrophone}
-        outputDeviceId={outputDeviceId()}
-        onOutputChange={setOutputDeviceId}
-        {...(props.microphone ? { access: props.microphone } : {})}
-        {...(props.playTestSound ? { playTestSound: props.playTestSound } : {})}
-      />
-      <p class="call-hotkeys">
-        <kbd>M</kbd> — микрофон · <kbd>D</kbd> — звук
-      </p>
+          <Switch>
+            <Match when={sound() === 'connecting'}>Подключаем звук…</Match>
+            <Match when={sound() === 'on'}>Звук подключён</Match>
+            <Match when={sound() === 'listen-only'}>Микрофон недоступен — ты только слушаешь</Match>
+            <Match when={sound() === 'failed'}>
+              Не получилось подключить звук. Выйди и зайди снова.
+            </Match>
+          </Switch>
+        </p>
+        <div class="call-controls" role="toolbar" aria-label="Управление звонком">
+          <button
+            type="button"
+            class="call-control"
+            classList={{ 'call-control--off': muted() }}
+            aria-pressed={muted()}
+            aria-label={muted() ? 'Включить микрофон' : 'Выключить микрофон'}
+            disabled={!canSpeak()}
+            onClick={toggleMic}
+          >
+            <span class="call-control-icon">{muted() ? <MicOff /> : <Mic />}</span>
+            {muted() ? 'Выкл.' : 'Микрофон'}
+          </button>
+          <button
+            type="button"
+            class="call-control"
+            classList={{ 'call-control--off': deafened() }}
+            aria-pressed={deafened()}
+            aria-label={deafened() ? 'Включить звук' : 'Выключить звук'}
+            onClick={toggleSound}
+          >
+            <span class="call-control-icon">{deafened() ? <HeadphoneOff /> : <Headphones />}</span>
+            {deafened() ? 'Звук выкл.' : 'Звук'}
+          </button>
+          <button
+            type="button"
+            class="call-control"
+            aria-haspopup="dialog"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <span class="call-control-icon">
+              <Settings />
+            </span>
+            Настройки
+          </button>
+        </div>
+        <AudioSettingsDialog
+          open={settingsOpen()}
+          onClose={() => setSettingsOpen(false)}
+          onInputChange={switchMicrophone}
+          outputDeviceId={outputDeviceId()}
+          onOutputChange={setOutputDeviceId}
+          {...(props.microphone ? { access: props.microphone } : {})}
+          {...(props.playTestSound ? { playTestSound: props.playTestSound } : {})}
+        />
+        <p class="call-hotkeys">
+          <kbd>M</kbd> — микрофон · <kbd>D</kbd> — звук
+        </p>
+      </footer>
       <RemoteAudio
         voices={voices()}
         deafened={deafened()}

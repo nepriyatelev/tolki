@@ -90,6 +90,10 @@ export class PeerMedia {
         if (!producer || this.ownsProducer(producer.id)) {
           throw new MediaRequestError('unknown producer')
         }
+        // One consumer per voice: repeated requests must not pile up work on the host.
+        if ([...this.#consumers.values()].some((c) => c.producerId === producer.id)) {
+          throw new MediaRequestError('already consuming')
+        }
         if (!this.server.router.canConsume({ producerId: producer.id, rtpCapabilities })) {
           throw new MediaRequestError('cannot consume with these capabilities')
         }

@@ -19,3 +19,25 @@ if (typeof HTMLDialogElement !== 'undefined' && !('showModal' in HTMLDialogEleme
     },
   })
 }
+
+// jsdom hides [popover] but has no popover API: enough of it for menus that use showPopover().
+if (!('showPopover' in HTMLElement.prototype)) {
+  const opened = new WeakSet<HTMLElement>()
+  const toggle = (element: HTMLElement, open: boolean): void => {
+    if (opened.has(element) === open) return
+    if (open) opened.add(element)
+    else opened.delete(element)
+    element.style.display = open ? 'block' : ''
+    element.dispatchEvent(
+      Object.assign(new Event('toggle'), { newState: open ? 'open' : 'closed' }),
+    )
+  }
+  Object.assign(HTMLElement.prototype, {
+    showPopover(this: HTMLElement) {
+      toggle(this, true)
+    },
+    hidePopover(this: HTMLElement) {
+      toggle(this, false)
+    },
+  })
+}
