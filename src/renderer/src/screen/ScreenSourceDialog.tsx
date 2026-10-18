@@ -11,12 +11,15 @@ import {
   Switch,
   type JSX,
 } from 'solid-js'
-import type { CaptureSource } from '@shared/screen'
+import type { CaptureSource, ScreenSourcesResult } from '@shared/screen'
 import { Button, Checkbox, IconButton } from '../ui'
 import { browserScreen, type ScreenAccess } from './screen-share'
 import './ScreenSourceDialog.css'
 
 type Tab = 'screen' | 'window'
+
+/** The list, or (macOS, the first time) a word before macOS asks for «Запись экрана» (#85). */
+type DialogSources = ScreenSourcesResult | { picker: 'ask' }
 
 /**
  * «Что показать» (PLAN #26, drawn in code): screens and windows with live previews. On Wayland the
@@ -39,11 +42,21 @@ export function ScreenSourceDialog(props: {
     const result = sources.latest
     return result?.picker === 'app' && result.systemAudio
   }
+  /** The user read why macOS will ask; the first list then brings up its dialog. */
+  let askedBefore = false
   // Fresh previews every time the dialog opens.
   const [sources, { refetch }] = createResource(
     () => props.open || undefined,
-    () => access().listSources(),
+    async (): Promise<DialogSources> => {
+      if (!askedBefore && (await access().permission()) === 'not-asked') return { picker: 'ask' }
+      return access().listSources()
+    },
   )
+  const openSettings = async (): Promise<void> => {
+    await access().openPermissionSettings()
+    // Back from the settings: Tolki needs a restart for it (main knows the settings were opened).
+    void refetch()
+  }
 
   createEffect(() => {
     if (!dialog) return
@@ -101,6 +114,32 @@ export function ScreenSourceDialog(props: {
             </p>
             <Button onClick={() => void refetch()}>Попробовать снова</Button>
           </Match>
+          <Match when={sources.latest?.picker === 'ask'}>
+            <div class="screen-picker-permission">
+              <p>
+                Чтобы показывать экран, macOS попросит разрешение «Запись экрана» для Tolki. После
+                того как оно включено, Tolki нужно перезапустить — система предложит это сама.
+              </p>
+              <div class="screen-picker-actions">
+                <Button
+                  onClick={() => {
+                    props.onClose()
+                  }}
+                >
+                  Отмена
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    askedBefore = true
+                    void refetch()
+                  }}
+                >
+                  Продолжить
+                </Button>
+              </div>
+            </div>
+          </Match>
           <Match when={sources.latest?.picker === 'denied'}>
             <div class="screen-picker-denied" role="alert">
               <p>
@@ -108,9 +147,23 @@ export function ScreenSourceDialog(props: {
                 → Конфиденциальность и безопасность → Запись экрана»; после этого нужен перезапуск
                 приложения.
               </p>
-              <Button onClick={() => void access().openPermissionSettings()}>
-                Открыть настройки
-              </Button>
+              <Button onClick={() => void openSettings()}>Открыть настройки</Button>
+            </div>
+          </Match>
+          <Match when={sources.latest?.picker === 'restart'}>
+            <div class="screen-picker-permission" role="alert">
+              <p>
+                Разрешение «Запись экрана» заработает после перезапуска Tolki. Если оно ещё не
+                включено — «Системные настройки → Конфиденциальность и безопасность → Запись
+                экрана».
+              </p>
+              <p class="screen-picker-hint">Перезапуск завершит звонок.</p>
+              <div class="screen-picker-actions">
+                <Button onClick={() => void openSettings()}>Открыть настройки</Button>
+                <Button variant="primary" onClick={() => void access().relaunch()}>
+                  Перезапустить Tolki
+                </Button>
+              </div>
             </div>
           </Match>
           <Match when={sources.latest?.picker === 'system'}>

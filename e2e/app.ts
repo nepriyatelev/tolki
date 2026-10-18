@@ -23,6 +23,8 @@ function appEnv(userDataDir: string): Record<string, string> {
     // «Сохранить логи…» must not open Finder / Explorer windows (#106).
     TOLKI_SHOW_IN_FOLDER: 'off',
     TOLKI_OPEN_LINKS: 'off',
+    // Nothing asked about OS permissions (#85): a CI runner has nobody to answer a dialog.
+    TOLKI_OS_PERMISSIONS: 'skip',
     // Push-to-talk keeps to the focused window: no hook on the real keyboard, no macOS prompt.
     TOLKI_GLOBAL_KEYS: 'off',
   }

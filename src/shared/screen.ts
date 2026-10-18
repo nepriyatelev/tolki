@@ -16,6 +16,8 @@ export type ScreenSourcesResult =
   | { picker: 'system' }
   /** macOS: «Запись экрана» is not allowed for the app. */
   | { picker: 'denied' }
+  /** macOS: allowed (or being allowed) since Tolki started; it takes effect after a restart (#85). */
+  | { picker: 'restart' }
 
 /** How a room shares screens, chosen when it is created (PLAN #16, #27). */
 export const SCREEN_MODES = ['auto', 'text', 'motion'] as const

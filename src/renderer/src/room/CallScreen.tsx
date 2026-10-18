@@ -116,6 +116,8 @@ export function CallScreen(props: {
   // eslint-disable-next-line solid/reactivity -- the initial choice from the join screen
   const [muted, setMutedSignal] = createSignal(props.session.muted)
   const [deafened, setDeafened] = createSignal(false)
+  /** Listening only because the OS denies the microphone (#85). */
+  const [micDenied, setMicDenied] = createSignal(false)
   /** Whether the microphone was on before deafening: undeafening turns it back on. */
   let mutedBeforeDeafen = false
   const [settingsOpen, setSettingsOpen] = createSignal(false)
@@ -370,6 +372,13 @@ export function CallScreen(props: {
         }
         call = handle
         setSound(handle.sending ? 'on' : 'listen-only')
+        // Without a microphone because the OS refuses it: its settings can be opened (#85).
+        if (!handle.sending) {
+          void window.tolki.permissions
+            .status('microphone')
+            .then((state) => setMicDenied(state === 'denied'))
+            .catch(() => undefined)
+        }
         // Push-to-talk turned on before the call could start (joined muted): the key decides.
         if (ptt().enabled && muted() && handle.sending) setMuted(false)
         applyTransmit()
@@ -912,13 +921,25 @@ export function CallScreen(props: {
             <Match when={sound() === 'connecting'}>Подключение звука…</Match>
             <Match when={sound() === 'on'}>Звук подключён</Match>
             <Match when={sound() === 'listen-only'}>
-              Микрофон недоступен — только прослушивание
+              {micDenied()
+                ? 'Нет доступа к микрофону — только прослушивание'
+                : 'Микрофон недоступен — только прослушивание'}
             </Match>
             <Match when={sound() === 'failed'}>
               Звук не подключился. Поможет повторный вход в комнату.
             </Match>
           </Switch>
         </p>
+        <Show when={sound() === 'listen-only' && micDenied()}>
+          <div class="call-request">
+            <span>
+              Доступ разрешается в системных настройках, затем нужно войти в комнату снова
+            </span>
+            <Button onClick={() => void window.tolki.permissions.openSettings('microphone')}>
+              Открыть настройки
+            </Button>
+          </div>
+        </Show>
         <For each={joinRequests().slice(0, 3)}>
           {(request) => (
             <div class="call-request" role="alert">

@@ -1,3 +1,4 @@
+import type { PermissionState } from '@shared/permissions'
 import type { ScreenSourcesResult } from '@shared/screen'
 
 /** Screen capture for the call; tests swap in a fake. */
@@ -8,7 +9,11 @@ export interface ScreenAccess {
    * `systemAudio`: with the computer's sound (#41).
    */
   capture(sourceId: string | null, systemAudio: boolean): Promise<MediaStream>
+  /** macOS «Запись экрана» (#85): 'not-asked' — explain before macOS asks. */
+  permission(): Promise<PermissionState>
   openPermissionSettings(): Promise<void>
+  /** macOS applies «Запись экрана» only after a restart. */
+  relaunch(): Promise<void>
 }
 
 export class ScreenCaptureError extends Error {
@@ -39,7 +44,13 @@ export const browserScreen: ScreenAccess = {
     })
   },
 
+  permission: () => window.tolki.permissions.status('screen'),
+
   async openPermissionSettings() {
-    await window.tolki.screen.openPermissionSettings()
+    await window.tolki.permissions.openSettings('screen')
+  },
+
+  async relaunch() {
+    await window.tolki.app.relaunch()
   },
 }

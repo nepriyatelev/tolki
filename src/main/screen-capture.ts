@@ -1,3 +1,4 @@
+import type { PermissionState } from '@shared/permissions'
 import type { CaptureSource, ScreenSourcesResult } from '@shared/screen'
 
 /** The parts of Electron's DesktopCapturerSource we use. */
@@ -15,8 +16,8 @@ export interface ScreenCaptureOptions {
     fetchWindowIcons: boolean
   }) => Promise<DesktopSource[]>
   platform: NodeJS.Platform
-  /** macOS «Запись экрана» permission (systemPreferences.getMediaAccessStatus('screen')). */
-  screenAccess: () => string
+  /** macOS «Запись экрана» (#85); 'not-asked' lets macOS show its dialog on the first list. */
+  screenPermission: () => PermissionState
   env: NodeJS.ProcessEnv
   /** The computer's sound can go along with the screen on this system (#41). */
   systemAudio: boolean
@@ -48,7 +49,9 @@ export class ScreenCapture {
 
   async list(): Promise<ScreenSourcesResult> {
     if (this.usesSystemPicker) return { picker: 'system' }
-    if (this.options.platform === 'darwin' && this.#denied()) return { picker: 'denied' }
+    const permission = this.options.screenPermission()
+    if (permission === 'denied') return { picker: 'denied' }
+    if (permission === 'restart-needed') return { picker: 'restart' }
     // Two calls, not one: when window listing fails (seen on Linux without a window manager),
     // a combined call returns nothing at all, screens included.
     const [screens, windows] = await Promise.all([
@@ -92,11 +95,6 @@ export class ScreenCapture {
     const source = this.#selected
     this.#selected = null
     return source
-  }
-
-  #denied(): boolean {
-    const status = this.options.screenAccess()
-    return status === 'denied' || status === 'restricted'
   }
 }
 

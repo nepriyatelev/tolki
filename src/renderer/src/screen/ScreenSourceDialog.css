@@ -164,6 +164,21 @@
   color: var(--color-danger-text);
 }
 
+.screen-picker-permission {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-raised);
+  line-height: 1.5;
+}
+
+.screen-picker-hint {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
 .screen-picker-actions {
   display: flex;
   justify-content: flex-end;
