@@ -183,10 +183,3 @@
   color: var(--color-danger-text);
   font-size: var(--text-md);
 }
-
-.create-open {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  font-size: var(--text-md);
-}

@@ -10,10 +10,28 @@ import {
 } from '../../../test/ratatosk-mock'
 import { CreateRoomScreen } from './CreateRoomScreen'
 
+/** The real call needs WebRTC; the call screen only needs a handle. */
+const startCall = vi.fn(() =>
+  Promise.resolve({
+    sending: true,
+    setMuted: () => Promise.resolve(),
+    setInputDevice: () => Promise.resolve(),
+    startScreen: () => Promise.resolve(),
+    stopScreen: () => Promise.resolve(),
+    setScreenVisible: () => Promise.resolve(),
+    setScreenLayer: () => Promise.resolve(),
+    requestScreen: () => Promise.resolve(),
+    answerScreenRequest: () => Promise.resolve(),
+    screenSample: () => Promise.resolve(null),
+    connectionSample: () => Promise.resolve(null),
+    close: () => undefined,
+  }),
+)
+
 function show(options: Parameters<typeof installRatatoskMock>[0] = {}, profileName = 'Алексей') {
   const api = installRatatoskMock(options)
   const onBack = vi.fn()
-  render(() => <CreateRoomScreen profileName={profileName} onBack={onBack} />)
+  render(() => <CreateRoomScreen profileName={profileName} onBack={onBack} startCall={startCall} />)
   return { api, onBack, user: userEvent.setup() }
 }
 
@@ -100,14 +118,54 @@ describe('CreateRoomScreen', () => {
     expect(api.room.join).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'Алексей', password: 'secret' }) as unknown,
     )
-    expect(
-      await screen.findByText('Комната открыта, ссылку можно отправить участникам.'),
-    ).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Назад' })).toBeNull()
+  })
 
-    await user.click(screen.getByRole('button', { name: 'Закрыть комнату' }))
-    expect(api.host.stop).toHaveBeenCalledOnce()
-    expect(await screen.findByRole('button', { name: 'Открыть комнату' })).toBeTruthy()
+  it('puts the organizer into the call; «Пригласить» copies the link (#100)', async () => {
+    const { api, user } = show()
+    const link = await linkText()
+    await user.type(screen.getByLabelText('Название комнаты'), 'Вечерний созвон')
+    await user.click(screen.getByRole('button', { name: 'Открыть комнату' }))
+
+    // The call screen of the room, with the organizer's microphone and the others' voices.
+    expect(await screen.findByText('Звук подключён')).toBeTruthy()
+    expect(startCall).toHaveBeenCalled()
+    expect(screen.queryByRole('heading', { name: 'Новая комната' })).toBeNull()
+    // The room is on this computer: no «N мс · через организатора» for the organizer.
+    expect(screen.queryByText(/через организатора/)).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Пригласить' }))
+    expect(api.app.copyText).toHaveBeenCalledWith(link)
+    expect(screen.getByRole('button', { name: 'Ссылка скопирована' })).toBeTruthy()
+  })
+
+  it('closes the room for everyone when the organizer leaves the call (#100)', async () => {
+    const { api, onBack, user } = show()
+    await user.type(screen.getByLabelText('Название комнаты'), 'Вечерний созвон')
+    await user.click(screen.getByRole('button', { name: 'Открыть комнату' }))
+    await screen.findByText('Звук подключён')
+
+    await user.click(screen.getByRole('button', { name: 'Выйти' }))
+
+    expect(api.room.leave).toHaveBeenCalled()
+    await vi.waitFor(() => {
+      expect(api.host.stop).toHaveBeenCalledOnce()
+    })
+    expect(onBack).toHaveBeenCalledOnce()
+  })
+
+  it('has no «Пригласить» without a link to share', async () => {
+    const cannot: NetworkCheckResult = {
+      ...PUBLIC_IPV4_CHECK,
+      portMapping: { status: 'failed', reason: 'unsupported', detail: '' },
+      verdict: { canHost: false, problem: 'unsupported' },
+    }
+    const { user } = show({ check: () => Promise.resolve(cannot) })
+    await screen.findByText(/Ссылку не из чего собрать/)
+    await user.type(screen.getByLabelText('Название комнаты'), 'Вечерний созвон')
+    await user.click(screen.getByRole('button', { name: 'Открыть комнату' }))
+    await screen.findByText('Звук подключён')
+
+    expect(screen.queryByRole('button', { name: 'Пригласить' })).toBeNull()
   })
 
   it('requires a room name, and a name when the profile has none', async () => {

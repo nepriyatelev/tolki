@@ -5,6 +5,9 @@ import { createResource, createSignal, onCleanup, onMount, Show, type JSX } from
 import { DEFAULT_HOST_PORT, type HostStartFailure, type HostState } from '@shared/host-protocol'
 import { Button, Card, Checkbox, IconButton, Input, RadioPillGroup } from '../ui'
 import { ErrorScreen } from '../errors/ErrorScreen'
+import { collectRoomEvents } from '../room/call'
+import { CallScreen, type CallSession } from '../room/CallScreen'
+import type { startCall as startRealCall } from '../room/start-call'
 import { NetworkCheckCard } from './NetworkCheckCard'
 import { createInviteLink, linkAddress } from './invite-link'
 import { generatePassword, generateRoomId } from './password'
@@ -27,13 +30,17 @@ export function startFailureText(reason: HostStartFailure, port: number): string
   }
 }
 
-type Phase = { kind: 'editing'; error?: string } | { kind: 'opening' } | { kind: 'open' }
+/** Open: the organizer is in the call of their own room (#100). */
+type Phase =
+  { kind: 'editing'; error?: string } | { kind: 'opening' } | { kind: 'open'; session: CallSession }
 
 /** «Новая комната» (mockup 2, PLAN #16). */
 export function CreateRoomScreen(props: {
   profileName: string
   onBack: () => void
   onOpened?: () => void
+  /** Tests replace the real call (mediasoup needs WebRTC). */
+  startCall?: typeof startRealCall
 }): JSX.Element {
   const roomId = generateRoomId()
   const [roomName, setRoomName] = createSignal('')
@@ -65,7 +72,10 @@ export function CreateRoomScreen(props: {
     onCleanup(window.ratatosk.host.onState(setHostState))
   })
 
-  const isOpen = () => phase().kind === 'open'
+  const session = () => {
+    const current = phase()
+    return current.kind === 'open' ? current.session : undefined
+  }
   const address = () => linkAddress(check.latest, hostState())
   const link = () => {
     const where = address()
@@ -124,7 +134,9 @@ export function CreateRoomScreen(props: {
       setPhase({ kind: 'editing', error: startFailureText(reason, port) })
       return
     }
-    // The host takes part in their own room like everyone else, over localhost.
+    // The host takes part in their own room like everyone else, over localhost. Subscribed
+    // before joining: the room's first events come right after welcome.
+    const events = collectRoomEvents()
     const joined = await window.ratatosk.room.join({
       invite: {
         host: '127.0.0.1',
@@ -137,6 +149,7 @@ export function CreateRoomScreen(props: {
       password: password(),
     })
     if (!joined.ok) {
+      events.stop()
       await window.ratatosk.host.stop()
       setPhase({
         kind: 'editing',
@@ -144,14 +157,14 @@ export function CreateRoomScreen(props: {
       })
       return
     }
-    setPhase({ kind: 'open' })
+    setPhase({ kind: 'open', session: { result: joined, events, name: who, muted: false } })
     props.onOpened?.()
   }
 
-  const close = async (): Promise<void> => {
-    await window.ratatosk.room.leave()
+  /** The organizer left the call: the room closes for everyone («Организатор закрыл комнату»). */
+  const closeRoom = async (): Promise<void> => {
     await window.ratatosk.host.stop()
-    setPhase({ kind: 'editing' })
+    props.onBack()
   }
 
   const cannotHost = () => {
@@ -167,20 +180,35 @@ export function CreateRoomScreen(props: {
   }
 
   return (
-    <Show when={showHelp() ? cannotHost() : undefined} fallback={renderForm()}>
-      {(error) => (
-        <ErrorScreen
-          error={error()}
-          actions={
-            <Button
-              icon={<ArrowLeft />}
-              onClick={() => {
-                setShowHelp(false)
-              }}
-            >
-              Назад к настройкам комнаты
-            </Button>
-          }
+    <Show
+      when={session()}
+      fallback={
+        <Show when={showHelp() ? cannotHost() : undefined} fallback={renderForm()}>
+          {(error) => (
+            <ErrorScreen
+              error={error()}
+              actions={
+                <Button
+                  icon={<ArrowLeft />}
+                  onClick={() => {
+                    setShowHelp(false)
+                  }}
+                >
+                  Назад к настройкам комнаты
+                </Button>
+              }
+            />
+          )}
+        </Show>
+      }
+    >
+      {(current) => (
+        <CallScreen
+          session={current()}
+          inviteLink={link()}
+          organizer
+          onLeft={() => void closeRoom()}
+          {...(props.startCall ? { startCall: props.startCall } : {})}
         />
       )}
     </Show>
@@ -190,7 +218,7 @@ export function CreateRoomScreen(props: {
     return (
       <main class="create">
         <div class="create-title">
-          <Show when={!isOpen()}>
+          <Show when={phase().kind === 'editing'}>
             <IconButton
               label="Назад"
               icon={<ArrowLeft />}
@@ -335,32 +363,16 @@ export function CreateRoomScreen(props: {
               )}
             </Show>
 
-            <Show
-              when={isOpen()}
-              fallback={
-                <Button
-                  variant="primary"
-                  size="lg"
-                  block
-                  iconEnd={<ArrowRight />}
-                  disabled={phase().kind === 'opening'}
-                  onClick={() => void open()}
-                >
-                  {phase().kind === 'opening' ? 'Открытие…' : 'Открыть комнату'}
-                </Button>
-              }
+            <Button
+              variant="primary"
+              size="lg"
+              block
+              iconEnd={<ArrowRight />}
+              disabled={phase().kind === 'opening'}
+              onClick={() => void open()}
             >
-              <div class="create-open" role="status">
-                <p>
-                  {link() !== undefined
-                    ? 'Комната открыта, ссылку можно отправить участникам.'
-                    : 'Комната открыта, но из интернета к ней пока не подключиться.'}
-                </p>
-                <Button variant="danger" block onClick={() => void close()}>
-                  Закрыть комнату
-                </Button>
-              </div>
-            </Show>
+              {phase().kind === 'opening' ? 'Открытие…' : 'Открыть комнату'}
+            </Button>
           </div>
         </div>
       </main>
