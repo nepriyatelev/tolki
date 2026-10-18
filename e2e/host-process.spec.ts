@@ -14,7 +14,7 @@ import { launchApp } from './app'
 function hostProcessCount(app: ElectronApplication): Promise<number> {
   return app.evaluate(
     ({ app: electronApp }) =>
-      electronApp.getAppMetrics().filter((m) => m.type === 'Utility' && m.name === 'Ratatosk Host')
+      electronApp.getAppMetrics().filter((m) => m.type === 'Utility' && m.name === 'Tolki Host')
         .length,
   )
 }
@@ -50,7 +50,7 @@ test('main starts the host with a WSS server on the given port and stops it', as
   const { app, page } = await launchApp()
   try {
     const port = await freePort()
-    expect(await page.evaluate(() => window.ratatosk.host.getState())).toEqual({
+    expect(await page.evaluate(() => window.tolki.host.getState())).toEqual({
       status: 'stopped',
     })
 
@@ -58,7 +58,7 @@ test('main starts the host with a WSS server on the given port and stops it', as
       () =>
         new Promise<string[]>((resolve) => {
           const seen: string[] = []
-          const off = window.ratatosk.host.onState((state) => {
+          const off = window.tolki.host.onState((state) => {
             seen.push(state.status)
             if (state.status === 'stopped') {
               off()
@@ -69,7 +69,7 @@ test('main starts the host with a WSS server on the given port and stops it', as
     )
 
     const state = await page.evaluate(
-      (p) => window.ratatosk.host.start({ port: p, portMapping: false }),
+      (p) => window.tolki.host.start({ port: p, portMapping: false }),
       port,
     )
     expect(state).toMatchObject({ status: 'running', port, portMapping: { status: 'disabled' } })
@@ -85,7 +85,7 @@ test('main starts the host with a WSS server on the given port and stops it', as
       })
     })
 
-    expect(await page.evaluate(() => window.ratatosk.host.stop())).toEqual({ status: 'stopped' })
+    expect(await page.evaluate(() => window.tolki.host.stop())).toEqual({ status: 'stopped' })
     expect(await closed).toBe(1001)
     await expect.poll(() => hostProcessCount(app)).toBe(0)
     // The port is released.
@@ -101,7 +101,7 @@ test('main starts the host with a WSS server on the given port and stops it', as
 test('defaults to port 47000', async () => {
   const { app, page } = await launchApp()
   try {
-    const state = await page.evaluate(() => window.ratatosk.host.start({ portMapping: false }))
+    const state = await page.evaluate(() => window.tolki.host.start({ portMapping: false }))
 
     expect(state).toMatchObject({ status: 'running', port: 47000 })
   } finally {
@@ -115,7 +115,7 @@ test('the certificate is created once per installation and kept in userData', as
   let fingerprint: string
   try {
     const state = await first.page.evaluate(
-      (p) => window.ratatosk.host.start({ port: p, portMapping: false }),
+      (p) => window.tolki.host.start({ port: p, portMapping: false }),
       port,
     )
     fingerprint = state.status === 'running' ? state.fingerprint : ''
@@ -127,7 +127,7 @@ test('the certificate is created once per installation and kept in userData', as
   const second = await launchApp({ userDataDir: first.userDataDir })
   try {
     const state = await second.page.evaluate(
-      (p) => window.ratatosk.host.start({ port: p, portMapping: false }),
+      (p) => window.tolki.host.start({ port: p, portMapping: false }),
       port,
     )
     expect(state).toMatchObject({ status: 'running', fingerprint })
@@ -142,7 +142,7 @@ test('a busy port is reported, not thrown', async () => {
   const blocker = await occupy(port)
   try {
     const state = await page.evaluate(
-      (p) => window.ratatosk.host.start({ port: p, portMapping: false }),
+      (p) => window.tolki.host.start({ port: p, portMapping: false }),
       port,
     )
 
@@ -158,7 +158,7 @@ test('invalid ports are rejected by IPC validation', async () => {
   const { app, page } = await launchApp()
   try {
     const error = await page.evaluate(() =>
-      window.ratatosk.host.start({ port: 80 }).then(
+      window.tolki.host.start({ port: 80 }).then(
         () => null,
         (e: unknown) => String(e),
       ),
@@ -175,13 +175,12 @@ test('quitting the app stops a running host', async () => {
   const port = await freePort()
 
   expect(
-    await page.evaluate((p) => window.ratatosk.host.start({ port: p, portMapping: false }), port),
+    await page.evaluate((p) => window.tolki.host.start({ port: p, portMapping: false }), port),
   ).toMatchObject({
     status: 'running',
   })
   const pid = await app.evaluate(
-    ({ app: electronApp }) =>
-      electronApp.getAppMetrics().find((m) => m.name === 'Ratatosk Host')?.pid,
+    ({ app: electronApp }) => electronApp.getAppMetrics().find((m) => m.name === 'Tolki Host')?.pid,
   )
   expect(pid).toBeDefined()
 
@@ -196,7 +195,7 @@ test('the host runs the SFU: media transports share the room port', async () => 
   const { app, page } = await launchApp()
   try {
     const port = await freePort()
-    await page.evaluate((p) => window.ratatosk.host.start({ port: p, portMapping: false }), port)
+    await page.evaluate((p) => window.tolki.host.start({ port: p, portMapping: false }), port)
     const { socket } = await connectWss(port)
     const messages: { type: string; [key: string]: unknown }[] = []
     const next = (type: string) =>

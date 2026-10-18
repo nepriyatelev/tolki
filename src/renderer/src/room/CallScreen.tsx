@@ -105,7 +105,7 @@ export function CallScreen(props: {
   const [askingToShare, setAskingToShare] = createSignal(false)
   const [linkCopied, setLinkCopied] = createSignal(false)
   const copyInvite = async (link: string): Promise<void> => {
-    await window.ratatosk.app.copyText(link)
+    await window.tolki.app.copyText(link)
     setLinkCopied(true)
     setTimeout(() => setLinkCopied(false), 2000)
   }
@@ -132,7 +132,7 @@ export function CallScreen(props: {
   }
   const saveVolume = (peerName: string, volume: number): void => {
     previewVolume(peerName, volume)
-    void window.ratatosk.settings.update({ audio: { peerVolumes: { [peerName]: volume } } })
+    void window.tolki.settings.update({ audio: { peerVolumes: { [peerName]: volume } } })
   }
   const [speaking, setSpeaking] = createSignal<ReadonlySet<string>>(new Set())
   const [voices, setVoices] = createSignal<Voice[]>([])
@@ -283,19 +283,19 @@ export function CallScreen(props: {
   }
 
   onMount(() => {
-    void window.ratatosk.settings.get().then((settings) => {
+    void window.tolki.settings.get().then((settings) => {
       setVolumes((current) => ({ ...settings.audio.peerVolumes, ...current }))
       setOutputDeviceId(settings.audio.outputDeviceId)
     })
     startTheCall(joined(), callEvents)
     onCleanup(
-      window.ratatosk.room.onReconnecting(() => {
+      window.tolki.room.onReconnecting(() => {
         setReconnecting(true)
         // Nothing is heard right now: no one is framed as speaking.
         show(new Set())
       }),
     )
-    onCleanup(window.ratatosk.room.onReconnected(resume))
+    onCleanup(window.tolki.room.onReconnected(resume))
   })
 
   const canSpeak = (): boolean => sound() === 'on'
@@ -473,7 +473,7 @@ export function CallScreen(props: {
 
   const leave = async (): Promise<void> => {
     end()
-    await window.ratatosk.room.leave()
+    await window.tolki.room.leave()
     props.onLeft()
   }
 

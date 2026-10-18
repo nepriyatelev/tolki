@@ -8,7 +8,7 @@ import { CERTIFICATE_FILE, certificateFingerprint, loadOrCreateCertificate } fro
 let dir: string
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'ratatosk-cert-'))
+  dir = await mkdtemp(join(tmpdir(), 'tolki-cert-'))
 })
 
 afterEach(async () => {
@@ -23,7 +23,7 @@ describe('loadOrCreateCertificate', () => {
     expect(cert.fingerprint).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(cert.fingerprint).toBe(certificateFingerprint(cert.cert))
     expect(x509.publicKey.asymmetricKeyDetails?.namedCurve).toBe('prime256v1')
-    expect(x509.subject).toContain('CN=Ratatosk Host')
+    expect(x509.subject).toContain('CN=Tolki Host')
     expect(new Date(x509.validTo).getFullYear()).toBeGreaterThanOrEqual(
       new Date().getFullYear() + 19,
     )

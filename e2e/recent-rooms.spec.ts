@@ -9,7 +9,7 @@ test('a joined room shows up in recent rooms with its live status and saved pass
   const port = await freePort()
   const state = await host.page.evaluate(
     (p) =>
-      window.ratatosk.host.start({
+      window.tolki.host.start({
         port: p,
         portMapping: false,
         roomName: 'Вечерний созвон',
@@ -18,7 +18,7 @@ test('a joined room shows up in recent rooms with its live status and saved pass
     port,
   )
   if (state.status !== 'running') throw new Error('host did not start')
-  const link = `ratatosk://join?v=1&h=127.0.0.1&p=${port}&r=vecherniy&fp=${state.fingerprint}`
+  const link = `tolki://join?v=1&h=127.0.0.1&p=${port}&r=vecherniy&fp=${state.fingerprint}`
 
   const client = await launchApp({ args: [link] })
   const page = client.page
@@ -59,7 +59,7 @@ test('a joined room shows up in recent rooms with its live status and saved pass
     // Someone else is inside now: the list shows the count, never names.
     const joined = await host.page.evaluate(
       ({ p, fp }) =>
-        window.ratatosk.room.join({
+        window.tolki.room.join({
           invite: {
             host: '127.0.0.1',
             hostKind: 'ipv4',
@@ -79,7 +79,7 @@ test('a joined room shows up in recent rooms with its live status and saved pass
     await expect(liveRow.getByText('Дима')).toHaveCount(0)
 
     // Host goes away: the next visit of the home screen shows it.
-    await host.page.evaluate(() => window.ratatosk.host.stop())
+    await host.page.evaluate(() => window.tolki.host.stop())
     await page.reload()
     await expect(
       page

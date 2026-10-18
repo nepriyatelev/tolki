@@ -22,7 +22,7 @@ let media: MediaServer | null = null
 const clients: Client[] = []
 
 beforeAll(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'ratatosk-media-'))
+  dir = await mkdtemp(join(tmpdir(), 'tolki-media-'))
   certificate = await loadOrCreateCertificate(dir)
 })
 

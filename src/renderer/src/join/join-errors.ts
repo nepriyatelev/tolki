@@ -20,7 +20,7 @@ export function describeJoinError(error: JoinError): JoinErrorText {
       return { text: 'Комната заполнена: в ней уже 15 человек.' }
     case 'VERSION_MISMATCH':
       return {
-        text: 'У этого приложения и у организатора разные версии Ratatosk. Нужна последняя версия.',
+        text: 'У этого приложения и у организатора разные версии Tolki. Нужна последняя версия.',
       }
     case 'certificate-mismatch':
       return {

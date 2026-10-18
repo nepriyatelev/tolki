@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { buildInvite, parseInvite, type Invite } from '@shared/invite'
 import type { RoomPreview } from '@shared/room'
-import { installRatatoskMock } from '../../../test/ratatosk-mock'
+import { installTolkiMock } from '../../../test/tolki-mock'
 import { JoinScreen, peopleText } from './JoinScreen'
 import type { MicrophoneAccess } from '../audio/microphone'
 
@@ -22,7 +22,7 @@ const silentMic: MicrophoneAccess = {
 }
 
 function show(invite: Invite, preview?: RoomPreview) {
-  const api = installRatatoskMock(preview ? { preview } : {})
+  const api = installTolkiMock(preview ? { preview } : {})
   const onBack = vi.fn()
   render(() => (
     <JoinScreen result={parseInvite(buildInvite(invite))} onBack={onBack} microphone={silentMic} />
@@ -90,10 +90,8 @@ describe('JoinScreen', () => {
   })
 
   it('explains a broken link and asks to update the app for a newer one', () => {
-    installRatatoskMock()
-    render(() => (
-      <JoinScreen result={parseInvite('ratatosk://join?v=2')} onBack={() => undefined} />
-    ))
+    installTolkiMock()
+    render(() => <JoinScreen result={parseInvite('tolki://join?v=2')} onBack={() => undefined} />)
 
     expect(screen.getByRole('heading', { name: 'Не получилось открыть ссылку' })).toBeTruthy()
     expect(screen.getByText(/Нужна последняя версия/)).toBeTruthy()

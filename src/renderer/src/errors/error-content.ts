@@ -52,7 +52,7 @@ function cannotHostTips(problem: HostingProblem, port: number, localAddress: str
           text: 'На время созвона — через VPN участники не подключатся.',
         },
         {
-          title: 'Или добавить Ratatosk в исключения VPN',
+          title: 'Или добавить Tolki в исключения VPN',
           text: 'В настройках VPN-клиента это обычно называется split tunneling или «раздельное туннелирование».',
         },
       ]
@@ -167,8 +167,8 @@ export function errorContent(error: ErrorKind): ErrorContent {
         title: 'Нужна новая версия',
         text:
           error.reason === 'newer-link'
-            ? 'Ссылка создана в более новой версии Ratatosk. Последняя версия скачивается за пару минут.'
-            : 'У этого приложения и у организатора разные версии Ratatosk. Нужна последняя версия.',
+            ? 'Ссылка создана в более новой версии Tolki. Последняя версия скачивается за пару минут.'
+            : 'У этого приложения и у организатора разные версии Tolki. Нужна последняя версия.',
         tips: [],
       }
   }

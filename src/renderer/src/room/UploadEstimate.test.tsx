@@ -1,13 +1,13 @@
 import { render, screen } from '@solidjs/testing-library'
 import { describe, expect, it } from 'vitest'
 import type { UploadMeasurement } from '@shared/upload-capacity'
-import { installRatatoskMock } from '../../../test/ratatosk-mock'
+import { installTolkiMock } from '../../../test/tolki-mock'
 import { UploadEstimate } from './UploadEstimate'
 
 describe('UploadEstimate', () => {
   it('shows progress, then the estimate', async () => {
     let resolve: (value: UploadMeasurement) => void = () => undefined
-    installRatatoskMock({
+    installTolkiMock({
       measureUpload: () =>
         new Promise((r) => {
           resolve = r
@@ -26,7 +26,7 @@ describe('UploadEstimate', () => {
   it.each([{ status: 'disabled' as const }, { status: 'failed' as const, detail: 'offline' }])(
     'renders nothing when the test is $status',
     async (measurement) => {
-      installRatatoskMock({ measureUpload: () => Promise.resolve(measurement) })
+      installTolkiMock({ measureUpload: () => Promise.resolve(measurement) })
       const { container } = render(() => <UploadEstimate />)
 
       await Promise.resolve()

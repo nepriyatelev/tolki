@@ -3,12 +3,12 @@ import type { InviteParseResult } from '@shared/invite'
 import { findInviteLink, InviteLinks } from './invite-links'
 
 const LINK =
-  'ratatosk://join?v=1&h=203.0.113.5&p=47000&r=vecherniy&fp=2_SqXt3l45Ay59VWqBcvcLmeh7BmqvL0m-UwbNw3EiE'
+  'tolki://join?v=1&h=203.0.113.5&p=47000&r=vecherniy&fp=2_SqXt3l45Ay59VWqBcvcLmeh7BmqvL0m-UwbNw3EiE'
 
 describe('findInviteLink', () => {
   it('finds the link among Electron and Chromium arguments', () => {
-    expect(findInviteLink(['/opt/Ratatosk/ratatosk', '--no-sandbox', LINK])).toBe(LINK)
-    expect(findInviteLink(['C:\\Ratatosk.exe', '--', LINK.toUpperCase()])).toBe(LINK.toUpperCase())
+    expect(findInviteLink(['/opt/Tolki/tolki', '--no-sandbox', LINK])).toBe(LINK)
+    expect(findInviteLink(['C:\\Tolki.exe', '--', LINK.toUpperCase()])).toBe(LINK.toUpperCase())
   })
 
   it('returns null without a link', () => {
@@ -31,7 +31,7 @@ describe('InviteLinks', () => {
   it('keeps only the latest early link', () => {
     const links = new InviteLinks(vi.fn())
 
-    links.receive('ratatosk://join?v=2')
+    links.receive('tolki://join?v=2')
     links.receive(LINK)
 
     expect(links.takePending()?.ok).toBe(true)
@@ -63,7 +63,7 @@ describe('InviteLinks', () => {
   it('passes broken links on as parse errors', () => {
     const links = new InviteLinks(vi.fn())
 
-    links.receive('ratatosk://join?v=1&h=1.2.3')
+    links.receive('tolki://join?v=1&h=1.2.3')
 
     expect(links.takePending()).toEqual({
       ok: false,

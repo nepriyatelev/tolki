@@ -42,7 +42,7 @@
   background: none;
   border: 0;
   border-radius: var(--radius-xs);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   font-size: var(--text-sm);
   cursor: pointer;
 }

@@ -6,7 +6,7 @@ import './NetworkStatusBar.css'
 export function NetworkStatusBar(): JSX.Element {
   // The first check may come from main's cache; "Проверить снова" always re-checks.
   let force = false
-  const [result, { refetch }] = createResource(() => window.ratatosk.network.check({ force }))
+  const [result, { refetch }] = createResource(() => window.tolki.network.check({ force }))
   const text = () => {
     const value = result.latest
     return value ? describeHosting(value) : undefined

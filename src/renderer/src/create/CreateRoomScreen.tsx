@@ -61,15 +61,15 @@ export function CreateRoomScreen(props: {
   // «Нельзя хостить» is shown in place of the form so typed values survive going back.
   const [showHelp, setShowHelp] = createSignal(false)
 
-  const [fingerprint] = createResource(() => window.ratatosk.host.getFingerprint())
+  const [fingerprint] = createResource(() => window.tolki.host.getFingerprint())
   let forceCheck = false
   const [check, { refetch: recheck }] = createResource(checkedPort, (port) =>
-    window.ratatosk.network.check({ port, force: forceCheck }),
+    window.tolki.network.check({ port, force: forceCheck }),
   )
 
   onMount(() => {
-    void window.ratatosk.host.getState().then(setHostState)
-    onCleanup(window.ratatosk.host.onState(setHostState))
+    void window.tolki.host.getState().then(setHostState)
+    onCleanup(window.tolki.host.onState(setHostState))
   })
 
   const session = () => {
@@ -106,7 +106,7 @@ export function CreateRoomScreen(props: {
   const copy = async (): Promise<void> => {
     const text = link()
     if (text === undefined) return
-    await window.ratatosk.app.copyText(text)
+    await window.tolki.app.copyText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -123,7 +123,7 @@ export function CreateRoomScreen(props: {
     if (Object.keys(nextErrors).length > 0 || port === undefined) return
 
     setPhase({ kind: 'opening' })
-    const state = await window.ratatosk.host.start({
+    const state = await window.tolki.host.start({
       port,
       roomName: roomName().trim(),
       password: password(),
@@ -137,7 +137,7 @@ export function CreateRoomScreen(props: {
     // The host takes part in their own room like everyone else, over localhost. Subscribed
     // before joining: the room's first events come right after welcome.
     const events = collectRoomEvents()
-    const joined = await window.ratatosk.room.join({
+    const joined = await window.tolki.room.join({
       invite: {
         host: '127.0.0.1',
         hostKind: 'ipv4',
@@ -150,7 +150,7 @@ export function CreateRoomScreen(props: {
     })
     if (!joined.ok) {
       events.stop()
-      await window.ratatosk.host.stop()
+      await window.tolki.host.stop()
       setPhase({
         kind: 'editing',
         error: 'Открыть комнату не получилось. Можно попробовать ещё раз.',
@@ -163,7 +163,7 @@ export function CreateRoomScreen(props: {
 
   /** The organizer left the call: the room closes for everyone («Организатор закрыл комнату»). */
   const closeRoom = async (): Promise<void> => {
-    await window.ratatosk.host.stop()
+    await window.tolki.host.stop()
     props.onBack()
   }
 

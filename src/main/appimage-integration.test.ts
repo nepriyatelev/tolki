@@ -8,7 +8,7 @@ let home: string
 let icon: string
 
 beforeEach(async () => {
-  home = await mkdtemp(join(tmpdir(), 'ratatosk-home-'))
+  home = await mkdtemp(join(tmpdir(), 'tolki-home-'))
   icon = join(home, 'icon.png')
   await writeFile(icon, 'png')
 })
@@ -18,12 +18,12 @@ afterEach(async () => {
 })
 
 describe('desktopEntry', () => {
-  it('handles ratatosk:// and passes the link as %u', () => {
-    const entry = desktopEntry('/home/a/Apps/Ratatosk.AppImage')
+  it('handles tolki:// and passes the link as %u', () => {
+    const entry = desktopEntry('/home/a/Apps/Tolki.AppImage')
 
-    expect(entry).toContain('Exec="/home/a/Apps/Ratatosk.AppImage" %u\n')
-    expect(entry).toContain('MimeType=x-scheme-handler/ratatosk;\n')
-    expect(entry).toContain('StartupWMClass=ratatosk\n')
+    expect(entry).toContain('Exec="/home/a/Apps/Tolki.AppImage" %u\n')
+    expect(entry).toContain('MimeType=x-scheme-handler/tolki;\n')
+    expect(entry).toContain('StartupWMClass=tolki\n')
   })
 
   it('escapes characters that are special inside quoted Exec arguments', () => {
@@ -38,7 +38,7 @@ describe('integrateAppImage', () => {
     const run = vi.fn(() => Promise.resolve())
 
     const changed = await integrateAppImage({
-      appImagePath: '/apps/Ratatosk.AppImage',
+      appImagePath: '/apps/Tolki.AppImage',
       home,
       iconSource: icon,
       run,
@@ -46,20 +46,20 @@ describe('integrateAppImage', () => {
 
     expect(changed).toBe(true)
     const desktop = join(home, '.local/share/applications', DESKTOP_FILE)
-    expect(await readFile(desktop, 'utf8')).toBe(desktopEntry('/apps/Ratatosk.AppImage'))
+    expect(await readFile(desktop, 'utf8')).toBe(desktopEntry('/apps/Tolki.AppImage'))
     expect((await stat(desktop)).mode & 0o777).toBe(0o644)
     expect(
-      await readFile(join(home, '.local/share/icons/hicolor/256x256/apps/ratatosk.png'), 'utf8'),
+      await readFile(join(home, '.local/share/icons/hicolor/256x256/apps/tolki.png'), 'utf8'),
     ).toBe('png')
     expect(run).toHaveBeenCalledWith('xdg-mime', [
       'default',
       DESKTOP_FILE,
-      'x-scheme-handler/ratatosk',
+      'x-scheme-handler/tolki',
     ])
   })
 
   it('does nothing when the entry is already up to date', async () => {
-    const options = { appImagePath: '/apps/Ratatosk.AppImage', home, iconSource: icon }
+    const options = { appImagePath: '/apps/Tolki.AppImage', home, iconSource: icon }
     await integrateAppImage({ ...options, run: () => Promise.resolve() })
     const run = vi.fn(() => Promise.resolve())
 

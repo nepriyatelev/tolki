@@ -36,14 +36,14 @@ test('the organizer opens a room from the UI and is in its call; leaving closes 
     // No public link in e2e (the router is not touched), so nothing to invite with.
     await expect(page.getByRole('button', { name: 'Пригласить' })).toHaveCount(0)
 
-    const state = await page.evaluate(() => window.ratatosk.host.getState())
+    const state = await page.evaluate(() => window.tolki.host.getState())
     expect(state).toMatchObject({ status: 'running', port })
-    const fingerprint = await page.evaluate(() => window.ratatosk.host.getFingerprint())
+    const fingerprint = await page.evaluate(() => window.tolki.host.getFingerprint())
     expect(state.status === 'running' && state.fingerprint).toBe(fingerprint)
 
     // A participant joins with the room's password; the organizer is already inside.
     const friend = await launchApp({
-      args: [FAKE_MEDIA, `ratatosk://join?v=1&h=127.0.0.1&p=${port}&r=room&fp=${fingerprint}`],
+      args: [FAKE_MEDIA, `tolki://join?v=1&h=127.0.0.1&p=${port}&r=room&fp=${fingerprint}`],
     })
     try {
       await friend.page.getByLabel('Имя').fill('Катя')
@@ -64,7 +64,7 @@ test('the organizer opens a room from the UI and is in its call; leaving closes 
       })
       await expect(page.getByRole('button', { name: 'Создать комнату' })).toBeVisible()
       await expect
-        .poll(() => page.evaluate(() => window.ratatosk.host.getState()))
+        .poll(() => page.evaluate(() => window.tolki.host.getState()))
         .toEqual({ status: 'stopped' })
     } finally {
       await friend.app.close()

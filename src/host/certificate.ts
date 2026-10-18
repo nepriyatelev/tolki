@@ -61,7 +61,7 @@ async function createCertificate(): Promise<{ key: string; cert: string }> {
   const notAfterDate = new Date(notBeforeDate)
   notAfterDate.setFullYear(notAfterDate.getFullYear() + VALIDITY_YEARS)
 
-  const pems = await generate([{ name: 'commonName', value: 'Ratatosk Host' }], {
+  const pems = await generate([{ name: 'commonName', value: 'Tolki Host' }], {
     keyType: 'ec',
     curve: 'P-256',
     algorithm: 'sha256',

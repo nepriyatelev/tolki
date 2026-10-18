@@ -13,7 +13,7 @@ import {
 import { APP_NAME } from '@shared/app'
 import type { InviteParseResult } from '@shared/invite'
 import type { RecentRoom } from '@shared/recent'
-import logo from './assets/logo.svg'
+import logo from './assets/logo/tolki-logo-white.png'
 import { CreateRoomScreen } from './create/CreateRoomScreen'
 import type { ErrorKind } from './errors/error-content'
 import { ErrorScreen } from './errors/ErrorScreen'
@@ -33,9 +33,7 @@ type Route =
 
 export function App(): JSX.Element {
   const [route, setRoute] = createSignal<Route>({ screen: 'home' })
-  const [settings, { refetch: reloadSettings }] = createResource(() =>
-    window.ratatosk.settings.get(),
-  )
+  const [settings, { refetch: reloadSettings }] = createResource(() => window.tolki.settings.get())
   const profileName = (): string => settings.latest?.profile.name ?? ''
   const home = (): void => {
     setRoute({ screen: 'home' })
@@ -66,13 +64,13 @@ export function App(): JSX.Element {
 
   onMount(() => {
     // A link may have started the app; later links arrive as events.
-    onCleanup(window.ratatosk.invite.onOpened(openInvite))
-    void window.ratatosk.invite.takePending().then((pending) => {
+    onCleanup(window.tolki.invite.onOpened(openInvite))
+    void window.tolki.invite.takePending().then((pending) => {
       if (pending) openInvite(pending)
     })
     // The room ended without the user leaving it.
     onCleanup(
-      window.ratatosk.room.onClosed(({ reason, roomName }) => {
+      window.tolki.room.onClosed(({ reason, roomName }) => {
         const current = untrack(route)
         // A lost link (30 s of reconnecting, PLAN #31) can be retried with the same invite.
         const retry =
@@ -92,8 +90,8 @@ export function App(): JSX.Element {
   return (
     <div class="app">
       <header class="app-header">
-        <img class="app-logo" src={logo} alt="" width="36" height="36" />
-        <span class="app-name">{APP_NAME}</span>
+        {/* The wordmark is a picture (Nunito Black); the interface stays on Onest. */}
+        <img class="app-logo" src={logo} alt={APP_NAME} width="76" height="28" />
         <Show when={profileName()}>
           {(name) => (
             <span class="app-user">
@@ -142,7 +140,7 @@ export function App(): JSX.Element {
                     <Button
                       variant="primary"
                       icon={<Download />}
-                      onClick={() => void window.ratatosk.app.openDownloadPage()}
+                      onClick={() => void window.tolki.app.openDownloadPage()}
                     >
                       Скачать новую версию
                     </Button>

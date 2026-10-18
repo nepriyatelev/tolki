@@ -12,12 +12,12 @@ export interface RecentRoomsProps {
 /** "Недавние комнаты" (mockup 1): what this device joined before, with a live status. */
 export function RecentRooms(props: RecentRoomsProps): JSX.Element {
   const [rooms, setRooms] = createSignal<RecentRoom[] | undefined>(undefined)
-  void window.ratatosk.recent.list().then(setRooms)
+  void window.tolki.recent.list().then(setRooms)
   // The light check runs once per visit of the home screen.
-  const [statuses] = createResource(() => window.ratatosk.recent.probe())
+  const [statuses] = createResource(() => window.tolki.recent.probe())
 
   const remove = async (room: RecentRoom): Promise<void> => {
-    setRooms(await window.ratatosk.recent.remove(room.id))
+    setRooms(await window.tolki.recent.remove(room.id))
   }
 
   return (

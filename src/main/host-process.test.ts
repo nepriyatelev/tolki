@@ -5,7 +5,7 @@ import { HostProcess, HostStartError, type HostChild } from './host-process'
 
 const OPTIONS = {
   port: 47000,
-  dataDir: '/tmp/ratatosk',
+  dataDir: '/tmp/tolki',
   portMapping: true,
   roomName: 'Комната',
   password: '',
@@ -74,7 +74,7 @@ describe('HostProcess', () => {
       {
         type: 'start',
         port: 47000,
-        dataDir: '/tmp/ratatosk',
+        dataDir: '/tmp/tolki',
         portMapping: true,
         roomName: 'Комната',
         password: '',

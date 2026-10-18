@@ -19,7 +19,7 @@ test('a dropped link comes back by itself: «Переподключение…»
     const start = () =>
       host.page.evaluate(
         (p) =>
-          window.ratatosk.host.start({
+          window.tolki.host.start({
             port: p,
             portMapping: false,
             roomName: 'Кино',
@@ -29,7 +29,7 @@ test('a dropped link comes back by itself: «Переподключение…»
       )
     const state = await start()
     if (state.status !== 'running') throw new Error('host did not start')
-    const link = `ratatosk://join?v=1&h=127.0.0.1&p=${port}&r=kino&fp=${state.fingerprint}`
+    const link = `tolki://join?v=1&h=127.0.0.1&p=${port}&r=kino&fp=${state.fingerprint}`
     const katya = await launchApp({ args: [FAKE_MEDIA, link] })
     const misha = await launchApp({ args: [FAKE_MEDIA, link] })
     try {
@@ -45,7 +45,7 @@ test('a dropped link comes back by itself: «Переподключение…»
       // The organizer's room server dies without a word (crash, sleep, network gone)…
       const pid = await host.app.evaluate(
         ({ app }) =>
-          app.getAppMetrics().find((m) => m.type === 'Utility' && m.name === 'Ratatosk Host')?.pid,
+          app.getAppMetrics().find((m) => m.type === 'Utility' && m.name === 'Tolki Host')?.pid,
       )
       if (pid === undefined) throw new Error('no host process')
       process.kill(pid, 'SIGKILL')
@@ -84,12 +84,12 @@ test('after 30 s without the room: «Связь с комнатой потеря
     const port = await freePort()
     const state = await host.page.evaluate(
       (p) =>
-        window.ratatosk.host.start({ port: p, portMapping: false, roomName: 'Кино', password: '' }),
+        window.tolki.host.start({ port: p, portMapping: false, roomName: 'Кино', password: '' }),
       port,
     )
     if (state.status !== 'running') throw new Error('host did not start')
     const katya = await launchApp({
-      args: [`ratatosk://join?v=1&h=127.0.0.1&p=${port}&r=kino&fp=${state.fingerprint}`],
+      args: [`tolki://join?v=1&h=127.0.0.1&p=${port}&r=kino&fp=${state.fingerprint}`],
     })
     try {
       await katya.page.getByLabel('Имя', { exact: true }).fill('Катя')
@@ -98,7 +98,7 @@ test('after 30 s without the room: «Связь с комнатой потеря
 
       const pid = await host.app.evaluate(
         ({ app }) =>
-          app.getAppMetrics().find((m) => m.type === 'Utility' && m.name === 'Ratatosk Host')?.pid,
+          app.getAppMetrics().find((m) => m.type === 'Utility' && m.name === 'Tolki Host')?.pid,
       )
       if (pid === undefined) throw new Error('no host process')
       process.kill(pid, 'SIGKILL')

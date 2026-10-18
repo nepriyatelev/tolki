@@ -1,8 +1,8 @@
 import { parseInvite, type InviteParseResult } from '@shared/invite'
 
-/** Finds a ratatosk:// link among command-line arguments (Windows and Linux deep links). */
+/** Finds a tolki:// link among command-line arguments (Windows and Linux deep links). */
 export function findInviteLink(argv: readonly string[]): string | null {
-  return argv.find((arg) => arg.toLowerCase().startsWith('ratatosk:')) ?? null
+  return argv.find((arg) => arg.toLowerCase().startsWith('tolki:')) ?? null
 }
 
 /**

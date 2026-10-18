@@ -22,7 +22,7 @@ let media: MediaServer | null = null
 const connections: RoomConnection[] = []
 
 beforeAll(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'ratatosk-room-'))
+  dir = await mkdtemp(join(tmpdir(), 'tolki-room-'))
   certificate = await loadOrCreateCertificate(dir)
 })
 

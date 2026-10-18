@@ -10,7 +10,7 @@ test('the join screen previews the room, checks the microphone and joins muted',
   const port = await freePort()
   const state = await host.page.evaluate(
     (p) =>
-      window.ratatosk.host.start({
+      window.tolki.host.start({
         port: p,
         portMapping: false,
         roomName: 'Кино по пятницам',
@@ -23,7 +23,7 @@ test('the join screen previews the room, checks the microphone and joins muted',
   // Someone is already inside, so the preview has a count to show.
   await host.page.evaluate(
     ({ p, fp }) =>
-      window.ratatosk.room.join({
+      window.tolki.room.join({
         invite: { host: '127.0.0.1', hostKind: 'ipv4', port: p, roomId: 'kino', fingerprint: fp },
         name: 'Дима',
         password: 'secret',
@@ -32,7 +32,7 @@ test('the join screen previews the room, checks the microphone and joins muted',
   )
 
   const client = await launchApp({
-    args: [FAKE_MEDIA, `ratatosk://join?v=1&h=127.0.0.1&p=${port}&r=kino&fp=${fingerprint}`],
+    args: [FAKE_MEDIA, `tolki://join?v=1&h=127.0.0.1&p=${port}&r=kino&fp=${fingerprint}`],
   })
   const page = client.page
   try {
@@ -55,7 +55,7 @@ test('the join screen previews the room, checks the microphone and joins muted',
     await page.getByLabel('Микрофон', { exact: true }).selectOption(device ?? '')
     await expect
       .poll(() =>
-        page.evaluate(() => window.ratatosk.settings.get().then((s) => s.audio.inputDeviceId)),
+        page.evaluate(() => window.tolki.settings.get().then((s) => s.audio.inputDeviceId)),
       )
       .toBe(device)
 

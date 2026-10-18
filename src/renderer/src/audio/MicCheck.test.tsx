@@ -1,7 +1,7 @@
 import { render, screen } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { installRatatoskMock } from '../../../test/ratatosk-mock'
+import { installTolkiMock } from '../../../test/tolki-mock'
 import { MicCheck } from './MicCheck'
 import { MicrophoneError, type MicrophoneAccess } from './microphone'
 
@@ -41,7 +41,7 @@ function fakeMic(options: { fail?: MicrophoneError } = {}) {
 
 describe('MicCheck', () => {
   it('lights meter segments with the input level', async () => {
-    installRatatoskMock()
+    installTolkiMock()
     const mic = fakeMic()
     render(() => <MicCheck muted={false} onMutedChange={() => undefined} access={mic.access} />)
     await vi.waitFor(() => {
@@ -58,8 +58,8 @@ describe('MicCheck', () => {
 
   it('lists devices once access is granted, remembers the choice and reopens the meter', async () => {
     const user = userEvent.setup()
-    installRatatoskMock()
-    const update = vi.spyOn(window.ratatosk.settings, 'update')
+    installTolkiMock()
+    const update = vi.spyOn(window.tolki.settings, 'update')
     const mic = fakeMic()
     render(() => <MicCheck muted={false} onMutedChange={() => undefined} access={mic.access} />)
 
@@ -76,7 +76,7 @@ describe('MicCheck', () => {
   })
 
   it('explains when microphone access is denied', async () => {
-    installRatatoskMock()
+    installTolkiMock()
     const mic = fakeMic({ fail: new MicrophoneError('denied') })
     render(() => <MicCheck muted={false} onMutedChange={() => undefined} access={mic.access} />)
 
@@ -85,7 +85,7 @@ describe('MicCheck', () => {
 
   it('reports the «join muted» choice', async () => {
     const user = userEvent.setup()
-    installRatatoskMock()
+    installTolkiMock()
     const onMutedChange = vi.fn()
     render(() => <MicCheck muted={false} onMutedChange={onMutedChange} access={fakeMic().access} />)
 
@@ -95,7 +95,7 @@ describe('MicCheck', () => {
   })
 
   it('stops the microphone when leaving the screen', async () => {
-    installRatatoskMock()
+    installTolkiMock()
     const mic = fakeMic()
     const { unmount } = render(() => (
       <MicCheck muted={false} onMutedChange={() => undefined} access={mic.access} />

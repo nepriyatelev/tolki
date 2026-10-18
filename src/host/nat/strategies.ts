@@ -4,7 +4,7 @@ import { newNonce, pcpMap, PcpError, type PcpProtocol } from './pcp'
 import { MethodUnavailableError, type MappedPort, type MappingStrategy } from './port-mapper'
 
 const LEASE_SECONDS = 2 * 60 * 60
-const DESCRIPTION = 'Ratatosk'
+const DESCRIPTION = 'Tolki'
 const PROTOCOLS: readonly PcpProtocol[] = ['tcp', 'udp']
 
 /** What the PCP attempt learned about port 5351, so NAT-PMP is skipped when nobody listens. */

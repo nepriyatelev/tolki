@@ -141,7 +141,7 @@
 
 .rt-icon-button--accent {
   background: var(--color-accent-soft);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .rt-icon-button--danger {

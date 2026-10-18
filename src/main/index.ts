@@ -36,7 +36,7 @@ import { ScreenCapture } from './screen-capture'
 import { mainWindowOptions } from './window-options'
 
 // Lets e2e tests isolate the certificate and settings from the real profile.
-const userDataOverride = process.env['RATATOSK_USER_DATA']
+const userDataOverride = process.env['TOLKI_USER_DATA']
 if (userDataOverride) app.setPath('userData', userDataOverride)
 
 // One app per profile: a second launch (e.g. a clicked invite link) hands its arguments to the
@@ -52,17 +52,17 @@ const isTrustedUrl = (url: string): boolean =>
     indexFileUrl: pathToFileURL(rendererIndexPath).href,
   })
 
-// RATATOSK_PORT_MAPPING=off never touches the router (e2e tests, manual port forwarding).
-const portMappingEnabled = process.env['RATATOSK_PORT_MAPPING'] !== 'off'
+// TOLKI_PORT_MAPPING=off never touches the router (e2e tests, manual port forwarding).
+const portMappingEnabled = process.env['TOLKI_PORT_MAPPING'] !== 'off'
 
-// RATATOSK_SPEED_TEST=off never contacts speed.cloudflare.com (e2e tests).
-const speedTestAllowed = process.env['RATATOSK_SPEED_TEST'] !== 'off'
+// TOLKI_SPEED_TEST=off never contacts speed.cloudflare.com (e2e tests).
+const speedTestAllowed = process.env['TOLKI_SPEED_TEST'] !== 'off'
 
-// Packaged builds only: a development build is always «older». RATATOSK_UPDATE_CHECK=off never
-// contacts GitHub (e2e tests); RATATOSK_UPDATE_API points the check elsewhere (an e2e stub).
-const updateApi = process.env['RATATOSK_UPDATE_API']
+// Packaged builds only: a development build is always «older». TOLKI_UPDATE_CHECK=off never
+// contacts GitHub (e2e tests); TOLKI_UPDATE_API points the check elsewhere (an e2e stub).
+const updateApi = process.env['TOLKI_UPDATE_API']
 const updates = new UpdateCheck({
-  enabled: process.env['RATATOSK_UPDATE_CHECK'] !== 'off' && (app.isPackaged || !!updateApi),
+  enabled: process.env['TOLKI_UPDATE_CHECK'] !== 'off' && (app.isPackaged || !!updateApi),
   currentVersion: app.getVersion(),
   fetch: (url, init) => net.fetch(url, init),
   ...(updateApi ? { url: updateApi } : {}),
@@ -82,13 +82,13 @@ const upload = new UploadEstimator({
 })
 
 const spawnHost = () =>
-  utilityProcess.fork(join(__dirname, 'host.js'), [], { serviceName: 'Ratatosk Host' })
+  utilityProcess.fork(join(__dirname, 'host.js'), [], { serviceName: 'Tolki Host' })
 const host = new HostProcess({ spawn: spawnHost })
 const network = new NetworkChecker({
   host,
   portMappingEnabled,
   spawn: () =>
-    utilityProcess.fork(join(__dirname, 'host.js'), [], { serviceName: 'Ratatosk Network Check' }),
+    utilityProcess.fork(join(__dirname, 'host.js'), [], { serviceName: 'Tolki Network Check' }),
 })
 
 const screenCapture = new ScreenCapture({
@@ -173,19 +173,29 @@ function leaveRoom(): void {
 function registerInviteScheme(): void {
   if (!app.isPackaged) return
   // macOS: Info.plist from electron-builder `protocols`; Linux deb: its .desktop file.
-  if (process.platform === 'win32') app.setAsDefaultProtocolClient('ratatosk')
+  if (process.platform === 'win32') app.setAsDefaultProtocolClient('tolki')
   const appImage = process.env['APPIMAGE']
   if (process.platform === 'linux' && appImage) {
     void integrateAppImage({
       appImagePath: appImage,
       home: homedir(),
-      iconSource: join(process.resourcesPath, 'icons/ratatosk.png'),
+      iconSource: join(process.resourcesPath, 'icons/tolki.png'),
     })
   }
 }
 
+/** Packaged: copied next to the app (extraResources); in development: from build/. */
+function linuxWindowIcon(): string | undefined {
+  if (process.platform !== 'linux') return undefined
+  return app.isPackaged
+    ? join(process.resourcesPath, 'icons/tolki-512.png')
+    : join(app.getAppPath(), 'build/icons/512x512.png')
+}
+
 function createMainWindow(): BrowserWindow {
-  const win = new BrowserWindow(mainWindowOptions(join(__dirname, '../preload/index.js')))
+  const win = new BrowserWindow(
+    mainWindowOptions(join(__dirname, '../preload/index.js'), linuxWindowIcon()),
+  )
   win.webContents.on('did-start-loading', () => {
     inviteLinks.rendererGone()
   })

@@ -1,6 +1,6 @@
 /** The newest published release (pre-releases and drafts are not «latest»). */
 export const LATEST_RELEASE_API =
-  'https://api.github.com/repos/nepriyatelev/ratatosk-releases/releases/latest'
+  'https://api.github.com/repos/nepriyatelev/tolki-releases/releases/latest'
 
 export interface UpdateCheckOptions {
   /** Off: never contacts GitHub (e2e tests, development builds). */

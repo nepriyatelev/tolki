@@ -50,7 +50,7 @@ test('15 people and one screen: the organizer’s room server within budget', as
   const port = await freePort()
   const state = await host.page.evaluate(
     (p) =>
-      window.ratatosk.host.start({
+      window.tolki.host.start({
         port: p,
         portMapping: false,
         roomName: 'Нагрузка',
@@ -60,7 +60,7 @@ test('15 people and one screen: the organizer’s room server within budget', as
   )
   if (state.status !== 'running') throw new Error('host did not start')
   const mediaHost = lanAddress()
-  const link = `ratatosk://join?v=1&h=127.0.0.1&p=${port}&r=load&fp=${state.fingerprint}`
+  const link = `tolki://join?v=1&h=127.0.0.1&p=${port}&r=load&fp=${state.fingerprint}`
 
   // The organizer is a participant too, through the app's own UI — the one real client here,
   // so voice latency is read from it.
@@ -93,7 +93,7 @@ test('15 people and one screen: the organizer’s room server within budget', as
 
     const hostPid = await host.app.evaluate(
       ({ app }) =>
-        app.getAppMetrics().find((m) => m.type === 'Utility' && m.name === 'Ratatosk Host')?.pid,
+        app.getAppMetrics().find((m) => m.type === 'Utility' && m.name === 'Tolki Host')?.pid,
     )
     if (hostPid === undefined) throw new Error('no host process')
     const tree = processTree(hostPid)
@@ -222,7 +222,7 @@ test('15 people and one screen: the organizer’s room server within budget', as
 
 ## Машина
 - ${cpus()[0]?.model ?? 'CPU'}, ${cores} ядер, ${fmt(totalmem() / 1024 ** 3, 0)} ГБ, ${platform()} ${release()}
-- Организатор — настоящее приложение Ratatosk; он же 15-й участник (через свой интерфейс).
+- Организатор — настоящее приложение Tolki; он же 15-й участник (через свой интерфейс).
 - 14 участников — один отдельный Electron, по скрытому окну на каждого: тот же код звонка (\`Call\`), фейковый микрофон Chromium. Участник 1 показывает фейковое видео 1080p как экран (режим «Плавно», simulcast).
 - Все на одной машине, медиа по ${protocols || 'UDP'} через адрес ${mediaHost}. Замер ${fmt(seconds, 0)} с после ${WARM_UP_MS / 1000} с разгона.
 

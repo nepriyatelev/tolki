@@ -1,12 +1,13 @@
 {
-  "name": "ratatosk",
+  "name": "tolki",
+  "productName": "Tolki",
   "version": "0.0.0",
   "private": true,
   "description": "P2P voice & screen sharing",
   "author": "nepriyatelev",
-  "homepage": "https://github.com/nepriyatelev/ratatosk-releases",
+  "homepage": "https://github.com/nepriyatelev/tolki-releases",
   "main": "./out/main/index.js",
-  "desktopName": "ratatosk.desktop",
+  "desktopName": "tolki.desktop",
   "engines": {
     "node": ">=22.12.0"
   },

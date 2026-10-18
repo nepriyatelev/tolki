@@ -54,7 +54,7 @@ test('the sharer’s CPU for a 1080p60 moving screen', async () => {
       const port = await freePort()
       const state = await host.page.evaluate(
         (p) =>
-          window.ratatosk.host.start({
+          window.tolki.host.start({
             port: p,
             portMapping: false,
             roomName: 'Экран',
@@ -63,7 +63,7 @@ test('the sharer’s CPU for a 1080p60 moving screen', async () => {
         port,
       )
       if (state.status !== 'running') throw new Error('host did not start')
-      const link = `ratatosk://join?v=1&h=127.0.0.1&p=${port}&r=s&fp=${state.fingerprint}`
+      const link = `tolki://join?v=1&h=127.0.0.1&p=${port}&r=s&fp=${state.fingerprint}`
       await host.page.getByLabel('Ссылка-приглашение').fill(link)
       await host.page.getByRole('button', { name: 'Войти', exact: true }).click()
       await host.page.getByLabel('Имя', { exact: true }).fill('Зритель')

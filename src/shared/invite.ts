@@ -1,13 +1,13 @@
 /**
  * Invite links (PLAN §5):
- *   ratatosk://join?v=1&h=<host>&p=<port>&r=<roomId>&fp=<sha256 base64url>[&k=<password>]
+ *   tolki://join?v=1&h=<host>&p=<port>&r=<roomId>&fp=<sha256 base64url>[&k=<password>]
  *
  * The parser is strict: anything it does not fully understand is rejected, so a damaged or
  * tampered link never connects somewhere unexpected.
  */
 
 export const INVITE_VERSION = 1
-export const INVITE_SCHEME = 'ratatosk:'
+export const INVITE_SCHEME = 'tolki:'
 
 const MAX_LINK_LENGTH = 2048
 const MAX_PASSWORD_LENGTH = 128
@@ -67,7 +67,7 @@ export function buildInvite(invite: Invite): string {
   params.set('r', invite.roomId)
   params.set('fp', invite.fingerprint)
   if (invite.password !== undefined) params.set('k', invite.password)
-  return `ratatosk://join?${params.toString()}`
+  return `tolki://join?${params.toString()}`
 }
 
 export function parseInvite(link: string): InviteParseResult {
@@ -146,9 +146,9 @@ export function inviteAddress(invite: Pick<Invite, 'host' | 'hostKind' | 'port'>
 export function inviteErrorMessage(error: InviteError): string {
   switch (error.code) {
     case 'unsupported-version':
-      return 'Ссылка создана в более новой версии Ratatosk. Нужна последняя версия приложения.'
+      return 'Ссылка создана в более новой версии Tolki. Нужна последняя версия приложения.'
     case 'not-an-invite':
-      return 'Это не ссылка-приглашение Ratatosk.'
+      return 'Это не ссылка-приглашение Tolki.'
     default:
       return 'Ссылка-приглашение повреждена. Нужна новая ссылка от организатора.'
   }

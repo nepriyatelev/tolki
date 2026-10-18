@@ -34,7 +34,7 @@ textarea {
 }
 
 a {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 a:hover {

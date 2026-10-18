@@ -107,11 +107,11 @@ test('cold start, idle and a voice call within the budgets', async () => {
   const port = await freePort()
   const state = await host.page.evaluate(
     (p) =>
-      window.ratatosk.host.start({ port: p, portMapping: false, roomName: 'Бюджет', password: '' }),
+      window.tolki.host.start({ port: p, portMapping: false, roomName: 'Бюджет', password: '' }),
     port,
   )
   if (state.status !== 'running') throw new Error('host did not start')
-  const link = `ratatosk://join?v=1&h=127.0.0.1&p=${port}&r=b&fp=${state.fingerprint}`
+  const link = `tolki://join?v=1&h=127.0.0.1&p=${port}&r=b&fp=${state.fingerprint}`
   await host.page.getByLabel('Ссылка-приглашение').fill(link)
   await host.page.getByRole('button', { name: 'Войти', exact: true }).click()
   await host.page.getByLabel('Имя', { exact: true }).fill('Организатор')

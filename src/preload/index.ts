@@ -4,7 +4,7 @@ import type {
   EventContract,
   InvokeChannel,
   InvokeContract,
-  RatatoskApi,
+  TolkiApi,
 } from '@shared/ipc'
 
 // Only explicit, typed methods are exposed; the renderer never gets ipcRenderer itself.
@@ -29,7 +29,7 @@ function subscribe<K extends EventChannel>(
   }
 }
 
-const api: RatatoskApi = {
+const api: TolkiApi = {
   app: {
     getInfo: () => invoke('app:get-info'),
     copyText: (text) => invoke('app:copy-text', text),
@@ -80,4 +80,4 @@ const api: RatatoskApi = {
   },
 }
 
-contextBridge.exposeInMainWorld('ratatosk', api)
+contextBridge.exposeInMainWorld('tolki', api)

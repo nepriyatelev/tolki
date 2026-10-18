@@ -20,7 +20,7 @@ test('the home screen shows whether this computer can host', async () => {
 test('network check result is available over IPC', async () => {
   const { app, page } = await launchApp()
   try {
-    const result = await page.evaluate(() => window.ratatosk.network.check({ force: true }))
+    const result = await page.evaluate(() => window.tolki.network.check({ force: true }))
 
     expect(result).toMatchObject({
       port: 47000,
