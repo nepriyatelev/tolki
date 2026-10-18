@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { launchApp } from './app'
+import { launchApp, SCREEN_CAPTURE_SKIP_REASON, screenCaptureSkipped } from './app'
 import { heardLevel } from './media'
 import { freePort } from './ports'
 
@@ -10,6 +10,7 @@ import { freePort } from './ports'
 const FAKE_MEDIA = '--use-fake-device-for-media-stream'
 
 test('the computer’s sound goes with the screen and stops with it', async () => {
+  test.skip(screenCaptureSkipped, SCREEN_CAPTURE_SKIP_REASON)
   test.setTimeout(90_000)
   const host = await launchApp()
   try {

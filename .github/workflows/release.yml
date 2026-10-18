@@ -54,6 +54,8 @@ jobs:
             os: macos-26-intel
             builder: --mac dmg --x64
             app: release/mac/Tolki.app/Contents/MacOS/Tolki
+            # Screen capture hangs on this runner (#123): those tests are checked by hand.
+            skip_screen_capture: '1'
           - name: linux-x64
             os: ubuntu-latest
             builder: --linux AppImage deb --x64
@@ -85,12 +87,21 @@ jobs:
         shell: bash
         env:
           E2E_EXECUTABLE: ${{ matrix.app }}
+          E2E_SKIP_SCREEN_CAPTURE: ${{ matrix.skip_screen_capture || '' }}
         run: |
           if [ "$RUNNER_OS" = Linux ]; then
             xvfb-run --auto-servernum pnpm exec playwright test
           else
             pnpm exec playwright test
           fi
+
+      # What a failed test saw (screenshots, error-context), to find out why.
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-results-${{ matrix.name }}
+          path: test-results/
+          retention-days: 7
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

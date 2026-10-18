@@ -29,6 +29,14 @@ function appEnv(userDataDir: string): Record<string, string> {
 }
 
 /**
+ * The release run on the macOS Intel runner hangs as soon as a screen is captured (#123); the
+ * tests that capture one are skipped there (E2E_SKIP_SCREEN_CAPTURE=1 in release.yml) and
+ * checked by hand.
+ */
+export const screenCaptureSkipped = process.env['E2E_SKIP_SCREEN_CAPTURE'] === '1'
+export const SCREEN_CAPTURE_SKIP_REASON = 'screen capture hangs on this runner (#123)'
+
+/**
  * Launches the app from `out/` by default. Set E2E_EXECUTABLE to a packaged binary
  * (e.g. release/mac-arm64/Tolki.app/Contents/MacOS/Tolki) to test an installer build.
  * Every launch gets a fresh userData directory unless one is passed in.

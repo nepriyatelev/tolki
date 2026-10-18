@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { freePort } from './ports'
-import { launchApp } from './app'
+import { launchApp, SCREEN_CAPTURE_SKIP_REASON, screenCaptureSkipped } from './app'
 import { cpuPercent, receivedVideo, sentVideo, tapPeerConnections } from './media'
 
 test('getDisplayMedia gets nothing unless the user picked a source in our dialog', async () => {
@@ -21,6 +21,7 @@ test('getDisplayMedia gets nothing unless the user picked a source in our dialog
 })
 
 test('the user picks a screen and sees what they are showing', async () => {
+  test.skip(screenCaptureSkipped, SCREEN_CAPTURE_SKIP_REASON)
   test.setTimeout(60_000)
   const host = await launchApp()
   try {
@@ -115,6 +116,7 @@ test('the user picks a screen and sees what they are showing', async () => {
 })
 
 test('others see the shared screen at a layer that fits, and nothing while hidden', async () => {
+  test.skip(screenCaptureSkipped, SCREEN_CAPTURE_SKIP_REASON)
   test.setTimeout(120_000)
   const host = await launchApp()
   try {
@@ -265,6 +267,7 @@ test('others see the shared screen at a layer that fits, and nothing while hidde
 })
 
 test('one screen at a time: «Показать свой» goes to the sharer, who gives way', async () => {
+  test.skip(screenCaptureSkipped, SCREEN_CAPTURE_SKIP_REASON)
   test.setTimeout(120_000)
   const host = await launchApp()
   try {
