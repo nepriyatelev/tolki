@@ -22,6 +22,8 @@ export interface InvokeContract {
   'app:copy-text': { args: [text: string]; result: null }
   /** Opens the installers page in the browser (fixed URL; the renderer cannot pass one). */
   'app:open-download-page': { args: []; result: null }
+  /** A newer release in ratatosk-releases, if any (PLAN #36); asked once per run. */
+  'app:check-update': { args: []; result: { version: string } | null }
   /** Never throws for expected failures: returns `stopped` with `lastError` instead. */
   'host:start': { args: [options: HostStartRequest]; result: HostState }
   'host:stop': { args: []; result: HostState }
@@ -117,6 +119,7 @@ export const invokeArgsSchemas: {
   'app:get-info': z.tuple([]),
   'app:copy-text': z.tuple([z.string().max(4096)]),
   'app:open-download-page': z.tuple([]),
+  'app:check-update': z.tuple([]),
   'host:start': z.tuple([
     z.strictObject({
       port: hostPortSchema.optional(),
@@ -161,6 +164,7 @@ export interface RatatoskApi {
     getInfo(): Promise<AppInfo>
     copyText(text: string): Promise<null>
     openDownloadPage(): Promise<null>
+    checkUpdate(): Promise<{ version: string } | null>
   }
   host: {
     start(options?: HostStartRequest): Promise<HostState>

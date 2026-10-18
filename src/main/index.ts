@@ -28,6 +28,7 @@ import { joinRoom, probeRoom } from './room-client'
 import { RoomSession } from './room-session'
 import { SettingsStore } from './settings'
 import { measureUpload } from './speed-test'
+import { UpdateCheck } from './update-check'
 import { UploadEstimator } from './upload-estimator'
 import { registerIpcHandlers } from './ipc'
 import { isTrustedRendererOrigin, isTrustedRendererUrl } from './trusted-url'
@@ -56,6 +57,16 @@ const portMappingEnabled = process.env['RATATOSK_PORT_MAPPING'] !== 'off'
 
 // RATATOSK_SPEED_TEST=off never contacts speed.cloudflare.com (e2e tests).
 const speedTestAllowed = process.env['RATATOSK_SPEED_TEST'] !== 'off'
+
+// Packaged builds only: a development build is always «older». RATATOSK_UPDATE_CHECK=off never
+// contacts GitHub (e2e tests); RATATOSK_UPDATE_API points the check elsewhere (an e2e stub).
+const updateApi = process.env['RATATOSK_UPDATE_API']
+const updates = new UpdateCheck({
+  enabled: process.env['RATATOSK_UPDATE_CHECK'] !== 'off' && (app.isPackaged || !!updateApi),
+  currentVersion: app.getVersion(),
+  fetch: (url, init) => net.fetch(url, init),
+  ...(updateApi ? { url: updateApi } : {}),
+})
 
 const store = new Store({ name: 'settings' })
 const settings = new SettingsStore({
@@ -217,6 +228,7 @@ registerIpcHandlers(
       await shell.openExternal(DOWNLOAD_PAGE)
       return null
     },
+    'app:check-update': () => updates.check(),
     'app:get-info': () => ({
       name: APP_NAME,
       version: app.getVersion(),

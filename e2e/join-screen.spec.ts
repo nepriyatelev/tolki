@@ -1,23 +1,9 @@
-import { createServer, type AddressInfo } from 'node:net'
 import { expect, test } from '@playwright/test'
+import { freePort } from './ports'
 import { launchApp } from './app'
 
 // Chromium's fake capture device plays a tone instead of using a real microphone.
 const FAKE_MEDIA = '--use-fake-device-for-media-stream'
-
-async function freePort(): Promise<number> {
-  const probe = createServer()
-  await new Promise<void>((resolve) => {
-    probe.listen(0, resolve)
-  })
-  const { port } = probe.address() as AddressInfo
-  await new Promise<void>((resolve) => {
-    probe.close(() => {
-      resolve()
-    })
-  })
-  return port
-}
 
 test('the join screen previews the room, checks the microphone and joins muted', async () => {
   const host = await launchApp()

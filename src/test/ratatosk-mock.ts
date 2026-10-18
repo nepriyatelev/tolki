@@ -33,6 +33,7 @@ export interface RatatoskMock {
   app: {
     copyText: Mock<RatatoskApi['app']['copyText']>
     openDownloadPage: Mock<RatatoskApi['app']['openDownloadPage']>
+    checkUpdate: Mock<RatatoskApi['app']['checkUpdate']>
   }
   host: {
     start: Mock<RatatoskApi['host']['start']>
@@ -73,6 +74,8 @@ export interface RatatoskMock {
 }
 
 export interface RatatoskMockOptions extends Partial<RatatoskApi['network']> {
+  /** A newer release main found (PLAN #36). */
+  update?: { version: string }
   /** A link that "started the app". */
   pendingInvite?: InviteParseResult
   join?: RatatoskApi['room']['join']
@@ -105,6 +108,9 @@ export function installRatatoskMock(options: RatatoskMockOptions = {}): Ratatosk
       ),
       copyText: vi.fn<RatatoskApi['app']['copyText']>(() => Promise.resolve(null)),
       openDownloadPage: vi.fn<RatatoskApi['app']['openDownloadPage']>(() => Promise.resolve(null)),
+      checkUpdate: vi.fn<RatatoskApi['app']['checkUpdate']>(() =>
+        Promise.resolve(options.update ?? null),
+      ),
     },
     host: {
       start: vi.fn<RatatoskApi['host']['start']>(

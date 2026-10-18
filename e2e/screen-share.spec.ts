@@ -1,21 +1,7 @@
-import { createServer, type AddressInfo } from 'node:net'
 import { expect, test } from '@playwright/test'
+import { freePort } from './ports'
 import { launchApp } from './app'
 import { cpuPercent, receivedVideo, sentVideo, tapPeerConnections } from './media'
-
-async function freePort(): Promise<number> {
-  const probe = createServer()
-  await new Promise<void>((resolve) => {
-    probe.listen(0, resolve)
-  })
-  const { port } = probe.address() as AddressInfo
-  await new Promise<void>((resolve) => {
-    probe.close(() => {
-      resolve()
-    })
-  })
-  return port
-}
 
 test('getDisplayMedia gets nothing unless the user picked a source in our dialog', async () => {
   const { app, page } = await launchApp()

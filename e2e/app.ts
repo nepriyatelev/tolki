@@ -12,13 +12,14 @@ export interface LaunchedApp {
   userDataDir: string
 }
 
-/** e2e must never change the router or upload to speed.cloudflare.com. */
+/** e2e must never change the router, upload to speed.cloudflare.com or ask GitHub for updates. */
 function appEnv(userDataDir: string): Record<string, string> {
   return {
     ...process.env,
     RATATOSK_USER_DATA: userDataDir,
     RATATOSK_PORT_MAPPING: 'off',
     RATATOSK_SPEED_TEST: 'off',
+    RATATOSK_UPDATE_CHECK: 'off',
   }
 }
 
@@ -28,10 +29,10 @@ function appEnv(userDataDir: string): Record<string, string> {
  * Every launch gets a fresh userData directory unless one is passed in.
  */
 export async function launchApp(
-  options: { userDataDir?: string; args?: string[] } = {},
+  options: { userDataDir?: string; args?: string[]; env?: Record<string, string> } = {},
 ): Promise<LaunchedApp> {
   const userDataDir = options.userDataDir ?? mkdtempSync(join(tmpdir(), 'ratatosk-e2e-'))
-  const env = appEnv(userDataDir)
+  const env = { ...appEnv(userDataDir), ...options.env }
   const executablePath = process.env['E2E_EXECUTABLE']
   const extra = options.args ?? []
   const app = await electron.launch(
