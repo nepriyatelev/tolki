@@ -1,3 +1,4 @@
+import type { PushToTalkMode } from '@shared/push-to-talk'
 import { fireEvent, render, screen, within } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -82,11 +83,18 @@ function setup(
     peerVolumes?: Record<string, number>
     screenSources?: ScreenSourcesResult
     sharerId?: string | null
+    pushToTalk?: { enabled: boolean; key: string }
+    pushToTalkMode?: PushToTalkMode
   } = {},
 ) {
-  const api = installTolkiMock({ peerVolumes: options.peerVolumes ?? {} })
+  const api = installTolkiMock({
+    peerVolumes: options.peerVolumes ?? {},
+    ...(options.pushToTalk ? { pushToTalk: options.pushToTalk } : {}),
+    ...(options.pushToTalkMode ? { pushToTalkMode: options.pushToTalkMode } : {}),
+  })
   const close = vi.fn()
   const setMuted = vi.fn<(muted: boolean) => Promise<void>>(() => Promise.resolve())
+  const setTransmitting = vi.fn<(on: boolean) => void>()
   const setInputDevice = vi.fn<(deviceId: string) => Promise<void>>(() => Promise.resolve())
   const startScreen = vi.fn<(track: MediaStreamTrack, mode: ScreenMode) => Promise<void>>(() =>
     Promise.resolve(),
@@ -134,6 +142,7 @@ function setup(
         return Promise.resolve({
           sending: options.sending ?? true,
           setMuted,
+          setTransmitting,
           setInputDevice,
           startScreen,
           stopScreen,
@@ -156,6 +165,7 @@ function setup(
     api,
     close,
     setMuted,
+    setTransmitting,
     setInputDevice,
     startScreen,
     stopScreen,
@@ -821,5 +831,119 @@ describe('connection indicator in the header (#32)', () => {
   it('shows how the link to the organizer is', async () => {
     setup()
     expect(await screen.findByText('24 мс · через организатора (UDP)')).toBeTruthy()
+  })
+})
+
+describe('push-to-talk (#39)', () => {
+  const PTT = { enabled: true, key: 'KeyV' }
+
+  it('talks only while the key is held, and says which key', async () => {
+    const ctx = setup({ pushToTalk: PTT })
+    await screen.findByText('Звук подключён')
+    await vi.waitFor(() => {
+      expect(ctx.api.ptt.configure).toHaveBeenLastCalledWith({
+        active: true,
+        key: 'KeyV',
+        askPermission: false,
+      })
+    })
+    expect(ctx.setTransmitting).toHaveBeenLastCalledWith(false)
+    expect(screen.getByRole('button', { name: 'Микрофон по клавише V' })).toHaveProperty(
+      'disabled',
+      true,
+    )
+    expect(screen.getByText('— говорить ·', { exact: false })).toBeTruthy()
+
+    // The global hook in main sees the key, wherever the focus is.
+    ctx.api.ptt.emitKey(true)
+    expect(ctx.setTransmitting).toHaveBeenLastCalledWith(true)
+    expect(screen.getByRole('button', { name: 'Микрофон по клавише V' }).textContent).toContain(
+      'Говорите',
+    )
+    ctx.api.ptt.emitKey(false)
+    expect(ctx.setTransmitting).toHaveBeenLastCalledWith(false)
+  })
+
+  it('works in the window when there is no global hook, and lets go when the window does', async () => {
+    const ctx = setup({ pushToTalk: PTT, pushToTalkMode: 'focus' })
+    await screen.findByText('Звук подключён')
+    await vi.waitFor(() => {
+      expect(ctx.api.ptt.configure).toHaveBeenCalled()
+    })
+
+    await ctx.user.keyboard('{v>}')
+    expect(ctx.setTransmitting).toHaveBeenLastCalledWith(true)
+    await ctx.user.keyboard('{/v}')
+    expect(ctx.setTransmitting).toHaveBeenLastCalledWith(false)
+
+    await ctx.user.keyboard('{v>}')
+    window.dispatchEvent(new Event('blur'))
+    expect(ctx.setTransmitting).toHaveBeenLastCalledWith(false)
+  })
+
+  it('stays silent with the key held while deafened, and M does nothing', async () => {
+    const ctx = setup({ pushToTalk: PTT })
+    await screen.findByText('Звук подключён')
+    await vi.waitFor(() => {
+      expect(ctx.api.ptt.configure).toHaveBeenCalled()
+    })
+    ctx.setMuted.mockClear()
+
+    await ctx.user.keyboard('m')
+    expect(ctx.setMuted).not.toHaveBeenCalled()
+
+    await ctx.user.keyboard('d')
+    ctx.api.ptt.emitKey(true)
+    expect(ctx.setTransmitting).toHaveBeenLastCalledWith(false)
+  })
+
+  it('opens the microphone at the host when turned on after joining muted', async () => {
+    const ctx = setup({ muted: true, pushToTalk: PTT })
+    await screen.findByText('Звук подключён')
+    await vi.waitFor(() => {
+      expect(ctx.setMuted).toHaveBeenLastCalledWith(false)
+    })
+    expect(ctx.setTransmitting).toHaveBeenLastCalledWith(false)
+  })
+
+  it('turns on from «Настройки звука», asking macOS for its permission, and picks a key', async () => {
+    const ctx = setup({ pushToTalkMode: 'needs-permission' })
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(screen.getByRole('button', { name: 'Настройки' }))
+    const dialog = screen.getByRole('dialog', { name: 'Настройки звука' })
+
+    await ctx.user.click(
+      within(dialog).getByRole('checkbox', { name: 'Говорить, только пока нажата клавиша' }),
+    )
+    expect(ctx.api.settings.update).toHaveBeenCalledWith({
+      pushToTalk: { enabled: true, key: 'Backquote' },
+    })
+    expect(ctx.api.ptt.configure).toHaveBeenLastCalledWith({
+      active: true,
+      key: 'Backquote',
+      askPermission: true,
+    })
+    expect(await within(dialog).findByText(/Универсальный доступ/)).toBeTruthy()
+    await ctx.user.click(within(dialog).getByRole('button', { name: 'Открыть настройки' }))
+    expect(ctx.api.ptt.openPermissionSettings).toHaveBeenCalled()
+
+    await ctx.user.click(
+      within(dialog).getByRole('button', { name: 'Клавиша для разговора: Ё (`)' }),
+    )
+    expect(within(dialog).getByText('Нажмите клавишу…')).toBeTruthy()
+    await ctx.user.keyboard('[KeyB]')
+    expect(ctx.api.settings.update).toHaveBeenLastCalledWith({
+      pushToTalk: { enabled: true, key: 'KeyB' },
+    })
+    expect(within(dialog).getByRole('button', { name: 'Клавиша для разговора: B' })).toBeTruthy()
+  })
+
+  it('stops the global hook when the call ends', async () => {
+    const ctx = setup({ pushToTalk: PTT })
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(screen.getByRole('button', { name: 'Выйти' }))
+    expect(ctx.api.ptt.configure).toHaveBeenLastCalledWith(
+      expect.objectContaining({ active: false }),
+    )
   })
 })

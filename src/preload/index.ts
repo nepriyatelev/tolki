@@ -74,6 +74,11 @@ const api: TolkiApi = {
     select: (id) => invoke('screen:select', id),
     openPermissionSettings: () => invoke('screen:open-permission-settings'),
   },
+  ptt: {
+    configure: (request) => invoke('ptt:configure', request),
+    openPermissionSettings: () => invoke('ptt:open-permission-settings'),
+    onKey: (listener) => subscribe('ptt:key', listener),
+  },
   invite: {
     takePending: () => invoke('invite:take-pending'),
     onOpened: (listener) => subscribe('invite:opened', listener),

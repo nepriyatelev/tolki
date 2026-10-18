@@ -202,6 +202,18 @@ export class Call {
   }
 
   /**
+   * Push-to-talk (PLAN #39): the voice goes out only while the key is held. Only here, nothing
+   * is asked of the host: the start of a phrase is not lost waiting for it, and others do not
+   * see «микрофон выключен» flicker — they see the speaking frame, as with any voice.
+   */
+  setTransmitting(on: boolean): void {
+    const producer = this.#producer
+    if (!producer || this.#closed) return
+    if (on) producer.resume()
+    else producer.pause()
+  }
+
+  /**
    * Another microphone, without reconnecting (PLAN #24). The producer keeps its id and
    * mute state; the old track is the caller's to stop.
    */

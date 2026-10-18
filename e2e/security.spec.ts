@@ -39,7 +39,7 @@ test('renderer has no Node APIs, only the typed bridge', async () => {
       process: 'undefined',
       module: 'undefined',
       Buffer: 'undefined',
-      bridge: ['app', 'host', 'invite', 'network', 'recent', 'room', 'screen', 'settings'],
+      bridge: ['app', 'host', 'invite', 'network', 'ptt', 'recent', 'room', 'screen', 'settings'],
       hostApi: ['getFingerprint', 'getState', 'onState', 'start', 'stop'],
       screenApi: ['listSources', 'openPermissionSettings', 'select'],
     })
