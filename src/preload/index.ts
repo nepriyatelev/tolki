@@ -37,6 +37,7 @@ const api: TolkiApi = {
     openLink: (url) => invoke('app:open-link', url),
     checkUpdate: () => invoke('app:check-update'),
     installUpdate: () => invoke('app:install-update'),
+    relaunch: () => invoke('app:relaunch'),
     onUpdate: (listener) => subscribe('app:update', listener),
   },
   host: {
@@ -79,7 +80,11 @@ const api: TolkiApi = {
   screen: {
     listSources: () => invoke('screen:list-sources'),
     select: (id) => invoke('screen:select', id),
-    openPermissionSettings: () => invoke('screen:open-permission-settings'),
+  },
+  permissions: {
+    status: (kind) => invoke('permissions:status', kind),
+    request: (kind) => invoke('permissions:request', kind),
+    openSettings: (kind) => invoke('permissions:open-settings', kind),
   },
   ptt: {
     configure: (request) => invoke('ptt:configure', request),

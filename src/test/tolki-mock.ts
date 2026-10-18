@@ -3,6 +3,7 @@ import type { PushToTalkMode } from '@shared/push-to-talk'
 import { vi, type Mock } from 'vitest'
 import type { InviteParseResult } from '@shared/invite'
 import type { TolkiApi, UpdateOffer } from '@shared/ipc'
+import type { PermissionKind, PermissionState } from '@shared/permissions'
 import type { NetworkCheckResult } from '@shared/network'
 import type { RecentRoom, RecentStatus } from '@shared/recent'
 import type { JoinResult, RoomClosedEvent, RoomEvent, RoomPreview } from '@shared/room'
@@ -38,6 +39,7 @@ export interface TolkiMock {
     openLink: Mock<TolkiApi['app']['openLink']>
     checkUpdate: Mock<TolkiApi['app']['checkUpdate']>
     installUpdate: Mock<TolkiApi['app']['installUpdate']>
+    relaunch: Mock<TolkiApi['app']['relaunch']>
     /** Simulates main reporting a downloaded update (#46). */
     emitUpdate(offer: UpdateOffer): void
   }
@@ -84,6 +86,11 @@ export interface TolkiMock {
     /** Simulates main seeing a global hotkey. */
     emitPressed(action: HotkeyAction): void
   }
+  permissions: {
+    status: Mock<TolkiApi['permissions']['status']>
+    request: Mock<TolkiApi['permissions']['request']>
+    openSettings: Mock<TolkiApi['permissions']['openSettings']>
+  }
   ptt: {
     configure: Mock<TolkiApi['ptt']['configure']>
     openPermissionSettings: Mock<TolkiApi['ptt']['openPermissionSettings']>
@@ -100,6 +107,8 @@ export interface TolkiMock {
 export interface TolkiMockOptions extends Partial<TolkiApi['network']> {
   /** A newer release main found (PLAN #36). */
   update?: UpdateOffer
+  /** OS permissions (#85); granted when not given. */
+  permissions?: Partial<Record<PermissionKind, PermissionState>>
   /** A link that "started the app". */
   pendingInvite?: InviteParseResult
   join?: TolkiApi['room']['join']
@@ -130,6 +139,11 @@ export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
   const inviteListeners = new Set<(result: InviteParseResult) => void>()
   const pttListeners = new Set<(event: { pressed: boolean }) => void>()
   const hotkeyListeners = new Set<(event: { action: HotkeyAction }) => void>()
+  const permissionStates: Record<PermissionKind, PermissionState> = {
+    microphone: 'granted',
+    screen: 'granted',
+    ...options.permissions,
+  }
   const updateListeners = new Set<(offer: UpdateOffer) => void>()
   const trayListeners = new Set<(event: { command: 'mute' | 'deafen' | 'leave' }) => void>()
   const closedListeners = new Set<(event: RoomClosedEvent) => void>()
@@ -148,6 +162,7 @@ export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
         Promise.resolve(options.update ?? null),
       ),
       installUpdate: vi.fn<TolkiApi['app']['installUpdate']>(() => Promise.resolve(true)),
+      relaunch: vi.fn<TolkiApi['app']['relaunch']>(() => Promise.resolve(null)),
       onUpdate: (listener: (offer: UpdateOffer) => void) => {
         updateListeners.add(listener)
         return () => updateListeners.delete(listener)
@@ -289,6 +304,17 @@ export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
       emitPressed: (action: HotkeyAction) => {
         for (const listener of hotkeyListeners) listener({ action })
       },
+    },
+    permissions: {
+      status: vi.fn<TolkiApi['permissions']['status']>((kind) =>
+        Promise.resolve(permissionStates[kind]),
+      ),
+      request: vi.fn<TolkiApi['permissions']['request']>((kind) => {
+        // The system dialog: allowed, unless the test says the user refused.
+        if (permissionStates[kind] === 'not-asked') permissionStates[kind] = 'granted'
+        return Promise.resolve(permissionStates[kind])
+      }),
+      openSettings: vi.fn<TolkiApi['permissions']['openSettings']>(() => Promise.resolve(null)),
     },
     ptt: {
       configure: vi.fn<TolkiApi['ptt']['configure']>((request) =>

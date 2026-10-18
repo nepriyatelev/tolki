@@ -45,6 +45,7 @@ import { SettingsStore } from './settings'
 import { measureUpload } from './speed-test'
 import { UpdateCheck } from './update-check'
 import { AutoUpdate, type Updater } from './auto-update'
+import { Permissions } from './permissions'
 import { UploadEstimator } from './upload-estimator'
 import { registerIpcHandlers } from './ipc'
 import { isTrustedRendererOrigin, isTrustedRendererUrl } from './trusted-url'
@@ -200,11 +201,18 @@ const network = new NetworkChecker({
 // The computer's sound with the screen (#41). TOLKI_SYSTEM_AUDIO=fake (e2e): a hidden window's
 // steady tone stands in for it, so the whole way can be checked where there is no loopback.
 const fakeSystemAudio = process.env['TOLKI_SYSTEM_AUDIO'] === 'fake'
+// OS permissions (#85). TOLKI_OS_PERMISSIONS=skip (e2e): no system dialogs on a CI runner.
+const permissions = new Permissions({
+  platform: process.platform,
+  status: (kind) => systemPreferences.getMediaAccessStatus(kind),
+  ask: (kind) => systemPreferences.askForMediaAccess(kind),
+  openUrl: (url) => shell.openExternal(url),
+  skip: process.env['TOLKI_OS_PERMISSIONS'] === 'skip',
+})
 const screenCapture = new ScreenCapture({
   getSources: (options) => desktopCapturer.getSources(options),
   platform: process.platform,
-  screenAccess: () =>
-    process.platform === 'darwin' ? systemPreferences.getMediaAccessStatus('screen') : 'granted',
+  screenPermission: () => permissions.status('screen'),
   env: process.env,
   systemAudio: fakeSystemAudio || systemAudioSupported(process.platform, release()),
 })
@@ -269,10 +277,6 @@ const hotkeys = new GlobalHotkeys(
 /** macOS privacy pane for «Универсальный доступ» (push-to-talk over other apps). */
 const ACCESSIBILITY_SETTINGS =
   'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
-
-/** macOS privacy pane for «Запись экрана». */
-const SCREEN_PRIVACY_SETTINGS =
-  'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
 
 const inviteLinks = new InviteLinks((result) => {
   BrowserWindow.getAllWindows()[0]?.webContents.send('invite:opened', result)
@@ -578,6 +582,12 @@ registerIpcHandlers(
     },
     'app:check-update': () => autoUpdate.offer(),
     'app:install-update': () => autoUpdate.install(),
+    'app:relaunch': () => {
+      logs.main.info('relaunch')
+      app.relaunch()
+      app.quit()
+      return null
+    },
     'app:get-info': () => ({
       name: APP_NAME,
       version: app.getVersion(),
@@ -768,8 +778,10 @@ registerIpcHandlers(
       if (process.platform === 'darwin') await shell.openExternal(ACCESSIBILITY_SETTINGS)
       return null
     },
-    'screen:open-permission-settings': async () => {
-      if (process.platform === 'darwin') await shell.openExternal(SCREEN_PRIVACY_SETTINGS)
+    'permissions:status': (kind) => permissions.status(kind),
+    'permissions:request': (kind) => permissions.request(kind),
+    'permissions:open-settings': async (kind) => {
+      await permissions.openSettings(kind)
       return null
     },
   },
@@ -778,6 +790,7 @@ registerIpcHandlers(
 
 void app.whenReady().then(() => {
   if (!isPrimaryInstance) return
+  permissions.start()
   logs.main.info(
     `start: Tolki ${app.getVersion()}, ${process.platform} ${release()} ${process.arch}, ` +
       `Electron ${process.versions.electron}${app.isPackaged ? '' : ' (development)'}`,

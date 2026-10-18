@@ -183,3 +183,10 @@
   color: var(--color-danger-text);
   font-size: var(--text-md);
 }
+
+/* Before macOS asks for the microphone the first time (#85). */
+.create-mic-note {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}

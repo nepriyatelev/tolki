@@ -69,7 +69,14 @@ export function CreateRoomScreen(props: {
     window.tolki.network.check({ port, force: forceCheck }),
   )
 
+  /** macOS has not asked for the microphone yet (#85): say so before it does. */
+  const [micNotAsked, setMicNotAsked] = createSignal(false)
+
   onMount(() => {
+    void window.tolki.permissions
+      .status('microphone')
+      .then((state) => setMicNotAsked(state === 'not-asked'))
+      .catch(() => undefined)
     void window.tolki.host.getState().then(setHostState)
     onCleanup(window.tolki.host.onState(setHostState))
   })
@@ -125,6 +132,11 @@ export function CreateRoomScreen(props: {
     if (Object.keys(nextErrors).length > 0 || port === undefined) return
 
     setPhase({ kind: 'opening' })
+    // The system dialog now, not in the middle of the call; a refusal means listening only.
+    if (micNotAsked()) {
+      await window.tolki.permissions.request('microphone').catch(() => undefined)
+      setMicNotAsked(false)
+    }
     const state = await window.tolki.host.start({
       port,
       roomName: roomName().trim(),
@@ -372,6 +384,11 @@ export function CreateRoomScreen(props: {
               )}
             </Show>
 
+            <Show when={micNotAsked()}>
+              <p class="create-mic-note">
+                macOS спросит доступ к микрофону — он нужен, чтобы участники слышали голос.
+              </p>
+            </Show>
             <Button
               variant="primary"
               size="lg"

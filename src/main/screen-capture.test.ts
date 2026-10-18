@@ -25,7 +25,7 @@ function capture(options: Partial<ScreenCaptureOptions> = {}) {
     screen: new ScreenCapture({
       getSources,
       platform: 'win32',
-      screenAccess: () => 'granted',
+      screenPermission: () => 'granted',
       env: {},
       systemAudio: true,
       ...options,
@@ -113,17 +113,23 @@ describe('ScreenCapture', () => {
     expect((await screen.list()).picker).toBe('app')
   })
 
-  it.each(['denied', 'restricted'])(
-    'explains the missing «Запись экрана» permission on macOS (%s)',
-    async (status) => {
-      const { screen, getSources } = capture({ platform: 'darwin', screenAccess: () => status })
-      expect(await screen.list()).toEqual({ picker: 'denied' })
-      expect(getSources).not.toHaveBeenCalled()
-    },
-  )
+  it('explains the missing «Запись экрана» permission on macOS', async () => {
+    const { screen, getSources } = capture({ platform: 'darwin', screenPermission: () => 'denied' })
+    expect(await screen.list()).toEqual({ picker: 'denied' })
+    expect(getSources).not.toHaveBeenCalled()
+  })
+
+  it('offers a restart when the permission waits for one (#85)', async () => {
+    const { screen, getSources } = capture({
+      platform: 'darwin',
+      screenPermission: () => 'restart-needed',
+    })
+    expect(await screen.list()).toEqual({ picker: 'restart' })
+    expect(getSources).not.toHaveBeenCalled()
+  })
 
   it('lets macOS ask for the permission the first time', async () => {
-    const { screen } = capture({ platform: 'darwin', screenAccess: () => 'not-determined' })
+    const { screen } = capture({ platform: 'darwin', screenPermission: () => 'not-asked' })
     expect((await screen.list()).picker).toBe('app')
   })
 })

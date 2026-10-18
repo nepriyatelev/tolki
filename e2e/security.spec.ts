@@ -31,6 +31,7 @@ test('renderer has no Node APIs, only the typed bridge', async () => {
         bridge: Object.keys(window.tolki).sort(),
         hostApi: Object.keys(window.tolki.host).sort(),
         screenApi: Object.keys(window.tolki.screen).sort(),
+        permissionsApi: Object.keys(window.tolki.permissions).sort(),
       }
     })
 
@@ -45,6 +46,7 @@ test('renderer has no Node APIs, only the typed bridge', async () => {
         'hotkeys',
         'invite',
         'network',
+        'permissions',
         'ptt',
         'recent',
         'room',
@@ -53,7 +55,8 @@ test('renderer has no Node APIs, only the typed bridge', async () => {
         'tray',
       ],
       hostApi: ['getFingerprint', 'getState', 'onState', 'start', 'stop'],
-      screenApi: ['listSources', 'openPermissionSettings', 'select'],
+      screenApi: ['listSources', 'select'],
+      permissionsApi: ['openSettings', 'request', 'status'],
     })
 
     const info = await page.evaluate(() => window.tolki.app.getInfo())

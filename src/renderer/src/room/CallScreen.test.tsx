@@ -3,6 +3,7 @@ import type { PushToTalkMode } from '@shared/push-to-talk'
 import { cleanup, fireEvent, render, screen, within } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { PermissionKind, PermissionState } from '@shared/permissions'
 import type { JoinResult } from '@shared/room'
 import { installTolkiMock } from '../../../test/tolki-mock'
 import type { ScreenMode, ScreenSourcesResult } from '@shared/screen'
@@ -52,7 +53,10 @@ const SCREENS: ScreenSourcesResult = {
   systemAudio: false,
 }
 
-function fakeScreen(sources: ScreenSourcesResult = SCREENS) {
+function fakeScreen(
+  sources: ScreenSourcesResult = SCREENS,
+  permission: PermissionState = 'granted',
+) {
   const stop = vi.fn()
   /** The computer's sound (#41) when asked for. */
   const sound = { kind: 'audio', stop: vi.fn() }
@@ -77,7 +81,9 @@ function fakeScreen(sources: ScreenSourcesResult = SCREENS) {
         return Promise.resolve(stream)
       },
     ),
+    permission: vi.fn(() => Promise.resolve(permission)),
     openPermissionSettings: vi.fn(() => Promise.resolve()),
+    relaunch: vi.fn(() => Promise.resolve()),
   }
   return {
     access,
@@ -97,6 +103,8 @@ function setup(
     peerVolumes?: Record<string, number>
     screenSources?: ScreenSourcesResult
     sharerId?: string | null
+    screenPermission?: PermissionState
+    permissions?: Partial<Record<PermissionKind, PermissionState>>
     pushToTalk?: { enabled: boolean; key: string }
     pushToTalkMode?: PushToTalkMode
     globalHotkeys?: { mute: string; deafen: string }
@@ -112,6 +120,7 @@ function setup(
     ...(options.pushToTalkMode ? { pushToTalkMode: options.pushToTalkMode } : {}),
     ...(options.globalHotkeys ? { globalHotkeys: options.globalHotkeys } : {}),
     ...(options.takenHotkeys ? { takenHotkeys: options.takenHotkeys } : {}),
+    ...(options.permissions ? { permissions: options.permissions } : {}),
   })
   const close = vi.fn()
   const setMuted = vi.fn<(muted: boolean) => Promise<void>>(() => Promise.resolve())
@@ -141,7 +150,7 @@ function setup(
   const onLeft = vi.fn()
   const events = collectRoomEvents()
   const playTestSound = vi.fn<(outputDeviceId: string) => Promise<void>>(() => Promise.resolve())
-  const screenAccess = fakeScreen(options.screenSources)
+  const screenAccess = fakeScreen(options.screenSources, options.screenPermission)
   render(() => (
     <CallScreen
       microphone={FAKE_DEVICES}
@@ -626,6 +635,52 @@ describe('showing your screen: picking the source (#26)', () => {
     expect(await screen.findByText(/Нет разрешения на запись экрана/)).toBeTruthy()
     await ctx.user.click(screen.getByRole('button', { name: 'Открыть настройки' }))
     expect(ctx.screen.access.openPermissionSettings).toHaveBeenCalled()
+  })
+
+  it('says why before macOS asks for «Запись экрана» the first time (#85)', async () => {
+    const ctx = setup({ screenPermission: 'not-asked' })
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(screen.getByRole('button', { name: 'Показать экран' }))
+
+    expect(await screen.findByText(/macOS попросит разрешение «Запись экрана»/)).toBeTruthy()
+    expect(ctx.screen.access.listSources).not.toHaveBeenCalled()
+    await ctx.user.click(screen.getByRole('button', { name: 'Продолжить' }))
+    const dialog = screen.getByRole('dialog', { name: 'Что показать' })
+    expect(await within(dialog).findByRole('radio', { name: 'Экран 1' })).toBeTruthy()
+  })
+
+  it('offers a restart once «Запись экрана» waits for one (#85)', async () => {
+    const ctx = setup({ screenSources: { picker: 'restart' } })
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(screen.getByRole('button', { name: 'Показать экран' }))
+
+    expect(await screen.findByText(/заработает после перезапуска Tolki/)).toBeTruthy()
+    expect(screen.getByText('Перезапуск завершит звонок.')).toBeTruthy()
+    await ctx.user.click(screen.getByRole('button', { name: 'Перезапустить Tolki' }))
+    expect(ctx.screen.access.relaunch).toHaveBeenCalledOnce()
+  })
+
+  it('asks again after the settings, so the restart shows up (#85)', async () => {
+    const ctx = setup({ screenSources: { picker: 'denied' } })
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(screen.getByRole('button', { name: 'Показать экран' }))
+    await ctx.user.click(await screen.findByRole('button', { name: 'Открыть настройки' }))
+    await vi.waitFor(() => {
+      expect(ctx.screen.access.listSources).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('listening only because the OS denies the microphone: its settings open (#85)', async () => {
+    const ctx = setup({ sending: false, permissions: { microphone: 'denied' } })
+    expect(await screen.findByText('Нет доступа к микрофону — только прослушивание')).toBeTruthy()
+    await ctx.user.click(screen.getByRole('button', { name: 'Открыть настройки' }))
+    expect(ctx.api.permissions.openSettings).toHaveBeenCalledWith('microphone')
+  })
+
+  it('a missing microphone is not a permission matter', async () => {
+    setup({ sending: false })
+    expect(await screen.findByText('Микрофон недоступен — только прослушивание')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Открыть настройки' })).toBeNull()
   })
 
   it('lets the system pick on Wayland', async () => {

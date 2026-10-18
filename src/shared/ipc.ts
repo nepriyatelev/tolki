@@ -3,6 +3,7 @@ import { hostPortSchema, type HostState } from './host-protocol'
 import type { Invite, InviteParseResult } from './invite'
 import type { NetworkCheckResult } from './network'
 import type { RecentRoom, RecentStatus } from './recent'
+import { PERMISSION_KINDS, type PermissionKind, type PermissionState } from './permissions'
 import { SCREEN_MODES, type ScreenMode, type ScreenSourcesResult } from './screen'
 import type { JoinResult, MediaResponse, RoomClosedEvent, RoomEvent, RoomPreview } from './room'
 import { isHotkeyAccelerator, type HotkeyAction, type HotkeyStatus } from './global-hotkeys'
@@ -44,6 +45,8 @@ export interface InvokeContract {
   'app:check-update': { args: []; result: UpdateOffer }
   /** «Перезапустить» (#46): quits and installs the downloaded version; false if there is none. */
   'app:install-update': { args: []; result: boolean }
+  /** «Перезапустить Tolki»: «Запись экрана» on macOS takes effect only then (#85). */
+  'app:relaunch': { args: []; result: null }
   /** Never throws for expected failures: returns `stopped` with `lastError` instead. */
   'host:start': { args: [options: HostStartRequest]; result: HostState }
   'host:stop': { args: []; result: HostState }
@@ -73,8 +76,12 @@ export interface InvokeContract {
   'screen:list-sources': { args: []; result: ScreenSourcesResult }
   /** The source the next getDisplayMedia() gets; false if it is not in the last list. */
   'screen:select': { args: [id: string]; result: boolean }
-  /** macOS: the privacy pane where «Запись экрана» is allowed. */
-  'screen:open-permission-settings': { args: []; result: null }
+  /** OS permissions (#85): where the microphone and «Запись экрана» stand. */
+  'permissions:status': { args: [kind: PermissionKind]; result: PermissionState }
+  /** macOS: the system dialog for the microphone, once; elsewhere the state as it is. */
+  'permissions:request': { args: [kind: 'microphone']; result: PermissionState }
+  /** The privacy pane where the user allows it (macOS, Windows' microphone). */
+  'permissions:open-settings': { args: [kind: PermissionKind]; result: null }
   /**
    * Push-to-talk (PLAN #39): hook the key globally while active (in a call, turned on); the
    * answer says how the key reaches the app. `askPermission` lets macOS show its request.
@@ -171,6 +178,7 @@ export const invokeArgsSchemas: {
   'app:open-link': z.tuple([z.string().max(4096)]),
   'app:check-update': z.tuple([]),
   'app:install-update': z.tuple([]),
+  'app:relaunch': z.tuple([]),
   'host:start': z.tuple([
     z.strictObject({
       port: hostPortSchema.optional(),
@@ -207,7 +215,9 @@ export const invokeArgsSchemas: {
   'recent:remove': z.tuple([z.string().max(64)]),
   'screen:list-sources': z.tuple([]),
   'screen:select': z.tuple([z.string().max(256)]),
-  'screen:open-permission-settings': z.tuple([]),
+  'permissions:status': z.tuple([z.enum(PERMISSION_KINDS)]),
+  'permissions:request': z.tuple([z.literal('microphone')]),
+  'permissions:open-settings': z.tuple([z.enum(PERMISSION_KINDS)]),
   'ptt:configure': z.tuple([
     z.strictObject({
       active: z.boolean(),
@@ -242,6 +252,7 @@ export interface TolkiApi {
     openLink(url: string): Promise<null>
     checkUpdate(): Promise<UpdateOffer>
     installUpdate(): Promise<boolean>
+    relaunch(): Promise<null>
     onUpdate(listener: (offer: UpdateOffer) => void): () => void
   }
   host: {
@@ -284,7 +295,11 @@ export interface TolkiApi {
   screen: {
     listSources(): Promise<ScreenSourcesResult>
     select(id: string): Promise<boolean>
-    openPermissionSettings(): Promise<null>
+  }
+  permissions: {
+    status(kind: PermissionKind): Promise<PermissionState>
+    request(kind: 'microphone'): Promise<PermissionState>
+    openSettings(kind: PermissionKind): Promise<null>
   }
   ptt: {
     configure(request: {

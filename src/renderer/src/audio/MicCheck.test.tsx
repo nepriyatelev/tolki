@@ -83,6 +83,33 @@ describe('MicCheck', () => {
     expect((await screen.findByRole('status')).textContent).toContain('Нет доступа к микрофону')
   })
 
+  it('on macOS says why before the system asks for the microphone (#85)', async () => {
+    const user = userEvent.setup()
+    const api = installTolkiMock({ permissions: { microphone: 'not-asked' } })
+    const mic = fakeMic()
+    render(() => <MicCheck access={mic.access} />)
+    const allow = await screen.findByRole('button', { name: 'Разрешить доступ к микрофону' })
+    expect(screen.getByText(/Tolki нужен доступ к микрофону/)).toBeTruthy()
+    expect(mic.opened).toEqual([])
+
+    await user.click(allow)
+    expect(api.permissions.request).toHaveBeenCalledWith('microphone')
+    await vi.waitFor(() => {
+      expect(mic.opened).toEqual([''])
+    })
+  })
+
+  it('opens the system settings when the OS denies the microphone (#85)', async () => {
+    const user = userEvent.setup()
+    const api = installTolkiMock({ permissions: { microphone: 'denied' } })
+    const mic = fakeMic()
+    render(() => <MicCheck access={mic.access} />)
+    expect(await screen.findByText(/Нет доступа к микрофону/)).toBeTruthy()
+    expect(mic.opened).toEqual([])
+    await user.click(screen.getByRole('button', { name: 'Открыть настройки' }))
+    expect(api.permissions.openSettings).toHaveBeenCalledWith('microphone')
+  })
+
   it('reports the «join muted» choice', async () => {
     const user = userEvent.setup()
     installTolkiMock()

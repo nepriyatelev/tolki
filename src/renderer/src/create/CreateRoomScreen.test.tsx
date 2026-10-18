@@ -136,6 +136,26 @@ describe('CreateRoomScreen', () => {
     expect(screen.getByRole('button', { name: 'Ссылка скопирована' })).toBeTruthy()
   })
 
+  it('on macOS says the microphone will be asked, and asks before the room opens (#85)', async () => {
+    const { api, user } = show({ permissions: { microphone: 'not-asked' } })
+    expect(await screen.findByText(/macOS спросит доступ к микрофону/)).toBeTruthy()
+    await user.type(screen.getByLabelText('Название комнаты'), 'Вечерний созвон')
+    await user.click(screen.getByRole('button', { name: 'Открыть комнату' }))
+    expect(api.permissions.request).toHaveBeenCalledWith('microphone')
+    expect(api.permissions.request.mock.invocationCallOrder[0]).toBeLessThan(
+      api.host.start.mock.invocationCallOrder[0] ?? 0,
+    )
+    expect(await screen.findByText('Звук подключён')).toBeTruthy()
+  })
+
+  it('does not mention the microphone when it is already allowed', async () => {
+    const { api } = show()
+    await vi.waitFor(() => {
+      expect(api.permissions.status).toHaveBeenCalledWith('microphone')
+    })
+    expect(screen.queryByText(/спросит доступ к микрофону/)).toBeNull()
+  })
+
   it('closes the room for everyone when the organizer leaves the call (#100)', async () => {
     const { api, onBack, user } = show()
     await user.type(screen.getByLabelText('Название комнаты'), 'Вечерний созвон')
