@@ -233,6 +233,12 @@ export const hostMessageSchema = z.discriminatedUnion('type', [
     /** Audio: the sharer's computer sound, played with the screen (#41). */
     screenAudio: z.boolean().optional(),
   }),
+  /** To the sharer: what the host's upload carries of the big screen stream (#86). */
+  z.object({
+    type: z.literal('screen-budget'),
+    height: z.number().int().min(144).max(2160),
+    maxBitrate: z.number().int().min(100_000).max(20_000_000),
+  }),
   /** To a viewer: which of the screen's streams the host sends them now (#34). */
   z.object({ type: z.literal('screen-layer'), layer: screenLayerSchema }),
   /** Someone started or stopped sharing a screen (only one at a time). */

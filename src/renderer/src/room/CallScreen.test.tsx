@@ -105,6 +105,8 @@ function setup(
     sharerId?: string | null
     screenPermission?: PermissionState
     permissions?: Partial<Record<PermissionKind, PermissionState>>
+    screenMode?: ScreenMode
+    roomScreenMode?: ScreenMode
     pushToTalk?: { enabled: boolean; key: string }
     pushToTalkMode?: PushToTalkMode
     globalHotkeys?: { mute: string; deafen: string }
@@ -121,6 +123,7 @@ function setup(
     ...(options.globalHotkeys ? { globalHotkeys: options.globalHotkeys } : {}),
     ...(options.takenHotkeys ? { takenHotkeys: options.takenHotkeys } : {}),
     ...(options.permissions ? { permissions: options.permissions } : {}),
+    ...(options.screenMode ? { screenMode: options.screenMode } : {}),
   })
   const close = vi.fn()
   const setMuted = vi.fn<(muted: boolean) => Promise<void>>(() => Promise.resolve())
@@ -130,6 +133,9 @@ function setup(
     (track: MediaStreamTrack, mode: ScreenMode, audio?: unknown) => Promise<void>
   >(() => Promise.resolve())
   const stopScreen = vi.fn(() => Promise.resolve())
+  const setScreenBudget = vi.fn<(budget: { height: number; maxBitrate: number }) => Promise<void>>(
+    () => Promise.resolve(),
+  )
   const setScreenVisible = vi.fn<(consumerId: string, visible: boolean) => Promise<void>>(() =>
     Promise.resolve(),
   )
@@ -164,6 +170,7 @@ function setup(
           sharerId: options.sharerId ?? null,
           organizer: options.organizer ?? false,
           approval: options.approval ?? false,
+          screenMode: options.roomScreenMode ?? 'auto',
         },
         events,
         name: 'Алексей',
@@ -179,6 +186,7 @@ function setup(
           setInputDevice,
           startScreen,
           stopScreen,
+          setScreenBudget,
           setScreenVisible,
           setScreenLayer,
           requestScreen,
@@ -202,6 +210,7 @@ function setup(
     setInputDevice,
     startScreen,
     stopScreen,
+    setScreenBudget,
     setScreenVisible,
     setScreenLayer,
     requestScreen,
@@ -550,7 +559,9 @@ describe('showing your screen: picking the source (#26)', () => {
     const show = within(dialog).getByRole<HTMLButtonElement>('button', { name: 'Показать' })
 
     expect(await within(dialog).findByRole('radio', { name: 'Экран 1' })).toBeTruthy()
-    expect(within(dialog).getAllByRole('radio')).toHaveLength(2)
+    expect(
+      within(within(dialog).getByRole('radiogroup', { name: 'Экраны' })).getAllByRole('radio'),
+    ).toHaveLength(2)
     expect(show.disabled).toBe(true)
     await user.click(within(dialog).getByRole('tab', { name: /Окна/ }))
     await user.click(within(dialog).getByRole('radio', { name: 'Редактор' }))
@@ -681,6 +692,46 @@ describe('showing your screen: picking the source (#26)', () => {
     setup({ sending: false })
     expect(await screen.findByText('Микрофон недоступен — только прослушивание')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Открыть настройки' })).toBeNull()
+  })
+
+  it('the sharer picks what is shown; the room’s mode first, then the last pick (#86)', async () => {
+    const ctx = setup({ roomScreenMode: 'text' })
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(screen.getByRole('button', { name: 'Показать экран' }))
+    const dialog = screen.getByRole('dialog', { name: 'Что показать' })
+    const modes = within(dialog).getByRole('group', { name: 'Что показываете' })
+    expect(
+      within(modes).getByRole<HTMLInputElement>('radio', { name: /Чёткий текст/ }).checked,
+    ).toBe(true)
+    await ctx.user.click(within(modes).getByRole('radio', { name: /Плавно/ }))
+    await ctx.user.click(await within(dialog).findByRole('radio', { name: 'Экран 1' }))
+    await ctx.user.click(within(dialog).getByRole('button', { name: 'Показать' }))
+    await vi.waitFor(() => {
+      expect(ctx.startScreen).toHaveBeenCalledWith(expect.anything(), 'motion', null)
+    })
+    expect(ctx.api.settings.update).toHaveBeenCalledWith({ screen: { mode: 'motion' } })
+  })
+
+  it('opens with the remembered pick (#86)', async () => {
+    const ctx = setup({ roomScreenMode: 'text', screenMode: 'motion' })
+    await screen.findByText('Звук подключён')
+    await vi.waitFor(() => {
+      expect(ctx.api.settings.get).toHaveBeenCalled()
+    })
+    await ctx.user.click(screen.getByRole('button', { name: 'Показать экран' }))
+    const modes = within(screen.getByRole('dialog', { name: 'Что показать' })).getByRole('group', {
+      name: 'Что показываете',
+    })
+    expect(within(modes).getByRole<HTMLInputElement>('radio', { name: /Плавно/ }).checked).toBe(
+      true,
+    )
+  })
+
+  it('passes the organizer’s ceiling on to the screen being sent (#86)', async () => {
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    ctx.api.room.emitEvent({ type: 'screen-budget', height: 720, maxBitrate: 1_500_000 })
+    expect(ctx.setScreenBudget).toHaveBeenCalledWith({ height: 720, maxBitrate: 1_500_000 })
   })
 
   it('lets the system pick on Wayland', async () => {

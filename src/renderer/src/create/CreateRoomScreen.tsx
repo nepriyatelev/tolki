@@ -8,6 +8,7 @@ import { ErrorScreen } from '../errors/ErrorScreen'
 import { collectRoomEvents } from '../room/call'
 import { CallScreen, type CallSession } from '../room/CallScreen'
 import type { startCall as startRealCall } from '../room/start-call'
+import { SCREEN_MODE_OPTIONS } from '../screen/screen-modes'
 import { NetworkCheckCard } from './NetworkCheckCard'
 import { createInviteLink, linkAddress } from './invite-link'
 import { generatePassword, generateRoomId } from './password'
@@ -299,16 +300,18 @@ export function CreateRoomScreen(props: {
                 checked={approval()}
                 onChange={(e) => setApproval(e.currentTarget.checked)}
               />
-              <RadioPillGroup
-                legend="Демонстрация экрана"
-                value={mode()}
-                onChange={setMode}
-                options={[
-                  { value: 'auto', label: 'Авто', description: 'Подстраивается под сеть' },
-                  { value: 'text', label: 'Чёткий текст', description: 'Код, документы · 15 к/с' },
-                  { value: 'motion', label: 'Плавно', description: 'Игры, видео · 60 к/с' },
-                ]}
-              />
+              <div class="create-screen-mode">
+                <RadioPillGroup
+                  legend="Демонстрация экрана по умолчанию"
+                  value={mode()}
+                  onChange={setMode}
+                  options={SCREEN_MODE_OPTIONS}
+                />
+                <p class="create-hint">
+                  Тот, кто показывает, может выбрать другое в окне «Что показать». Качество
+                  подстраивается под отдачу этого компьютера и число зрителей.
+                </p>
+              </div>
               <details class="create-advanced">
                 <summary>Дополнительно</summary>
                 <Input

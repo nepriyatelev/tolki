@@ -51,6 +51,7 @@ export class SettingsStore {
             },
           }
         : {}),
+      ...(patch.screen ? { screen: { ...this.#settings.screen, ...patch.screen } } : {}),
       ...(patch.globalHotkeys
         ? {
             globalHotkeys: {

@@ -379,6 +379,62 @@ describe('media on the host (mediasoup)', () => {
     expect(burst.some((r) => r.error === 'too many requests')).toBe(true)
   })
 
+  it('tells the sharer the ceiling of the upload, and again as viewers come and go (#86)', async () => {
+    const { port, room } = await startRoom()
+    // 5 Mbit/s: one viewer gets 1080p, two get 720p.
+    room.setUpload('measured', 5)
+    const alice = await connect(port, 'Алиса')
+    await alice.next('welcome')
+    const bob = await connect(port, 'Боб')
+    await bob.next('welcome')
+    const send = await alice.ok<Transport>({ method: 'createTransport', direction: 'send' })
+    await alice.ok({ method: 'connectTransport', transportId: send.id, dtlsParameters: DTLS })
+    await alice.ok({
+      method: 'produce',
+      transportId: send.id,
+      kind: 'video',
+      screenLayer: 1,
+      rtpParameters: {
+        mid: '1',
+        codecs: [
+          {
+            mimeType: 'video/VP8',
+            payloadType: 96,
+            clockRate: 90000,
+            parameters: {},
+            rtcpFeedback: [],
+          },
+        ],
+        headerExtensions: [{ uri: 'urn:ietf:params:rtp-hdrext:sdes:mid', id: 1 }],
+        encodings: [{ ssrc: 1111 }],
+        rtcp: { cname: 'screen' },
+      },
+    })
+    expect(await alice.next('screen-budget')).toEqual({
+      type: 'screen-budget',
+      height: 1080,
+      maxBitrate: 2_800_000,
+    })
+
+    const carol = await connect(port, 'Кира')
+    await carol.next('welcome')
+    expect(await alice.next('screen-budget')).toMatchObject({ height: 720 })
+    // Only the sharer hears of it.
+    expect(bob.messages.some((m) => m.type === 'screen-budget')).toBe(false)
+
+    // The statistics may raise the ceiling, never lower it.
+    room.setUpload('live', 1)
+    room.setUpload('live', 10)
+    expect(await alice.next('screen-budget')).toMatchObject({ height: 1080 })
+
+    carol.socket.close()
+    bob.socket.close()
+    await expect.poll(() => room.peers.length).toBe(1)
+    // Nobody left to watch: no new ceiling.
+    await new Promise((r) => setTimeout(r, 100))
+    expect(alice.messages.some((m) => m.type === 'screen-budget')).toBe(false)
+  })
+
   it('takes a screen as two streams and sends each viewer one of them (#27, #34)', async () => {
     const consumers = watchConsumers()
     const { port } = await startRoom()

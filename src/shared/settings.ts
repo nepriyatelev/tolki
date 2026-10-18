@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SCREEN_MODES } from './screen'
 import { isHotkeyAccelerator } from './global-hotkeys'
 import { DEFAULT_PUSH_TO_TALK_KEY, isPushToTalkKey } from './push-to-talk'
 
@@ -67,6 +68,8 @@ export const settingsSchema = z.object({
       deafen: z.string().max(48),
     })
     .default({ mute: '', deafen: '' }),
+  /** The screen mode last picked in «Что показать» (#86); null: the room's. */
+  screen: z.object({ mode: z.enum(SCREEN_MODES).nullable() }).default({ mode: null }),
 })
 export type Settings = z.infer<typeof settingsSchema>
 
@@ -78,6 +81,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sounds: { enabled: true },
   tray: { closeToTray: true, hintShown: false },
   globalHotkeys: { mute: '', deafen: '' },
+  screen: { mode: null },
 }
 
 /** Partial update from the renderer; unknown keys are rejected. */
@@ -108,5 +112,6 @@ export const settingsPatchSchema = z.strictObject({
       deafen: hotkeySchema.optional(),
     })
     .optional(),
+  screen: z.strictObject({ mode: z.enum(SCREEN_MODES).nullable() }).optional(),
 })
 export type SettingsPatch = z.infer<typeof settingsPatchSchema>

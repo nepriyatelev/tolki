@@ -57,15 +57,24 @@ export interface StreamEncoding {
   maxFramerate: number
 }
 
-/** Encodings of the two streams for a captured screen of the given height. */
+/**
+ * Encodings of the two streams for a captured screen of the given height. `budget`: the
+ * host's ceiling for the big stream (#86) — lower height and bitrate, never above the mode's.
+ */
 export function screenStreams(
   mode: ScreenMode,
   height: number,
+  budget: { height: number; maxBitrate: number } | null = null,
 ): { high: StreamEncoding; low: StreamEncoding } {
   const { frameRate, maxBitrate } = SCREEN_ENCODING[mode]
   const scale = (target: number): number => Math.max(1, height / target)
+  const highHeight = Math.min(SCREEN_LAYERS.high, budget?.height ?? SCREEN_LAYERS.high)
   return {
-    high: { scaleResolutionDownBy: scale(SCREEN_LAYERS.high), maxBitrate, maxFramerate: frameRate },
+    high: {
+      scaleResolutionDownBy: scale(highHeight),
+      maxBitrate: Math.min(maxBitrate, budget?.maxBitrate ?? maxBitrate),
+      maxFramerate: frameRate,
+    },
     low: {
       scaleResolutionDownBy: scale(SCREEN_LAYERS.low),
       maxBitrate: LOW_LAYER_BITRATE,

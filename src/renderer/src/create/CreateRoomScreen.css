@@ -190,3 +190,16 @@
   font-size: var(--text-sm);
   text-align: center;
 }
+
+/* The room's screen mode is only the default now (#86): the hint says who picks. */
+.create-screen-mode {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.create-hint {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}

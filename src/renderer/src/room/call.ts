@@ -13,6 +13,7 @@ import {
   screenStreams,
   type ScreenMode,
 } from '@shared/screen'
+import type { ScreenBudget } from '@shared/upload-capacity'
 import { VOICE } from '@shared/voice'
 
 /** How the microphone is encoded (PLAN #25). */
@@ -169,6 +170,10 @@ export class Call {
     /** The computer's sound with the screen (#41). */
     audio: types.Producer | null
   } | null = null
+  /** How the user's screen goes out: its mode and height, and the host's ceiling (#86). */
+  #screenMode: ScreenMode = 'auto'
+  #screenHeight: number = SCREEN_LAYERS.high
+  #screenBudget: ScreenBudget | null = null
   #sending: Promise<types.Transport> | null = null
   #closed = false
 
@@ -338,7 +343,9 @@ export class Call {
     const capabilities = this.device.sendRtpCapabilities
     const highCodec = preferredScreenCodec(capabilities)
     const lowCodec = capabilities.codecs?.find((c) => c.mimeType.toLowerCase() === 'video/vp8')
-    const streams = screenStreams(mode, track.getSettings().height ?? SCREEN_LAYERS.high)
+    this.#screenMode = mode
+    this.#screenHeight = track.getSettings().height ?? SCREEN_LAYERS.high
+    const streams = screenStreams(mode, this.#screenHeight, this.#screenBudget)
     const produce = (
       layer: ScreenLayer,
       source: MediaStreamTrack,
@@ -395,6 +402,21 @@ export class Call {
       return
     }
     this.#screen.audio = sound
+  }
+
+  /**
+   * The host's ceiling for the big screen stream (#86): lower height and bitrate on the fly,
+   * without sending it anew. Kept for a screen started later.
+   */
+  async setScreenBudget(budget: ScreenBudget): Promise<void> {
+    this.#screenBudget = budget
+    const high = this.#screen?.high
+    if (!high || high.closed) return
+    const encoding = screenStreams(this.#screenMode, this.#screenHeight, budget).high
+    await high.setRtpEncodingParameters({
+      maxBitrate: encoding.maxBitrate,
+      scaleResolutionDownBy: encoding.scaleResolutionDownBy,
+    })
   }
 
   /** Stops sending the screen; others' consumers of it end. */

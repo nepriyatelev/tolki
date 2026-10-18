@@ -3,7 +3,7 @@ import type { RawData, WebSocket } from 'ws'
 import { newNonce, verifyAuthHmac } from '@shared/auth'
 import type { types } from 'mediasoup'
 import type { ScreenMode } from '@shared/screen'
-import { MAX_PARTICIPANTS } from '@shared/upload-capacity'
+import { MAX_PARTICIPANTS, screenBudget, type ScreenBudget } from '@shared/upload-capacity'
 import {
   clientMessageSchema,
   parseMessage,
@@ -85,6 +85,10 @@ export class Room {
   #speaking: string[] = []
   /** Who shares a screen, and its streams (≈1080p and ≈360p, #34); the room allows one (#29). */
   #sharer: { peerId: string; producerIds: Set<string> } | null = null
+  /** The host's upload (#86): measured before the call, and seen in the call's statistics. */
+  #upload: { measured: number | null; live: number | null } = { measured: null, live: null }
+  /** The ceiling the sharer was told last, so it is sent only when it changes. */
+  #sentBudget: { peerId: string; budget: ScreenBudget } | null = null
   /** Participants waiting for the sharer's answer to «Показать свой». */
   readonly #screenRequests = new Set<string>()
   /** Entry waits for the organizer (#42). */
@@ -231,6 +235,7 @@ export class Room {
       if (!member.removed) this.#rejoin.set(member.rejoinToken, Date.now() + REJOIN_TOKEN_MS)
       member.media?.close()
       this.#broadcast({ type: 'peer-left', peerId: member.peer.id })
+      this.#updateBudget()
     })
   }
 
@@ -318,6 +323,7 @@ export class Room {
         send(newProducer(member.peer.id, producer))
       }
     }
+    this.#updateBudget()
   }
 
   async #serve(member: Member, id: number, request: MediaRequest): Promise<HostMessage> {
@@ -360,11 +366,13 @@ export class Room {
     } else {
       this.#sharer = { peerId, producerIds: new Set([producer.id]) }
       this.#broadcast({ type: 'screen-share-started', peerId })
+      this.#updateBudget()
     }
     producer.observer.on('close', () => {
       const sharer = this.#sharer
       if (!sharer?.producerIds.delete(producer.id) || sharer.producerIds.size > 0) return
       this.#sharer = null
+      this.#sentBudget = null
       // Whoever was waiting can show theirs now.
       this.#screenRequests.clear()
       console.log(`${peerAlias(peerId)} stopped sharing`)
@@ -489,6 +497,39 @@ export class Room {
     const message: HostMessage = { type: 'error', code }
     waiting.socket.send(JSON.stringify(message))
     waiting.socket.close(1000, code)
+  }
+
+  /**
+   * The host's upload (#86). The measured one is the base: the statistics only show what is sent
+   * now, and a ceiling taken from them would push itself down. They may raise it, never lower.
+   */
+  setUpload(source: 'measured' | 'live', mbps: number): void {
+    this.#upload = { ...this.#upload, [source]: mbps }
+    this.#updateBudget()
+  }
+
+  /** Tells the sharer how much of the big screen stream the upload carries to everyone. */
+  #updateBudget(): void {
+    const sharer = this.#sharer
+    const { measured, live } = this.#upload
+    if (!sharer || measured === null) return
+    // The organizer watches on this very computer: their copy does not use the upload.
+    const viewers = [...this.#peers.values()].filter(
+      (member) => member.peer.id !== sharer.peerId && !member.organizer,
+    ).length
+    const budget = screenBudget(Math.max(measured, live ?? 0), viewers)
+    const sent = this.#sentBudget
+    if (
+      !budget ||
+      (sent?.peerId === sharer.peerId &&
+        sent.budget.height === budget.height &&
+        sent.budget.maxBitrate === budget.maxBitrate)
+    ) {
+      return
+    }
+    this.#sentBudget = { peerId: sharer.peerId, budget }
+    console.log(`screen ceiling for ${viewers} viewers: ${budget.height}p`)
+    this.#sendTo(sharer.peerId, { type: 'screen-budget', ...budget })
   }
 
   #toOrganizers(message: HostMessage): void {

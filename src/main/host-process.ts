@@ -89,6 +89,11 @@ export class HostProcess {
     return this.#pending
   }
 
+  /** The upload measured before the call (#86): the base of the screen's ceiling. */
+  setUpload(mbps: number): void {
+    this.#child?.postMessage({ type: 'upload', mbps })
+  }
+
   async stop(): Promise<HostState> {
     if (this.#pending) await this.#pending.catch(() => undefined)
     if (this.#state.status === 'stopped') return this.#state
