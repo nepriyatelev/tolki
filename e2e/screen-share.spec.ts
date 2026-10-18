@@ -146,6 +146,16 @@ test('others see the shared screen at a layer that fits, and nothing while hidde
           { width, height },
         )
       await resize(1280, 1000)
+      // Which of the screen's streams the organizer sends Misha (#34), as it tells him.
+      await misha.page.evaluate(() => {
+        const seen = window as unknown as { screenLayer: number | null }
+        seen.screenLayer = null
+        window.tolki.room.onEvent((event) => {
+          if (event.type === 'screen-layer') seen.screenLayer = event.layer
+        })
+      })
+      const layer = () =>
+        misha.page.evaluate(() => (window as unknown as { screenLayer: number | null }).screenLayer)
       await tapPeerConnections(misha.page)
       await tapPeerConnections(katya.page)
       for (const [app, name] of [
@@ -172,7 +182,8 @@ test('others see the shared screen at a layer that fits, and nothing while hidde
       await misha.page.screenshot({ path: 'test-results/screen-stage.png' })
 
       // Misha sees it, big: the ≈1080p stream — once Katya's browser encodes it (a CI runner
-      // encoding in software may lag).
+      // encoding in software may lag). Its height is not checked: a runner without a hardware
+      // encoder may scale it down under load (WebRTC's own adaptation), it was 256 once.
       await expect(misha.page.getByRole('region', { name: 'Экран: Катя' })).toBeVisible()
       const highLayerOn = await expect
         .poll(
@@ -188,11 +199,13 @@ test('others see the shared screen at a layer that fits, and nothing while hidde
           () => false,
         )
       if (highLayerOn) {
+        await expect.poll(layer, { timeout: 20_000 }).toBe(1)
+        const before = (await receivedVideo(misha.page))?.framesDecoded ?? 0
         await expect
-          .poll(async () => (await receivedVideo(misha.page))?.frameHeight ?? 0, {
-            timeout: 20_000,
+          .poll(async () => (await receivedVideo(misha.page))?.framesDecoded ?? 0, {
+            timeout: 10_000,
           })
-          .toBeGreaterThan(600)
+          .toBeGreaterThan(before)
       }
       console.log(
         `big window (high layer ${highLayerOn ? 'on' : 'never turned on by the sender'}):`,
@@ -206,6 +219,7 @@ test('others see the shared screen at a layer that fits, and nothing while hidde
         const video = document.querySelector<HTMLVideoElement>('.screen-stage-video')
         if (video) video.style.height = `${Math.floor(500 / window.devicePixelRatio / 2)}px`
       })
+      await expect.poll(layer, { timeout: 20_000 }).toBe(0)
       await expect
         .poll(async () => (await receivedVideo(misha.page))?.frameHeight ?? 0, { timeout: 20_000 })
         .toBeLessThanOrEqual(360)
