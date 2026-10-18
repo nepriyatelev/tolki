@@ -206,6 +206,19 @@ describe('CallScreen', () => {
     vi.useRealTimers()
   })
 
+  it('counts the time in the call: mm:ss, then h:mm:ss (#80)', () => {
+    vi.useFakeTimers()
+    setup()
+    const timer = () => screen.getByLabelText('Время в звонке').textContent
+
+    expect(timer()).toBe('00:00')
+    vi.advanceTimersByTime(65_000)
+    expect(timer()).toBe('01:05')
+    vi.advanceTimersByTime(3_600_000)
+    expect(timer()).toBe('1:01:05')
+    vi.useRealTimers()
+  })
+
   it('does not blink between words', () => {
     vi.useFakeTimers()
     const { api } = setup()

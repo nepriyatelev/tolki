@@ -28,6 +28,14 @@
   white-space: nowrap;
 }
 
+/* The call's length: monospace digits, so it does not jitter as they change. */
+.call-timer {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
 .call-count {
   flex-shrink: 0;
   padding: 2px var(--space-3);

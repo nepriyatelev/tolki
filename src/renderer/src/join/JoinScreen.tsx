@@ -6,6 +6,7 @@ import ShieldAlert from 'lucide-solid/icons/shield-alert'
 import ShieldCheck from 'lucide-solid/icons/shield-check'
 import { createResource, createSignal, Match, Show, Switch, type JSX } from 'solid-js'
 import {
+  buildInvite,
   inviteAddress,
   inviteErrorMessage,
   type Invite,
@@ -83,6 +84,11 @@ export function JoinScreen(props: JoinScreenProps): JSX.Element {
     return p?.status === 'live' ? p.room : undefined
   }
   const [session, setSession] = createSignal<CallSession | null>(null)
+  // The link this participant came by: its password is there only if the organizer put it in.
+  const inviteLink = (): string | undefined => {
+    const inv = invite()
+    return inv ? buildInvite(inv) : undefined
+  }
 
   return (
     <Show
@@ -137,6 +143,7 @@ export function JoinScreen(props: JoinScreenProps): JSX.Element {
       {(current) => (
         <CallScreen
           session={current()}
+          inviteLink={inviteLink()}
           onLeft={() => setSession(null)}
           {...(props.startCall ? { startCall: props.startCall } : {})}
         />
