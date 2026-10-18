@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
+import { launchApp, type LaunchedApp } from './app'
 import { freePort } from './ports'
-import { launchApp } from './app'
 import { tapPeerConnections } from './media'
 
 // Chromium's fake capture device plays a beeping tone instead of using a real microphone.
@@ -85,108 +85,121 @@ function sentVoice(page: Page): Promise<{ fmtp: string; settings: MediaTrackSett
   })
 }
 
-test('two app instances on one machine hear each other through the host', async () => {
-  // Three apps and a whole call scenario: well past the default 30 s on a slow CI runner.
-  test.setTimeout(120_000)
-  const host = await launchApp()
-  try {
+// One room for the whole file (#81): the organizer's app and two participants are started once,
+// then each check is a test of its own. Serial: they share the call, and each one leaves it as
+// it found it. Not a worker fixture: with one worker it would keep three apps open through the
+// rest of the suite.
+test.describe.serial('a call between two app instances through the organizer', () => {
+  let katya: LaunchedApp
+  let misha: LaunchedApp
+  /** Everything started so far, closed in reverse even if the setup stopped halfway. */
+  const started: LaunchedApp[] = []
+  const launch = async (options?: Parameters<typeof launchApp>[0]): Promise<LaunchedApp> => {
+    const app = await launchApp(options)
+    started.push(app)
+    return app
+  }
+
+  test.beforeAll(async () => {
+    // Three apps and two joins: past the default 30 s on a slow CI runner.
+    test.setTimeout(90_000)
+    const host = await launch()
     const port = await freePort()
     const state = await host.page.evaluate(
       (p) =>
-        window.tolki.host.start({
-          port: p,
-          portMapping: false,
-          roomName: 'Созвон',
-          password: '',
-        }),
+        window.tolki.host.start({ port: p, portMapping: false, roomName: 'Созвон', password: '' }),
       port,
     )
     if (state.status !== 'running') throw new Error('host did not start')
     const link = `tolki://join?v=1&h=127.0.0.1&p=${port}&r=call&fp=${state.fingerprint}`
+    katya = await launch({ args: [FAKE_MEDIA, link] })
+    await tapOutput(katya.page)
+    await tapPeerConnections(katya.page)
+    await joinByUi(katya.page, 'Катя')
+    misha = await launch({ args: [FAKE_MEDIA, link] })
+    await joinByUi(misha.page, 'Миша')
+  })
 
-    const katya = await launchApp({ args: [FAKE_MEDIA, link] })
-    try {
-      await tapOutput(katya.page)
-      await tapPeerConnections(katya.page)
-      await joinByUi(katya.page, 'Катя')
-      const misha = await launchApp({ args: [FAKE_MEDIA, link] })
-      try {
-        await joinByUi(misha.page, 'Миша')
+  test.afterAll(async () => {
+    for (const app of started.reverse()) await app.app.close()
+  })
 
-        // Each one plays the other's voice, and it is not silence.
-        for (const page of [katya.page, misha.page]) {
-          await expect(page.locator('audio[data-peer-id]')).toHaveCount(1)
-          await expect.poll(() => heardLevel(page), { timeout: 15_000 }).toBeGreaterThan(0.01)
-        }
-
-        // The fake microphones beep: the speaking frame shows up around someone's tile.
-        await expect(misha.page.locator('.call-tile--speaking').first()).toBeVisible({
-          timeout: 15_000,
-        })
-
-        // The voice goes out as mono Opus, ~40 kbit/s, DTX and FEC, voice processing on (#25).
-        await expect
-          .poll(async () => (await sentVoice(katya.page))?.fmtp ?? '')
-          .toContain('usedtx=1')
-        const voice = await sentVoice(katya.page)
-        expect(voice?.fmtp).toContain('useinbandfec=1')
-        expect(voice?.fmtp).toContain('maxaveragebitrate=40000')
-        expect(voice?.fmtp).toContain('stereo=0')
-        expect(voice?.settings).toMatchObject({
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        })
-
-        // Katya's speakers get Misha's voice; at 0 % they go quiet (PLAN #23).
-        await expect.poll(() => outputLevel(katya.page), { timeout: 15_000 }).toBeGreaterThan(0.01)
-        // The volume lives in the «⋯» menu on Misha's tile (#77).
-        await katya.page.getByRole('button', { name: 'Меню: Миша' }).click()
-        const menu = katya.page.getByRole('dialog', { name: 'Звук: Миша' })
-        const volume = menu.getByRole('slider', { name: 'Громкость: Миша' })
-        await volume.fill('0')
-        await expect(menu.getByText('0%', { exact: true })).toBeVisible()
-        await expect.poll(() => outputLevel(katya.page), { timeout: 15_000 }).toBeLessThan(0.001)
-        await menu.getByRole('button', { name: 'Сбросить до 100 %' }).click()
-        await katya.page.keyboard.press('Escape')
-        await expect(menu).toBeHidden()
-
-        // Katya switches microphones mid-call: Misha keeps hearing her, nobody reconnects (#24).
-        await katya.page.getByRole('button', { name: 'Настройки' }).click()
-        const dialog = katya.page.getByRole('dialog', { name: 'Настройки звука' })
-        const mic = dialog.getByLabel('Микрофон', { exact: true })
-        await expect.poll(() => mic.locator('option').count()).toBeGreaterThan(2)
-        await mic.selectOption({ index: 2 })
-        await dialog.getByRole('button', { name: 'Закрыть' }).click()
-        await expect(dialog).toBeHidden()
-        await expect(misha.page.locator('audio[data-peer-id]')).toHaveCount(1)
-        await expect.poll(() => heardLevel(misha.page), { timeout: 15_000 }).toBeGreaterThan(0.01)
-
-        // Katya presses M: Misha sees her microphone is off and hears silence.
-        await katya.page.keyboard.press('m')
-        await expect(katya.page.getByRole('button', { name: 'Включить микрофон' })).toBeVisible()
-        await expect(
-          misha.page.getByRole('listitem', { name: 'Катя' }).getByRole('img', {
-            name: 'Микрофон выключен',
-          }),
-        ).toBeVisible()
-        await expect.poll(() => heardLevel(misha.page), { timeout: 15_000 }).toBeLessThan(0.001)
-
-        // Misha presses D: the sound is off and so is his microphone.
-        await misha.page.keyboard.press('d')
-        await expect(misha.page.getByRole('button', { name: 'Включить звук' })).toBeVisible()
-        await expect(misha.page.getByRole('button', { name: 'Включить микрофон' })).toBeVisible()
-
-        // Misha leaves: Katya stops playing his voice.
-        await misha.page.getByRole('button', { name: 'Выйти' }).click()
-        await expect(katya.page.locator('audio[data-peer-id]')).toHaveCount(0)
-      } finally {
-        await misha.app.close()
-      }
-    } finally {
-      await katya.app.close()
+  test('each one plays the other’s voice, and it is not silence', async () => {
+    for (const page of [katya.page, misha.page]) {
+      await expect(page.locator('audio[data-peer-id]')).toHaveCount(1)
+      await expect.poll(() => heardLevel(page), { timeout: 15_000 }).toBeGreaterThan(0.01)
     }
-  } finally {
-    await host.app.close()
-  }
+  })
+
+  test('the speaking frame shows up around a talking participant', async () => {
+    // The fake microphones beep.
+    await expect(misha.page.locator('.call-tile--speaking').first()).toBeVisible({
+      timeout: 15_000,
+    })
+  })
+
+  test('the voice goes out as mono Opus, ~40 kbit/s, DTX and FEC, voice processing on (#25)', async () => {
+    await expect.poll(async () => (await sentVoice(katya.page))?.fmtp ?? '').toContain('usedtx=1')
+    const voice = await sentVoice(katya.page)
+    expect(voice?.fmtp).toContain('useinbandfec=1')
+    expect(voice?.fmtp).toContain('maxaveragebitrate=40000')
+    expect(voice?.fmtp).toContain('stereo=0')
+    expect(voice?.settings).toMatchObject({
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    })
+  })
+
+  test('a participant’s volume in the «⋯» menu silences them only here, and resets (#23, #77)', async () => {
+    test.setTimeout(45_000)
+    await expect.poll(() => outputLevel(katya.page), { timeout: 15_000 }).toBeGreaterThan(0.01)
+    await katya.page.getByRole('button', { name: 'Меню: Миша' }).click()
+    const menu = katya.page.getByRole('dialog', { name: 'Звук: Миша' })
+    await menu.getByRole('slider', { name: 'Громкость: Миша' }).fill('0')
+    await expect(menu.getByText('0%', { exact: true })).toBeVisible()
+    await expect.poll(() => outputLevel(katya.page), { timeout: 15_000 }).toBeLessThan(0.001)
+    await menu.getByRole('button', { name: 'Сбросить до 100 %' }).click()
+    await katya.page.keyboard.press('Escape')
+    await expect(menu).toBeHidden()
+  })
+
+  test('switching microphones mid-call keeps the voice going, nobody reconnects (#24)', async () => {
+    await katya.page.getByRole('button', { name: 'Настройки' }).click()
+    const dialog = katya.page.getByRole('dialog', { name: 'Настройки звука' })
+    const mic = dialog.getByLabel('Микрофон', { exact: true })
+    await expect.poll(() => mic.locator('option').count()).toBeGreaterThan(2)
+    await mic.selectOption({ index: 2 })
+    await dialog.getByRole('button', { name: 'Закрыть' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(misha.page.locator('audio[data-peer-id]')).toHaveCount(1)
+    await expect.poll(() => heardLevel(misha.page), { timeout: 15_000 }).toBeGreaterThan(0.01)
+  })
+
+  test('M turns the microphone off: the other one sees it and hears silence (#22)', async () => {
+    await katya.page.keyboard.press('m')
+    await expect(katya.page.getByRole('button', { name: 'Включить микрофон' })).toBeVisible()
+    await expect(
+      misha.page.getByRole('listitem', { name: 'Катя' }).getByRole('img', {
+        name: 'Микрофон выключен',
+      }),
+    ).toBeVisible()
+    await expect.poll(() => heardLevel(misha.page), { timeout: 15_000 }).toBeLessThan(0.001)
+    // Back as it was for the next test.
+    await katya.page.keyboard.press('m')
+    await expect(katya.page.getByRole('button', { name: 'Выключить микрофон' })).toBeVisible()
+  })
+
+  test('D turns the sound off and the microphone with it (#22)', async () => {
+    await misha.page.keyboard.press('d')
+    await expect(misha.page.getByRole('button', { name: 'Включить звук' })).toBeVisible()
+    await expect(misha.page.getByRole('button', { name: 'Включить микрофон' })).toBeVisible()
+    await misha.page.keyboard.press('d')
+    await expect(misha.page.getByRole('button', { name: 'Выключить звук' })).toBeVisible()
+  })
+
+  test('when one leaves, the other stops playing their voice', async () => {
+    await misha.page.getByRole('button', { name: 'Выйти' }).click()
+    await expect(katya.page.locator('audio[data-peer-id]')).toHaveCount(0)
+  })
 })
