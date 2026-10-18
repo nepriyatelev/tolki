@@ -10,6 +10,7 @@ import { loadOrCreateCertificate, type HostCertificate } from '../host/certifica
 import { MediaServer } from '../host/media-server'
 import { Room } from '../host/room'
 import { startSignalingServer, type SignalingServer } from '../host/server'
+import type { RoomEvent } from '@shared/room'
 import { joinRoom, pointCandidatesAt, probeRoom, type RoomConnection } from './room-client'
 
 // Real host (TLS server + Room) and real client, over loopback.
@@ -54,13 +55,24 @@ async function freePort(): Promise<number> {
 
 async function startHost(
   password: string,
-  options: { handshakeTimeoutMs?: number; withMedia?: boolean } = {},
+  options: {
+    handshakeTimeoutMs?: number
+    withMedia?: boolean
+    approval?: boolean
+    organizerKey?: string
+  } = {},
 ) {
-  const { withMedia, ...roomOptions } = options
+  const { withMedia, approval, organizerKey, ...roomOptions } = options
   const port = await freePort()
   if (withMedia) media = await MediaServer.start({ port })
   room = new Room(
-    { name: 'Вечерний созвон', password, fingerprint: certificate.fingerprint },
+    {
+      name: 'Вечерний созвон',
+      password,
+      fingerprint: certificate.fingerprint,
+      ...(approval !== undefined ? { approval } : {}),
+      ...(organizerKey !== undefined ? { organizerKey } : {}),
+    },
     { limiter: new AttemptLimiter(), ...roomOptions, ...(media && { media }) },
   )
   server = await startSignalingServer({
@@ -242,7 +254,7 @@ describe('probeRoom (recent rooms status)', () => {
 
     expect(await probeRoom(invite)).toEqual({
       status: 'live',
-      room: { name: 'Вечерний созвон', peerCount: 1, hasPassword: true },
+      room: { name: 'Вечерний созвон', peerCount: 1, hasPassword: true, approval: false },
     })
     expect(room.peers.map((p) => p.name)).toEqual(['Дима'])
   })
@@ -369,5 +381,178 @@ describe('pointCandidatesAt', () => {
     expect(pointCandidatesAt({ id: 't' }, 'h')).toEqual({ id: 't' })
     expect(pointCandidatesAt(null, 'h')).toBeNull()
     expect(pointCandidatesAt({ iceCandidates: 'x' }, 'h')).toEqual({ iceCandidates: 'x' })
+  })
+})
+
+describe('the organizer’s rights (#42)', () => {
+  const KEY = 'k'.repeat(32)
+
+  /** The organizer in their own room, with the events they get. */
+  async function organizer(invite: Invite) {
+    const connection = await joinRoom({
+      invite,
+      name: 'Организатор',
+      password: undefined,
+      organizerKey: KEY,
+    })
+    connections.push(connection)
+    const events: RoomEvent[] = []
+    connection.onEvent((event) => events.push(event))
+    return { connection, events }
+  }
+
+  it('knows the organizer by the key, nobody else', async () => {
+    const invite = await startHost('', { organizerKey: KEY })
+    const own = await organizer(invite)
+    expect(own.connection.result).toMatchObject({ ok: true, organizer: true })
+    const guest = await joinRoom({
+      invite,
+      name: 'Катя',
+      password: undefined,
+      organizerKey: 'x'.repeat(32),
+    })
+    connections.push(guest)
+    expect(guest.result).toMatchObject({ ok: true, organizer: false })
+  })
+
+  it('makes a guest wait until the organizer lets them in, or not', async () => {
+    const invite = await startHost('', { organizerKey: KEY, approval: true })
+    const own = await organizer(invite)
+    expect(own.connection.result).toMatchObject({ ok: true, approval: true })
+    expect(await probeRoom(invite)).toMatchObject({ room: { approval: true } })
+
+    let waited = false
+    const joining = joinRoom({
+      invite,
+      name: 'Катя',
+      password: undefined,
+      onWaiting: () => (waited = true),
+    })
+    await expect.poll(() => own.events.find((e) => e.type === 'join-request')).toBeTruthy()
+    const request = own.events.find((e) => e.type === 'join-request')
+    expect(request).toMatchObject({ name: 'Катя' })
+    expect(waited).toBe(true)
+    // Not inside yet: not counted, not among the peers.
+    expect(room.peers.map((p) => p.name)).toEqual(['Организатор'])
+
+    const requestId = request?.type === 'join-request' ? request.requestId : ''
+    expect(await own.connection.request({ method: 'answerJoin', requestId, admit: true })).toEqual({
+      ok: true,
+      data: {},
+    })
+    const katya = await joining
+    connections.push(katya)
+    expect(katya.result).toMatchObject({ ok: true, organizer: false })
+
+    // Refused: JOIN_REFUSED.
+    const refusedJoin = joinRoom({ invite, name: 'Миша', password: undefined })
+    await expect.poll(() => own.events.filter((e) => e.type === 'join-request').length).toBe(2)
+    const second = own.events.filter((e) => e.type === 'join-request')[1]
+    await own.connection.request({
+      method: 'answerJoin',
+      requestId: second?.type === 'join-request' ? second.requestId : '',
+      admit: false,
+    })
+    expect((await refusedJoin).result).toEqual({ ok: false, error: 'JOIN_REFUSED' })
+  })
+
+  it('lets the one waiting stop waiting; the organizer learns they left', async () => {
+    const invite = await startHost('', { organizerKey: KEY, approval: true })
+    const own = await organizer(invite)
+    const stop = new AbortController()
+    const joining = joinRoom({ invite, name: 'Катя', password: undefined, signal: stop.signal })
+    await expect.poll(() => own.events.some((e) => e.type === 'join-request')).toBe(true)
+    stop.abort()
+    expect((await joining).result).toEqual({ ok: false, error: 'cancelled' })
+    await expect.poll(() => own.events.some((e) => e.type === 'join-request-gone')).toBe(true)
+  })
+
+  it('lets everyone waiting in when approval is turned off; only the organizer may do that', async () => {
+    const invite = await startHost('', { organizerKey: KEY, approval: true })
+    const own = await organizer(invite)
+    const joining = joinRoom({ invite, name: 'Катя', password: undefined })
+    await expect.poll(() => own.events.some((e) => e.type === 'join-request')).toBe(true)
+
+    expect(await own.connection.request({ method: 'setApproval', enabled: false })).toEqual({
+      ok: true,
+      data: {},
+    })
+    const katya = await joining
+    connections.push(katya)
+    expect(katya.result.ok).toBe(true)
+    expect(own.events).toContainEqual({ type: 'approval-changed', enabled: false })
+    expect(await katya.request({ method: 'setApproval', enabled: true })).toEqual({
+      ok: false,
+      error: 'not the organizer',
+    })
+  })
+
+  it('removes a participant: they learn it and do not come back by themselves', async () => {
+    const invite = await startHost('', { organizerKey: KEY })
+    const own = await organizer(invite)
+    const katya = await joinRoom({ invite, name: 'Катя', password: undefined })
+    connections.push(katya)
+    const reason = new Promise((resolve) => {
+      katya.onClosed(resolve)
+    })
+    const katyaId = katya.result.ok ? katya.result.peerId : ''
+    expect(
+      await katya.request({
+        method: 'removePeer',
+        peerId: own.connection.result.ok ? own.connection.result.peerId : '',
+      }),
+    ).toEqual({
+      ok: false,
+      error: 'not the organizer',
+    })
+    expect(await own.connection.request({ method: 'removePeer', peerId: katyaId })).toEqual({
+      ok: true,
+      data: {},
+    })
+    expect(await reason).toBe('removed')
+    await expect.poll(() => room.peers.map((p) => p.name)).toEqual(['Организатор'])
+  })
+
+  it('takes a dropped participant back without waiting, but not a removed one', async () => {
+    const invite = await startHost('', { organizerKey: KEY, approval: false })
+    const own = await organizer(invite)
+    const katya = await joinRoom({ invite, name: 'Катя', password: undefined })
+    const token = katya.rejoinToken
+    expect(token).toBeTruthy()
+    await own.connection.request({ method: 'setApproval', enabled: true })
+    katya.close()
+    await expect.poll(() => room.peers.length).toBe(1)
+
+    const back = await joinRoom({
+      invite,
+      name: 'Катя',
+      password: undefined,
+      rejoinToken: token,
+      timeoutMs: 3000,
+    })
+    connections.push(back)
+    expect(back.result.ok).toBe(true)
+
+    // A removed participant's token does not bring them back: they wait like anyone.
+    expect(
+      await own.connection.request({
+        method: 'removePeer',
+        peerId: back.result.ok ? back.result.peerId : '',
+      }),
+    ).toEqual({ ok: true, data: {} })
+    await expect.poll(() => room.peers.length).toBe(1)
+    let waited = false
+    const stop = new AbortController()
+    const again = joinRoom({
+      invite,
+      name: 'Катя',
+      password: undefined,
+      rejoinToken: back.rejoinToken,
+      onWaiting: () => (waited = true),
+      signal: stop.signal,
+    })
+    await expect.poll(() => waited).toBe(true)
+    stop.abort()
+    expect((await again).result).toEqual({ ok: false, error: 'cancelled' })
   })
 })

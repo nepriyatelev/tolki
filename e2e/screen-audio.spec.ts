@@ -27,6 +27,17 @@ test('the computer’s sound goes with the screen and stops with it', async () =
     })
     const misha = await launchApp({ args: [FAKE_MEDIA, link] })
     try {
+      // As in screen-share.spec: right after start the display may not be listed yet (xvfb);
+      // a developer's Mac may lack «Запись экрана» for the app run from a terminal.
+      let hasScreen = false
+      for (let attempt = 0; attempt < 20 && !hasScreen; attempt++) {
+        const sources = await katya.page.evaluate(() => window.tolki.screen.listSources())
+        hasScreen = sources.picker === 'app' && sources.sources.some((s) => s.kind === 'screen')
+        if (!hasScreen) await katya.page.waitForTimeout(500)
+      }
+      if (Boolean(process.env['CI']) && process.platform === 'linux') expect(hasScreen).toBe(true)
+      test.skip(!hasScreen, 'no screen to capture (no «Запись экрана» permission?)')
+
       for (const [app, name] of [
         [katya, 'Катя'],
         [misha, 'Миша'],

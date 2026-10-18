@@ -1,5 +1,7 @@
 import HeadphoneOff from 'lucide-solid/icons/headphone-off'
 import Headphones from 'lucide-solid/icons/headphones'
+import Lock from 'lucide-solid/icons/lock'
+import LockOpen from 'lucide-solid/icons/lock-open'
 import LogOut from 'lucide-solid/icons/log-out'
 import Mic from 'lucide-solid/icons/mic'
 import MicOff from 'lucide-solid/icons/mic-off'
@@ -30,12 +32,12 @@ import {
   type PushToTalkMode,
 } from '@shared/push-to-talk'
 import { volumeKey } from '@shared/settings'
-import type { Peer } from '@shared/signaling'
+import type { MediaRequest, Peer } from '@shared/signaling'
 import { AudioSettingsDialog } from '../audio/AudioSettingsDialog'
 import type { MicrophoneAccess } from '../audio/microphone'
 import { ScreenSourceDialog } from '../screen/ScreenSourceDialog'
 import { browserScreen, type ScreenAccess } from '../screen/screen-share'
-import { Avatar, Button } from '../ui'
+import { Avatar, Button, IconButton } from '../ui'
 import {
   createEventBuffer,
   type ConnectionSample,
@@ -116,6 +118,24 @@ export function CallScreen(props: {
   /** One screen at a time (PLAN #29): who shares now, and «Показать свой» in progress. */
   const [sharerId, setSharerId] = createSignal<string | null>(initial.sharerId)
   const [askingToShare, setAskingToShare] = createSignal(false)
+  // The organizer's rights (#42): who waits to be let in, whether entry waits at all.
+  const [joinRequests, setJoinRequests] = createSignal<{ requestId: string; name: string }[]>([])
+  const [approval, setApproval] = createSignal(initial.approval)
+  const isOrganizer = (): boolean => joined().organizer
+  const organizerRequest = (request: MediaRequest): void => {
+    void window.tolki.room.request(request).then((response) => {
+      if (!response.ok) console.warn(`[room] ${request.method} failed: ${response.error}`)
+    })
+  }
+  const answerJoin = (requestId: string, admit: boolean): void => {
+    setJoinRequests((list) => list.filter((r) => r.requestId !== requestId))
+    organizerRequest({ method: 'answerJoin', requestId, admit })
+  }
+  const toggleApproval = (): void => {
+    const enabled = !approval()
+    setApproval(enabled)
+    organizerRequest({ method: 'setApproval', enabled })
+  }
   const [linkCopied, setLinkCopied] = createSignal(false)
   // The call's numbers in the logs every half a minute (#106): the link, and the screen if any.
   let lastLink: ConnectionSample | null = null
@@ -250,6 +270,19 @@ export function CallScreen(props: {
           event.fromPeerId,
         ])
         break
+      // The organizer's side of entry by approval (#42).
+      case 'join-request':
+        setJoinRequests((list) => [
+          ...list.filter((r) => r.requestId !== event.requestId),
+          { requestId: event.requestId, name: event.name },
+        ])
+        break
+      case 'join-request-gone':
+        setJoinRequests((list) => list.filter((r) => r.requestId !== event.requestId))
+        break
+      case 'approval-changed':
+        setApproval(event.enabled)
+        break
       case 'screen-request-answer':
         if (!askingToShare()) break
         setAskingToShare(false)
@@ -327,6 +360,9 @@ export function CallScreen(props: {
     setScreenRequests([])
     setAskingToShare(false)
     setReconnecting(false)
+    setApproval(room.approval)
+    // The organizer gets the requests again with the new welcome.
+    setJoinRequests([])
     setSound('connecting')
     startTheCall(room, callEvents)
   }
@@ -661,6 +697,14 @@ export function CallScreen(props: {
             offline={reconnecting()}
           />
         </Show>
+        <Show when={isOrganizer()}>
+          <IconButton
+            label={approval() ? 'Подтверждать вход: включено' : 'Подтверждать вход: выключено'}
+            // The state is in the icon and the label: the pressed style means «off» elsewhere.
+            icon={approval() ? <Lock /> : <LockOpen />}
+            onClick={toggleApproval}
+          />
+        </Show>
         <Show when={props.inviteLink}>
           {(link) => (
             <Button icon={<UserPlus />} onClick={() => void copyInvite(link())}>
@@ -718,6 +762,13 @@ export function CallScreen(props: {
                         saveVolume(person.name, volume)
                       }}
                       onOpenSettings={() => setSettingsOpen(true)}
+                      onRemove={
+                        isOrganizer() && !person.me
+                          ? () => {
+                              organizerRequest({ method: 'removePeer', peerId: person.id })
+                            }
+                          : undefined
+                      }
                     />
                   )}
                 </For>
@@ -788,6 +839,28 @@ export function CallScreen(props: {
             </Match>
           </Switch>
         </p>
+        <For each={joinRequests().slice(0, 3)}>
+          {(request) => (
+            <div class="call-request" role="alert">
+              <span>{request.name} просит впустить</span>
+              <Button
+                onClick={() => {
+                  answerJoin(request.requestId, false)
+                }}
+              >
+                Отклонить
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  answerJoin(request.requestId, true)
+                }}
+              >
+                Впустить
+              </Button>
+            </div>
+          )}
+        </For>
         <For each={screenRequests().slice(0, 1)}>
           {(fromPeerId) => (
             <div class="call-request" role="alert">

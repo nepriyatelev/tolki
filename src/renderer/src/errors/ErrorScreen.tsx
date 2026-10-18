@@ -3,6 +3,7 @@ import CloudOff from 'lucide-solid/icons/cloud-off'
 import Download from 'lucide-solid/icons/download'
 import DoorClosed from 'lucide-solid/icons/door-closed'
 import KeyRound from 'lucide-solid/icons/key-round'
+import UserX from 'lucide-solid/icons/user-x'
 import Users from 'lucide-solid/icons/users'
 import WifiOff from 'lucide-solid/icons/wifi-off'
 import { For, Show, type JSX } from 'solid-js'
@@ -17,6 +18,7 @@ const ICONS: Record<ErrorKind['kind'], (props: { class?: string }) => JSX.Elemen
   'too-many-attempts': KeyRound,
   'host-closed': DoorClosed,
   'connection-lost': AlertTriangle,
+  removed: UserX,
   'room-full': Users,
   'update-required': Download,
 }

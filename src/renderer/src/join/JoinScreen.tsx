@@ -4,7 +4,17 @@ import Link from 'lucide-solid/icons/link'
 import Lock from 'lucide-solid/icons/lock'
 import ShieldAlert from 'lucide-solid/icons/shield-alert'
 import ShieldCheck from 'lucide-solid/icons/shield-check'
-import { createResource, createSignal, Match, Show, Switch, type JSX } from 'solid-js'
+import {
+  createResource,
+  createSignal,
+  Match,
+  onCleanup,
+  onMount,
+  Show,
+  Switch,
+  untrack,
+  type JSX,
+} from 'solid-js'
 import {
   buildInvite,
   inviteAddress,
@@ -105,6 +115,9 @@ export function JoinScreen(props: JoinScreenProps): JSX.Element {
                     <div class="join-heading">
                       <h1 id="join-title">{live()?.name ?? 'Вход по ссылке'}</h1>
                       <p class="join-people">{peopleText(preview.latest)}</p>
+                      <Show when={live()?.approval}>
+                        <p class="join-people">Вход подтверждает организатор</p>
+                      </Show>
                       <p class="join-address">{inviteAddress(inv())}</p>
                     </div>
                     <TrustNote preview={preview.latest} />
@@ -177,7 +190,12 @@ function TrustNote(props: { preview: RoomPreview | undefined }): JSX.Element {
   )
 }
 
-type Status = { kind: 'idle' } | { kind: 'joining' } | { kind: 'failed'; error: JoinError }
+type Status =
+  | { kind: 'idle' }
+  | { kind: 'joining' }
+  /** Entry waits for the organizer's «Впустить» (#42). */
+  | { kind: 'waiting' }
+  | { kind: 'failed'; error: JoinError }
 
 function JoinForm(props: {
   invite: Invite
@@ -198,6 +216,16 @@ function JoinForm(props: {
   const [micMuted, setMicMuted] = createSignal(false)
   const [nameError, setNameError] = createSignal<string | undefined>(undefined)
   const [status, setStatus] = createSignal<Status>({ kind: 'idle' })
+  onMount(() => {
+    onCleanup(
+      // From IPC, outside any tracking scope.
+      window.tolki.room.onWaiting(() => {
+        untrack(() => {
+          if (status().kind === 'joining') setStatus({ kind: 'waiting' })
+        })
+      }),
+    )
+  })
   const roomNeedsPassword = () =>
     props.preview?.status === 'live' ? props.preview.room.hasPassword : true
   const askPassword = () =>
@@ -230,6 +258,11 @@ function JoinForm(props: {
       ...(props.recent ? { recentId: props.recent.id } : {}),
     })
     if (!result.ok) events.stop()
+    // The user stopped waiting for the organizer: back to the form, nothing to say.
+    if (!result.ok && result.error === 'cancelled') {
+      setStatus({ kind: 'idle' })
+      return
+    }
     if (!result.ok && result.error === 'WRONG_PASSWORD') setUseSaved(false)
     const screen = result.ok ? null : errorScreenFor(result.error)
     if (screen) {
@@ -289,12 +322,19 @@ function JoinForm(props: {
           </p>
         )}
       </Show>
+      <Show when={status().kind === 'waiting'}>
+        <p class="join-waiting" role="status">
+          Вход подтверждает организатор — нужно подождать.
+        </p>
+      </Show>
       <div class="join-actions">
         <Button
           type="button"
           size="lg"
           onClick={() => {
-            props.onBack()
+            // Waiting for the organizer: stop waiting, stay on the form (#42).
+            if (status().kind === 'waiting') void window.tolki.room.leave()
+            else props.onBack()
           }}
         >
           Отмена
@@ -303,9 +343,17 @@ function JoinForm(props: {
           type="submit"
           variant="primary"
           size="lg"
-          disabled={status().kind === 'joining' || props.preview?.status === 'certificate-changed'}
+          disabled={
+            status().kind === 'joining' ||
+            status().kind === 'waiting' ||
+            props.preview?.status === 'certificate-changed'
+          }
         >
-          {status().kind === 'joining' ? 'Подключение…' : 'Войти в комнату'}
+          {status().kind === 'joining'
+            ? 'Подключение…'
+            : status().kind === 'waiting'
+              ? 'Ожидание…'
+              : 'Войти в комнату'}
         </Button>
       </div>
     </form>

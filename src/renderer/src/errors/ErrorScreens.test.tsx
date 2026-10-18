@@ -87,6 +87,19 @@ describe('error screens in the app', () => {
     expect(await screen.findByRole('heading', { name: 'Связь с комнатой потеряна' })).toBeTruthy()
   })
 
+  it('tells a removed participant so, and lets them try to come back (#42)', async () => {
+    const user = userEvent.setup()
+    const api = installTolkiMock({ pendingInvite: parseInvite(LINK) })
+    render(() => <App />)
+    expect(await screen.findByRole('button', { name: 'Войти в комнату' })).toBeTruthy()
+
+    api.room.emitClosed({ reason: 'removed', roomName: 'Кино' })
+    expect(await screen.findByRole('heading', { name: 'Удаление из комнаты' })).toBeTruthy()
+    expect(screen.getByText(/Войти снова можно по той же ссылке/)).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Попробовать снова' }))
+    expect(await screen.findByRole('button', { name: 'Войти в комнату' })).toBeTruthy()
+  })
+
   it('lets the user try the same room again after the link was lost for good (#31)', async () => {
     const user = userEvent.setup()
     const api = installTolkiMock({ pendingInvite: parseInvite(LINK) })

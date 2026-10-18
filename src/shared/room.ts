@@ -10,6 +10,8 @@ export type JoinError =
   | 'unreachable'
   | 'timeout'
   | 'protocol'
+  /** The user stopped waiting for the organizer (#42). */
+  | 'cancelled'
 
 export type JoinResult =
   | {
@@ -25,6 +27,10 @@ export type JoinResult =
       screenMode: ScreenMode
       /** Who shares a screen right now, if anyone. */
       sharerId: string | null
+      /** This user is the organizer (#42). */
+      organizer: boolean
+      /** Entry waits for the organizer (#42). */
+      approval: boolean
     }
   | { ok: false; error: JoinError; room?: RoomInfo }
 
@@ -41,6 +47,8 @@ export type RoomClosedReason =
   | 'host-closed'
   /** The connection dropped (network, host computer went to sleep…). */
   | 'connection-lost'
+  /** The organizer removed this participant (#42); they may come back by the link. */
+  | 'removed'
 
 export interface RoomClosedEvent {
   reason: RoomClosedReason
@@ -63,6 +71,9 @@ export type RoomEvent = Extract<
       | 'screen-request'
       | 'screen-request-answer'
       | 'screen-layer'
+      | 'join-request'
+      | 'join-request-gone'
+      | 'approval-changed'
   }
 >
 

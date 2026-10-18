@@ -99,6 +99,8 @@ export interface HostStartRequest {
   password?: string | undefined
   /** How screens are shared in this room; defaults to auto. */
   screenMode?: ScreenMode | undefined
+  /** Entry waits for the organizer's «Впустить» (#42); defaults to false. */
+  approval?: boolean | undefined
 }
 
 /** Main → renderer events (`webContents.send`). */
@@ -116,6 +118,8 @@ export interface EventContract {
   'room:reconnected': Extract<JoinResult, { ok: true }>
   /** The global push-to-talk key went down or up (PLAN #39). */
   'ptt:key': { pressed: boolean }
+  /** Entry to the room waits for the organizer's «Впустить» (#42). */
+  'room:waiting': null
   /** A global hotkey was pressed (PLAN #40). */
   'hotkeys:pressed': { action: HotkeyAction }
 }
@@ -148,6 +152,7 @@ export const invokeArgsSchemas: {
       roomName: z.string().trim().min(1).max(64).optional(),
       password: z.string().max(128).optional(),
       screenMode: z.enum(SCREEN_MODES).optional(),
+      approval: z.boolean().optional(),
     }),
   ]),
   'host:stop': z.tuple([]),
@@ -227,6 +232,8 @@ export interface TolkiApi {
     request(request: MediaRequest): Promise<MediaResponse>
     /** Returns an unsubscribe function. */
     onEvent(listener: (event: RoomEvent) => void): () => void
+    /** Entry waits for the organizer (#42). Returns an unsubscribe function. */
+    onWaiting(listener: () => void): () => void
     /** Returns an unsubscribe function. */
     onReconnecting(listener: () => void): () => void
     /** Returns an unsubscribe function. */

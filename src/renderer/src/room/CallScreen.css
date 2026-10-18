@@ -416,3 +416,14 @@
     transform: translateY(-4px);
   }
 }
+
+/* The organizer's «Удалить из комнаты» (#42): danger text, a second step to confirm. */
+.call-tile-remove {
+  color: var(--color-danger-text);
+}
+
+.call-tile-confirm {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

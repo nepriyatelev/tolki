@@ -57,6 +57,10 @@ export type MainToHostMessage =
       /** Empty: no password. Stays in memory only. */
       password: string
       screenMode: ScreenMode
+      /** Entry waits for the organizer's «Впустить» (#42); can change during the call. */
+      approval: boolean
+      /** Proves the organizer's own connection (#42): their rights in the room. Memory only. */
+      organizerKey: string
     }
   /** One-shot network check: try to forward the port, report, remove the mapping, exit. */
   | { type: 'check'; port: number }

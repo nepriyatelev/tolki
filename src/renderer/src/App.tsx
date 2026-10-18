@@ -72,15 +72,20 @@ export function App(): JSX.Element {
     onCleanup(
       window.tolki.room.onClosed(({ reason, roomName }) => {
         const current = untrack(route)
-        // A lost link (30 s of reconnecting, PLAN #31) can be retried with the same invite.
+        // A lost link (30 s of reconnecting, PLAN #31) can be retried with the same invite, and
+        // so can a removal (#42): the organizer may let them back in.
         const retry =
-          reason === 'connection-lost' && current.screen === 'join' ? current : undefined
+          (reason === 'connection-lost' || reason === 'removed') && current.screen === 'join'
+            ? current
+            : undefined
         setRoute({
           screen: 'error',
           error:
             reason === 'host-closed'
               ? { kind: 'host-closed', roomName }
-              : { kind: 'connection-lost', roomName },
+              : reason === 'removed'
+                ? { kind: 'removed', roomName }
+                : { kind: 'connection-lost', roomName },
           ...(retry ? { retry } : {}),
         })
       }),

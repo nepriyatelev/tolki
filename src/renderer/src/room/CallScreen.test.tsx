@@ -23,6 +23,8 @@ const RESULT: Extract<JoinResult, { ok: true }> = {
   mutedPeers: [],
   screenMode: 'auto',
   sharerId: null,
+  organizer: false,
+  approval: false,
 }
 
 const FAKE_DEVICES: MicrophoneAccess = {
@@ -98,6 +100,8 @@ function setup(
     pushToTalkMode?: PushToTalkMode
     globalHotkeys?: { mute: string; deafen: string }
     takenHotkeys?: string[]
+    organizer?: boolean
+    approval?: boolean
   } = {},
 ) {
   const api = installTolkiMock({
@@ -146,6 +150,8 @@ function setup(
           ...RESULT,
           mutedPeers: options.mutedPeers ?? [],
           sharerId: options.sharerId ?? null,
+          organizer: options.organizer ?? false,
+          approval: options.approval ?? false,
         },
         events,
         name: 'Алексей',
@@ -1063,5 +1069,56 @@ describe('global hotkeys (#40)', () => {
     expect(
       await screen.findByText('Это сочетание занято другим приложением — нужно другое.'),
     ).toBeTruthy()
+  })
+})
+
+describe('the organizer’s rights (#42)', () => {
+  it('lets people in or not, one card each', async () => {
+    const ctx = setup({ organizer: true, approval: true })
+    await screen.findByText('Звук подключён')
+    ctx.api.room.emitEvent({ type: 'join-request', requestId: 'r1', name: 'Катя' })
+    ctx.api.room.emitEvent({ type: 'join-request', requestId: 'r2', name: 'Миша' })
+    expect(await screen.findByText('Катя просит впустить')).toBeTruthy()
+    expect(screen.getByText('Миша просит впустить')).toBeTruthy()
+
+    const katya = screen.getByText('Катя просит впустить').closest('.call-request') as HTMLElement
+    await ctx.user.click(within(katya).getByRole('button', { name: 'Впустить' }))
+    expect(ctx.api.room.request).toHaveBeenCalledWith({
+      method: 'answerJoin',
+      requestId: 'r1',
+      admit: true,
+    })
+    expect(screen.queryByText('Катя просит впустить')).toBeNull()
+
+    // Misha gave up waiting.
+    ctx.api.room.emitEvent({ type: 'join-request-gone', requestId: 'r2' })
+    expect(screen.queryByText('Миша просит впустить')).toBeNull()
+  })
+
+  it('turns entry by approval on and off from the header', async () => {
+    const ctx = setup({ organizer: true })
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(screen.getByRole('button', { name: 'Подтверждать вход: выключено' }))
+    expect(ctx.api.room.request).toHaveBeenCalledWith({ method: 'setApproval', enabled: true })
+    expect(screen.getByRole('button', { name: 'Подтверждать вход: включено' })).toBeTruthy()
+  })
+
+  it('removes someone from their tile, asking once more', async () => {
+    const ctx = setup({ organizer: true })
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(screen.getByRole('button', { name: 'Меню: Дима' }))
+    const menu = screen.getByRole('dialog', { name: 'Звук: Дима' })
+    await ctx.user.click(within(menu).getByRole('button', { name: 'Удалить из комнаты' }))
+    expect(within(menu).getByText(/Дима отключится/)).toBeTruthy()
+    await ctx.user.click(within(menu).getByRole('button', { name: 'Удалить' }))
+    expect(ctx.api.room.request).toHaveBeenCalledWith({ method: 'removePeer', peerId: 'dima' })
+  })
+
+  it('offers none of it to other participants', async () => {
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    expect(screen.queryByRole('button', { name: /Подтверждать вход/ })).toBeNull()
+    await ctx.user.click(screen.getByRole('button', { name: 'Меню: Дима' }))
+    expect(screen.queryByRole('button', { name: 'Удалить из комнаты' })).toBeNull()
   })
 })

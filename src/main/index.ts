@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
 import { cpus, homedir, release, totalmem } from 'node:os'
 import { join } from 'node:path'
@@ -300,6 +301,13 @@ function logRoomEvent(event: RoomEvent): void {
     case 'screen-layer':
       logs.main.info(`screen stream for this viewer: ${event.layer === 1 ? '≈1080p' : '≈360p'}`)
       return
+    case 'join-request':
+      // Only that someone asks: the name stays out of the logs.
+      logs.main.info('someone asks to be let in')
+      return
+    case 'approval-changed':
+      logs.main.info(`entry by approval: ${event.enabled ? 'on' : 'off'}`)
+      return
     default:
   }
 }
@@ -342,6 +350,11 @@ async function saveLogs(): Promise<void> {
     logs.main.error(`could not save the logs: ${logText(error)}`)
   }
 }
+
+/** The organizer's key of the room this app runs (#42); a new one with every host:start. */
+let organizerKey = ''
+/** Stops a join that waits for the organizer (#42). */
+let cancelJoin: AbortController | null = null
 
 // The room this app is a client of (also when the host user joins their own room).
 let roomSession: RoomSession | null = null
@@ -439,7 +452,7 @@ registerIpcHandlers(
       version: app.getVersion(),
       platform: process.platform,
     }),
-    'host:start': async ({ port, portMapping, roomName, password, screenMode }) => {
+    'host:start': async ({ port, portMapping, roomName, password, screenMode, approval }) => {
       if (roomName) privacy.addRoom('', roomName)
       if (password) privacy.addPassword(password)
       logs.main.info(
@@ -453,6 +466,9 @@ registerIpcHandlers(
           roomName: roomName ?? 'Комната',
           password: password ?? '',
           screenMode: screenMode ?? 'auto',
+          approval: approval ?? false,
+          // A new key for every room: only this app's own connection proves to be the organizer.
+          organizerKey: (organizerKey = randomBytes(24).toString('base64url')),
           dataDir: app.getPath('userData'),
         })
       } catch (error) {
@@ -490,7 +506,25 @@ registerIpcHandlers(
       const saved =
         password === undefined && recentId ? recentRooms().password(recentId) : undefined
       const used = password ?? checked.invite.password ?? saved
-      const joinRequest = { invite: checked.invite, name, password: used }
+      // The organizer's own room (#42): their connection carries the key from host:start.
+      const ownRoom =
+        host.state.status === 'running' &&
+        checked.invite.host === '127.0.0.1' &&
+        checked.invite.port === host.state.port
+      cancelJoin?.abort()
+      const joining = new AbortController()
+      cancelJoin = joining
+      const joinRequest = {
+        invite: checked.invite,
+        name,
+        password: used,
+        ...(ownRoom ? { organizerKey } : {}),
+        onWaiting: () => {
+          logs.main.info('room join: waiting for the organizer')
+          BrowserWindow.getAllWindows()[0]?.webContents.send('room:waiting', null)
+        },
+        signal: joining.signal,
+      }
       privacy.addOwnName(name)
       if (used) privacy.addPassword(used)
       const target = checked.invite
@@ -499,13 +533,15 @@ registerIpcHandlers(
           `certificate ${target.fingerprint}, password ${used ? 'yes' : 'no'}`,
       )
       const connection = await joinRoom(joinRequest)
+      if (cancelJoin === joining) cancelJoin = null
       const { result } = connection
       if (result.ok) {
         privacy.addRoom(target.roomId, result.room.name)
         privacy.addPeer(result.peerId, name, true)
         for (const peer of result.peers) privacy.addPeer(peer.id, peer.name)
         logs.main.info(
-          `joined ${roomAlias(target.roomId)} as ${peerAlias(result.peerId)}: ` +
+          `joined ${roomAlias(target.roomId)} as ${peerAlias(result.peerId)}` +
+            `${result.organizer ? ' (organizer)' : ''}: ` +
             `${result.peers.length} others, screen mode ${result.screenMode}` +
             (result.sharerId ? `, ${peerAlias(result.sharerId)} is sharing` : ''),
         )
@@ -559,6 +595,9 @@ registerIpcHandlers(
       return result
     },
     'room:leave': () => {
+      // Also stops waiting for the organizer (#42).
+      cancelJoin?.abort()
+      cancelJoin = null
       leaveRoom()
       return null
     },
