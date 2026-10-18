@@ -6,9 +6,13 @@ import MicOff from 'lucide-solid/icons/mic-off'
 import ScreenShare from 'lucide-solid/icons/screen-share'
 import ScreenShareOff from 'lucide-solid/icons/screen-share-off'
 import Settings from 'lucide-solid/icons/settings'
+import Users from 'lucide-solid/icons/users'
 import {
+  createEffect,
+  createMemo,
   createSignal,
   For,
+  on,
   Match,
   onCleanup,
   onMount,
@@ -24,7 +28,7 @@ import { AudioSettingsDialog } from '../audio/AudioSettingsDialog'
 import type { MicrophoneAccess } from '../audio/microphone'
 import { ScreenSourceDialog } from '../screen/ScreenSourceDialog'
 import { browserScreen, type ScreenAccess } from '../screen/screen-share'
-import { Button } from '../ui'
+import { Avatar, Button } from '../ui'
 import {
   createEventBuffer,
   type RemoteAudio as Voice,
@@ -32,7 +36,7 @@ import {
   type RoomEventSource,
 } from './call'
 import { ParticipantTile } from './ParticipantTile'
-import { RemoteScreenTile } from './RemoteScreenTile'
+import { ScreenStage } from './ScreenStage'
 import { RemoteAudio } from './RemoteAudio'
 import { startCall as startRealCall, type CallHandle } from './start-call'
 import './CallScreen.css'
@@ -118,6 +122,8 @@ export function CallScreen(props: {
   const [speaking, setSpeaking] = createSignal<ReadonlySet<string>>(new Set())
   const [voices, setVoices] = createSignal<Voice[]>([])
   const [screens, setScreens] = createSignal<RemoteScreen[]>([])
+  /** With a screen shared the call opens on it (mockup 5); «Все участники» goes back to tiles. */
+  const [view, setView] = createSignal<'stage' | 'grid'>('stage')
   const [sound, setSound] = createSignal<Sound>('connecting')
   // The frame follows the host's reports (every 300 ms) but lingers a little after someone stops:
   // short pauses between words should not make it blink.
@@ -358,6 +364,48 @@ export function CallScreen(props: {
     if (accept) stopScreen()
   }
 
+  // One MediaStream per remote screen, so the video keeps playing while names or people change.
+  let remoteStreamCache: { consumerId: string; stream: MediaStream } | null = null
+  const remoteStream = (remote: RemoteScreen): MediaStream => {
+    if (remoteStreamCache?.consumerId !== remote.consumerId) {
+      remoteStreamCache = { consumerId: remote.consumerId, stream: new MediaStream([remote.track]) }
+    }
+    return remoteStreamCache.stream
+  }
+
+  /** The screen in the room (one at a time, PLAN #29): someone else's or the user's own. */
+  const shownScreen = createMemo(
+    (): {
+      title: string
+      name: string
+      stream: MediaStream
+      consumerId: string | null
+    } | null => {
+      const remote = screens()[0]
+      if (remote) {
+        const name = nameOf(remote.peerId)
+        return {
+          title: `Экран: ${name}`,
+          name,
+          stream: remoteStream(remote),
+          consumerId: remote.consumerId,
+        }
+      }
+      const own = myScreen()
+      return own ? { title: 'Мой экран', name, stream: own, consumerId: null } : null
+    },
+  )
+  const stage = () => (view() === 'stage' ? shownScreen() : null)
+  // A new share opens on the stage again; people coming and going do not.
+  createEffect(
+    on(
+      () => screens()[0]?.consumerId ?? myScreen(),
+      (share) => {
+        if (share) setView('stage')
+      },
+    ),
+  )
+
   const end = (): void => {
     stopScreen()
     left = true
@@ -383,61 +431,103 @@ export function CallScreen(props: {
       <header class="call-header">
         <h1>{result.room.name}</h1>
         <span class="call-count">{peopleCount(everyone().length)}</span>
+        <Show when={stage()}>
+          <Button
+            class="call-header-switch"
+            icon={<Users />}
+            onClick={() => {
+              setView('grid')
+            }}
+          >
+            Все участники
+          </Button>
+        </Show>
         <Button variant="danger" icon={<LogOut />} onClick={() => void leave()}>
           Выйти
         </Button>
       </header>
-      <ul class="call-tiles" aria-label="Участники">
-        <Show when={myScreen()}>
-          {(stream) => (
-            <li class="call-tile call-tile--screen" aria-label="Мой экран">
-              <video
-                class="call-screen-video"
-                autoplay
-                muted
-                playsinline
-                ref={(element) => {
-                  element.srcObject = stream()
+      <div class="call-body">
+        <Show
+          when={stage()}
+          fallback={
+            <>
+              <Show when={shownScreen()}>
+                {(shown) => (
+                  <div class="call-screen-banner" role="status">
+                    <span>{shown().title}</span>
+                    <Button
+                      variant="primary"
+                      onClick={() => {
+                        setView('stage')
+                      }}
+                    >
+                      Смотреть
+                    </Button>
+                  </div>
+                )}
+              </Show>
+              <ul class="call-tiles" aria-label="Участники">
+                <For each={everyone()}>
+                  {(person) => (
+                    <ParticipantTile
+                      person={person}
+                      speaking={speaking().has(person.id)}
+                      muted={person.me ? muted() : mutedPeers().has(person.id)}
+                      volume={volumeOfName(person.name)}
+                      onVolumePreview={(volume) => {
+                        previewVolume(person.name, volume)
+                      }}
+                      onVolumeSave={(volume) => {
+                        saveVolume(person.name, volume)
+                      }}
+                      onOpenSettings={() => setSettingsOpen(true)}
+                    />
+                  )}
+                </For>
+              </ul>
+            </>
+          }
+        >
+          {(shown) => (
+            <div class="call-stage">
+              <ScreenStage
+                title={shown().title}
+                name={shown().name}
+                stream={shown().stream}
+                consumerId={shown().consumerId}
+                sample={(consumerId) => call?.screenSample(consumerId) ?? Promise.resolve(null)}
+                onVisibleChange={(consumerId, visible) => {
+                  void call?.setScreenVisible(consumerId, visible).catch(() => undefined)
+                }}
+                onLayerChange={(consumerId, layer) => {
+                  void call?.setScreenLayer(consumerId, layer).catch(() => undefined)
                 }}
               />
-              <span class="call-tile-name">
-                <span class="call-tile-name-text">Мой экран</span>
-              </span>
-            </li>
+              <ul class="call-strip" aria-label="Участники">
+                <For each={everyone()}>
+                  {(person) => (
+                    <li
+                      class="call-strip-person"
+                      classList={{ 'call-strip-person--speaking': speaking().has(person.id) }}
+                    >
+                      <Avatar name={person.name} size="sm" />
+                      <span class="call-strip-name">{person.name}</span>
+                      <Show when={person.me}>
+                        <span class="call-tile-you">я</span>
+                      </Show>
+                      <Show when={person.me ? muted() : mutedPeers().has(person.id)}>
+                        <span class="call-tile-muted" role="img" aria-label="Микрофон выключен">
+                          <MicOff />
+                        </span>
+                      </Show>
+                    </li>
+                  )}
+                </For>
+              </ul>
+            </div>
           )}
         </Show>
-        <For each={screens()}>
-          {(remote) => (
-            <RemoteScreenTile
-              screen={remote}
-              name={peers().find((p) => p.id === remote.peerId)?.name ?? 'участник'}
-              onVisibleChange={(visible) => {
-                void call?.setScreenVisible(remote.consumerId, visible).catch(() => undefined)
-              }}
-              onLayerChange={(layer) => {
-                void call?.setScreenLayer(remote.consumerId, layer).catch(() => undefined)
-              }}
-            />
-          )}
-        </For>
-        <For each={everyone()}>
-          {(person) => (
-            <ParticipantTile
-              person={person}
-              speaking={speaking().has(person.id)}
-              muted={person.me ? muted() : mutedPeers().has(person.id)}
-              volume={volumeOfName(person.name)}
-              onVolumePreview={(volume) => {
-                previewVolume(person.name, volume)
-              }}
-              onVolumeSave={(volume) => {
-                saveVolume(person.name, volume)
-              }}
-              onOpenSettings={() => setSettingsOpen(true)}
-            />
-          )}
-        </For>
-      </ul>
+      </div>
       <footer class="call-footer">
         <p
           class="call-sound"

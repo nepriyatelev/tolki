@@ -1,11 +1,11 @@
 import { fireEvent, render, screen, within } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { JoinResult } from '@shared/room'
 import { installRatatoskMock } from '../../../test/ratatosk-mock'
 import type { ScreenMode, ScreenSourcesResult } from '@shared/screen'
 import type { MicrophoneAccess } from '../audio/microphone'
-import { collectRoomEvents, type RemoteScreen } from './call'
+import { collectRoomEvents, type RemoteScreen, type ScreenSample } from './call'
 import { CallScreen, peopleCount, SPEAKING_HOLD_MS } from './CallScreen'
 
 const RESULT: Extract<JoinResult, { ok: true }> = {
@@ -98,6 +98,9 @@ function setup(
   const answerScreenRequest = vi.fn<(fromPeerId: string, accept: boolean) => Promise<void>>(() =>
     Promise.resolve(),
   )
+  const screenSample = vi.fn<(consumerId: string | null) => Promise<ScreenSample | null>>(() =>
+    Promise.resolve(null),
+  )
   const onLeft = vi.fn()
   const events = collectRoomEvents()
   const playTestSound = vi.fn<(outputDeviceId: string) => Promise<void>>(() => Promise.resolve())
@@ -130,6 +133,7 @@ function setup(
           setScreenLayer,
           requestScreen,
           answerScreenRequest,
+          screenSample,
           close,
         })
       }}
@@ -150,6 +154,7 @@ function setup(
     setScreenLayer,
     requestScreen,
     answerScreenRequest,
+    screenSample,
     showScreens: (screens: RemoteScreen[]) => {
       showScreens(screens)
     },
@@ -493,7 +498,7 @@ describe('showing your screen: picking the source (#26)', () => {
     await vi.waitFor(() => {
       expect(startScreenSpy).toHaveBeenCalledWith(expect.anything(), 'auto')
     })
-    expect(await screen.findByRole('listitem', { name: 'Мой экран' })).toBeTruthy()
+    expect(await screen.findByRole('region', { name: 'Мой экран' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Остановить показ экрана' })).toBeTruthy()
   })
 
@@ -501,20 +506,20 @@ describe('showing your screen: picking the source (#26)', () => {
     const { screen: capture, dialog, user, stopScreen: stopScreenSpy } = await openPicker()
     await user.click(await within(dialog).findByRole('radio', { name: 'Экран 1' }))
     await user.click(within(dialog).getByRole('button', { name: 'Показать' }))
-    await screen.findByRole('listitem', { name: 'Мой экран' })
+    await screen.findByRole('region', { name: 'Мой экран' })
 
     await user.click(screen.getByRole('button', { name: 'Остановить показ экрана' }))
     expect(capture.stop).toHaveBeenCalled()
     expect(stopScreenSpy).toHaveBeenCalled()
-    expect(screen.queryByRole('listitem', { name: 'Мой экран' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Мой экран' })).toBeNull()
 
     await user.click(screen.getByRole('button', { name: 'Показать экран' }))
     const again = screen.getByRole('dialog', { name: 'Что показать' })
     await user.dblClick(await within(again).findByRole('radio', { name: 'Экран 2' }))
-    await screen.findByRole('listitem', { name: 'Мой экран' })
+    await screen.findByRole('region', { name: 'Мой экран' })
     capture.end()
     await vi.waitFor(() => {
-      expect(screen.queryByRole('listitem', { name: 'Мой экран' })).toBeNull()
+      expect(screen.queryByRole('region', { name: 'Мой экран' })).toBeNull()
     })
   })
 
@@ -576,10 +581,10 @@ describe('others’ screens in the call (#28)', () => {
     await screen.findByText('Звук подключён')
 
     ctx.showScreens([{ consumerId: 'c1', peerId: 'dima', track: {} as MediaStreamTrack }])
-    expect(await screen.findByRole('listitem', { name: 'Экран: Дима' })).toBeTruthy()
+    expect(await screen.findByRole('region', { name: 'Экран: Дима' })).toBeTruthy()
 
     ctx.showScreens([])
-    expect(screen.queryByRole('listitem', { name: 'Экран: Дима' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Экран: Дима' })).toBeNull()
     vi.unstubAllGlobals()
   })
 })
@@ -636,7 +641,7 @@ describe('one screen at a time: «Показать свой» (#29)', () => {
     const dialog = screen.getByRole('dialog', { name: 'Что показать' })
     await ctx.user.click(await within(dialog).findByRole('radio', { name: 'Экран 1' }))
     await ctx.user.click(within(dialog).getByRole('button', { name: 'Показать' }))
-    await screen.findByRole('listitem', { name: 'Мой экран' })
+    await screen.findByRole('region', { name: 'Мой экран' })
 
     ctx.api.room.emitEvent({ type: 'screen-request', fromPeerId: 'dima' })
     expect((await screen.findByRole('alert')).textContent).toContain(
@@ -644,13 +649,13 @@ describe('one screen at a time: «Показать свой» (#29)', () => {
     )
     await ctx.user.click(button('Продолжить показ'))
     expect(ctx.answerScreenRequest).toHaveBeenLastCalledWith('dima', false)
-    expect(screen.getByRole('listitem', { name: 'Мой экран' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Мой экран' })).toBeTruthy()
 
     ctx.api.room.emitEvent({ type: 'screen-request', fromPeerId: 'dima' })
     await ctx.user.click(await screen.findByRole('button', { name: 'Уступить' }))
     expect(ctx.answerScreenRequest).toHaveBeenLastCalledWith('dima', true)
     await vi.waitFor(() => {
-      expect(screen.queryByRole('listitem', { name: 'Мой экран' })).toBeNull()
+      expect(screen.queryByRole('region', { name: 'Мой экран' })).toBeNull()
     })
     expect(ctx.stopScreen).toHaveBeenCalled()
   })
@@ -667,7 +672,63 @@ describe('one screen at a time: «Показать свой» (#29)', () => {
     await ctx.user.click(within(dialog).getByRole('button', { name: 'Показать' }))
 
     expect(await screen.findByText(/Сейчас показывает/)).toBeTruthy()
-    expect(screen.queryByRole('listitem', { name: 'Мой экран' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Мой экран' })).toBeNull()
     expect(ctx.screen.stop).toHaveBeenCalled()
+  })
+})
+
+describe('the screen stage (#30)', () => {
+  async function withRemoteScreen() {
+    vi.stubGlobal('MediaStream', vi.fn())
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    ctx.showScreens([{ consumerId: 'c1', peerId: 'dima', track: {} as MediaStreamTrack }])
+    await screen.findByRole('region', { name: 'Экран: Дима' })
+    return ctx
+  }
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('opens on the shared screen with people in a strip under it', async () => {
+    await withRemoteScreen()
+
+    const strip = screen.getByRole('list', { name: 'Участники' })
+    expect(
+      within(strip)
+        .getAllByRole('listitem')
+        .map((li) => li.textContent),
+    ).toEqual(['ДДима', 'ААлексейя'])
+    expect(screen.queryByRole('button', { name: 'Меню: Дима' })).toBeNull()
+  })
+
+  it('goes to all participants and back; the hidden screen is paused', async () => {
+    const ctx = await withRemoteScreen()
+
+    await ctx.user.click(screen.getByRole('button', { name: 'Все участники' }))
+
+    expect(screen.queryByRole('region', { name: 'Экран: Дима' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Меню: Дима' })).toBeTruthy()
+    expect(ctx.setScreenVisible).toHaveBeenLastCalledWith('c1', false)
+    await ctx.user.click(screen.getByRole('button', { name: 'Смотреть' }))
+    expect(screen.getByRole('region', { name: 'Экран: Дима' })).toBeTruthy()
+  })
+
+  it('stays on the tiles when people come and go, returns to the stage for a new share', async () => {
+    const ctx = await withRemoteScreen()
+    await ctx.user.click(screen.getByRole('button', { name: 'Все участники' }))
+
+    ctx.api.room.emitEvent({ type: 'peer-joined', peer: { id: 'katya', name: 'Катя' } })
+    expect(screen.queryByRole('region', { name: 'Экран: Дима' })).toBeNull()
+
+    ctx.showScreens([{ consumerId: 'c2', peerId: 'katya', track: {} as MediaStreamTrack }])
+    expect(await screen.findByRole('region', { name: 'Экран: Катя' })).toBeTruthy()
+  })
+
+  it('goes back to the tiles when sharing ends', async () => {
+    const ctx = await withRemoteScreen()
+    ctx.showScreens([])
+    expect(screen.queryByRole('region')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Меню: Дима' })).toBeTruthy()
   })
 })

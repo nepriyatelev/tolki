@@ -38,6 +38,7 @@ function setup(invite: Invite, result: JoinResult, startCall?: StartCall) {
             setScreenLayer: () => Promise.resolve(),
             requestScreen: () => Promise.resolve(),
             answerScreenRequest: () => Promise.resolve(),
+            screenSample: () => Promise.resolve(null),
             close: () => undefined,
           }))
       }
@@ -191,6 +192,7 @@ describe('the call after joining', () => {
         setScreenLayer: () => Promise.resolve(),
         requestScreen: () => Promise.resolve(),
         answerScreenRequest: () => Promise.resolve(),
+        screenSample: () => Promise.resolve(null),
         close,
       }),
     )
@@ -220,6 +222,7 @@ describe('the call after joining', () => {
         setScreenLayer: () => Promise.resolve(),
         requestScreen: () => Promise.resolve(),
         answerScreenRequest: () => Promise.resolve(),
+        screenSample: () => Promise.resolve(null),
         close: () => undefined,
       }),
     )

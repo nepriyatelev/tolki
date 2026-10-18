@@ -6,6 +6,7 @@ import {
   type RemoteScreen,
   type RoomEventSource,
   type ScreenLayer,
+  type ScreenSample,
 } from './call'
 
 export interface CallHandle {
@@ -22,6 +23,8 @@ export interface CallHandle {
   setScreenLayer(consumerId: string, layer: ScreenLayer): Promise<void>
   /** One screen at a time (PLAN #29): ask the sharer, or answer as the sharer. */
   requestScreen(): Promise<void>
+  /** Numbers of someone's screen (consumer id) or the user's own (null), PLAN #30. */
+  screenSample(consumerId: string | null): Promise<ScreenSample | null>
   answerScreenRequest(fromPeerId: string, accept: boolean): Promise<void>
   close(): void
 }
@@ -51,6 +54,7 @@ export async function startCall(options: StartCallOptions): Promise<CallHandle> 
       setScreenVisible: (consumerId, visible) => call.setScreenVisible(consumerId, visible),
       setScreenLayer: (consumerId, layer) => call.setScreenLayer(consumerId, layer),
       requestScreen: () => call.requestScreen(),
+      screenSample: (consumerId) => call.screenSample(consumerId),
       answerScreenRequest: (fromPeerId, accept) => call.answerScreenRequest(fromPeerId, accept),
       setInputDevice: async (deviceId) => {
         if (!call.producing) return

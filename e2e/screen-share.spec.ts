@@ -86,7 +86,7 @@ test('the user picks a screen and sees what they are showing', async () => {
       await firstSource.click()
       await dialog.getByRole('button', { name: 'Показать' }).click()
 
-      const preview = page.getByRole('listitem', { name: 'Мой экран' }).locator('video')
+      const preview = page.getByRole('region', { name: 'Мой экран' }).locator('video')
       await expect(preview).toBeVisible()
       await expect
         .poll(() => preview.evaluate((v: HTMLVideoElement) => v.videoWidth), { timeout: 15_000 })
@@ -118,7 +118,7 @@ test('the user picks a screen and sees what they are showing', async () => {
 
       await page.getByRole('button', { name: 'Остановить показ экрана' }).click()
       await expect.poll(async () => (await sentVideo(page))?.layers.length ?? 0).toBe(0)
-      await expect(page.getByRole('listitem', { name: 'Мой экран' })).toHaveCount(0)
+      await expect(page.getByRole('region', { name: 'Мой экран' })).toHaveCount(0)
     } finally {
       await client.app.close()
     }
@@ -175,9 +175,18 @@ test('others see the shared screen at a layer that fits, and nothing while hidde
       await dialog.getByRole('radio').first().click()
       await dialog.getByRole('button', { name: 'Показать' }).click()
 
+      // The stage shows what arrives: «340p · 15 к/с · 0,4 Мбит/с» (PLAN #30).
+      await expect(
+        misha.page
+          .getByRole('region', { name: 'Экран: Катя' })
+          .getByText(/^\d+p · \d+ к\/с · [\d,]+ Мбит\/с$/),
+      ).toBeVisible({ timeout: 10_000 })
+      // For review: the stage as a viewer sees it (uploaded with test-results on CI).
+      await misha.page.screenshot({ path: 'test-results/screen-stage.png' })
+
       // Misha sees it, big: the ≈1080p layer — once Katya's browser turns that layer on (it
       // waits for CPU and bandwidth; a CI runner encoding in software may never do it).
-      await expect(misha.page.getByRole('listitem', { name: 'Экран: Катя' })).toBeVisible()
+      await expect(misha.page.getByRole('region', { name: 'Экран: Катя' })).toBeVisible()
       const highLayerOn = await expect
         .poll(
           async () =>
@@ -279,7 +288,7 @@ test('one screen at a time: «Показать свой» goes to the sharer, wh
 
       await katya.page.getByRole('button', { name: 'Показать экран' }).click()
       await share(katya.page)
-      await expect(misha.page.getByRole('listitem', { name: 'Экран: Катя' })).toBeVisible()
+      await expect(misha.page.getByRole('region', { name: 'Экран: Катя' })).toBeVisible()
 
       // Misha asks; Katya gives way; Misha picks his screen and everyone sees it.
       await misha.page.getByRole('button', { name: 'Попросить показать свой экран' }).click()
@@ -288,10 +297,10 @@ test('one screen at a time: «Показать свой» goes to the sharer, wh
       ).toBeDisabled()
       await expect(katya.page.getByText('Миша просит показать свой экран')).toBeVisible()
       await katya.page.getByRole('button', { name: 'Уступить' }).click()
-      await expect(katya.page.getByRole('listitem', { name: 'Мой экран' })).toHaveCount(0)
+      await expect(katya.page.getByRole('region', { name: 'Мой экран' })).toHaveCount(0)
       await share(misha.page)
-      await expect(katya.page.getByRole('listitem', { name: 'Экран: Миша' })).toBeVisible()
-      await expect(misha.page.getByRole('listitem', { name: 'Экран: Катя' })).toHaveCount(0)
+      await expect(katya.page.getByRole('region', { name: 'Экран: Миша' })).toBeVisible()
+      await expect(misha.page.getByRole('region', { name: 'Экран: Катя' })).toHaveCount(0)
     } finally {
       await misha.app.close()
       await katya.app.close()
