@@ -34,6 +34,7 @@ const api: RatatoskApi = {
     getInfo: () => invoke('app:get-info'),
     copyText: (text) => invoke('app:copy-text', text),
     openDownloadPage: () => invoke('app:open-download-page'),
+    checkUpdate: () => invoke('app:check-update'),
   },
   host: {
     start: (options = {}) => invoke('host:start', options),

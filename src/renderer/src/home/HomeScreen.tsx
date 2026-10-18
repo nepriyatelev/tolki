@@ -7,6 +7,7 @@ import type { RecentRoom } from '@shared/recent'
 import { Button, Card, Input } from '../ui'
 import { NetworkStatusBar } from './NetworkStatusBar'
 import { RecentRooms } from './RecentRooms'
+import { UpdateBanner } from './UpdateBanner'
 
 export interface HomeScreenProps {
   profileName: string
@@ -39,6 +40,7 @@ export function HomeScreen(props: HomeScreenProps): JSX.Element {
     <>
       <main class="home">
         <h1 class="visually-hidden">Ratatosk</h1>
+        <UpdateBanner />
         <div class="home-cards">
           <Card as="section" aria-labelledby="create-title">
             <span class="home-card-icon home-card-icon--accent">

@@ -114,3 +114,27 @@ describe('HomeScreen', () => {
     )
   })
 })
+
+describe('new version banner (#36)', () => {
+  it('offers the newer version and opens the download page', async () => {
+    const { api, user } = show({ update: { version: '0.2.0' } })
+    expect(await screen.findByText('Доступна версия 0.2.0')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Скачать' }))
+    expect(api.app.openDownloadPage).toHaveBeenCalledOnce()
+  })
+
+  it('can be put away', async () => {
+    const { user } = show({ update: { version: '0.2.0' } })
+    await screen.findByText('Доступна версия 0.2.0')
+    await user.click(screen.getByRole('button', { name: 'Скрыть' }))
+    expect(screen.queryByText('Доступна версия 0.2.0')).toBeNull()
+  })
+
+  it('is not there when the app is up to date', async () => {
+    const { api } = show()
+    await vi.waitFor(() => {
+      expect(api.app.checkUpdate).toHaveBeenCalled()
+    })
+    expect(screen.queryByText(/Доступна версия/)).toBeNull()
+  })
+})
