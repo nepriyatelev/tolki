@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { launchApp, type LaunchedApp } from './app'
 import { freePort } from './ports'
-import { tapPeerConnections } from './media'
+import { heardLevel, tapPeerConnections } from './media'
 
 // Chromium's fake capture device plays a beeping tone instead of using a real microphone.
 const FAKE_MEDIA = '--use-fake-device-for-media-stream'
@@ -10,26 +10,6 @@ async function joinByUi(page: Page, name: string): Promise<void> {
   await page.getByLabel('Имя').fill(name)
   await page.getByRole('button', { name: 'Войти в комнату' }).click()
   await expect(page.getByText('Звук подключён')).toBeVisible()
-}
-
-/** Loudest level of the remote voice played on this page over a short window (0 = silence). */
-function heardLevel(page: Page): Promise<number> {
-  return page.evaluate(async () => {
-    const audio = document.querySelector('audio[data-peer-id]')
-    if (!(audio instanceof HTMLAudioElement) || !(audio.srcObject instanceof MediaStream)) return 0
-    const context = new AudioContext()
-    const analyser = context.createAnalyser()
-    context.createMediaStreamSource(audio.srcObject).connect(analyser)
-    const samples = new Float32Array(analyser.fftSize)
-    let loudest = 0
-    for (let i = 0; i < 30; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 100))
-      analyser.getFloatTimeDomainData(samples)
-      for (const s of samples) loudest = Math.max(loudest, Math.abs(s))
-    }
-    await context.close()
-    return loudest
-  })
 }
 
 /** Records the app's gain nodes, so the test can listen to what actually reaches the speakers. */

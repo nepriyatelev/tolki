@@ -107,3 +107,23 @@ export function receivedVideo(
     return null
   })
 }
+
+/** Loudest level of the remote voice played on this page over a short window (0 = silence). */
+export function heardLevel(page: Page): Promise<number> {
+  return page.evaluate(async () => {
+    const audio = document.querySelector('audio[data-peer-id]')
+    if (!(audio instanceof HTMLAudioElement) || !(audio.srcObject instanceof MediaStream)) return 0
+    const context = new AudioContext()
+    const analyser = context.createAnalyser()
+    context.createMediaStreamSource(audio.srcObject).connect(analyser)
+    const samples = new Float32Array(analyser.fftSize)
+    let loudest = 0
+    for (let i = 0; i < 30; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      analyser.getFloatTimeDomainData(samples)
+      for (const s of samples) loudest = Math.max(loudest, Math.abs(s))
+    }
+    await context.close()
+    return loudest
+  })
+}

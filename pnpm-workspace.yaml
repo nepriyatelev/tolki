@@ -4,3 +4,5 @@ allowBuilds:
   electron-winstaller: false
   # SFU worker: postinstall downloads the prebuilt mediasoup-worker binary for this OS.
   mediasoup: true
+  # Push-to-talk key hook (PLAN #39): prebuilt N-API binaries for every OS ship in the package.
+  uiohook-napi: false

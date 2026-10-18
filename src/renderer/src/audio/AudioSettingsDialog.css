@@ -51,6 +51,21 @@
   border-top: 1px solid var(--color-border-subtle);
 }
 
+/* Push-to-talk (#39): «Клавиша [Ё (`)]» on one line. */
+.audio-settings-ptt-key {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-md);
+}
+
+.audio-settings-note {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
 @keyframes audio-settings-in {
   from {
     opacity: 0;

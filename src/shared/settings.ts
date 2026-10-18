@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { DEFAULT_PUSH_TO_TALK_KEY, isPushToTalkKey } from './push-to-talk'
 
 export const MAX_PEER_VOLUME = 200
 /** Remembered volumes are a convenience; old entries go once there are this many. */
@@ -41,6 +42,14 @@ export const settingsSchema = z.object({
       peerVolumes: peerVolumesSchema.default({}),
     })
     .default({ inputDeviceId: '', outputDeviceId: '', peerVolumes: {} }),
+  pushToTalk: z
+    .object({
+      /** Talk only while the key is held (PLAN #39); off: the microphone button decides. */
+      enabled: z.boolean(),
+      /** KeyboardEvent.code of the key: the physical key, the same on every layout. */
+      key: z.string().max(32),
+    })
+    .default({ enabled: false, key: DEFAULT_PUSH_TO_TALK_KEY }),
 })
 export type Settings = z.infer<typeof settingsSchema>
 
@@ -48,6 +57,7 @@ export const DEFAULT_SETTINGS: Settings = {
   speedTest: { enabled: true },
   profile: { name: '' },
   audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: {} },
+  pushToTalk: { enabled: false, key: DEFAULT_PUSH_TO_TALK_KEY },
 }
 
 /** Partial update from the renderer; unknown keys are rejected. */
@@ -60,6 +70,12 @@ export const settingsPatchSchema = z.strictObject({
       outputDeviceId: z.string().max(256).optional(),
       /** Merged into the saved volumes; 100 forgets the entry. */
       peerVolumes: z.record(z.string().trim().min(1).max(32), peerVolumeSchema).optional(),
+    })
+    .optional(),
+  pushToTalk: z
+    .strictObject({
+      enabled: z.boolean().optional(),
+      key: z.string().refine(isPushToTalkKey, 'not a push-to-talk key').optional(),
     })
     .optional(),
 })

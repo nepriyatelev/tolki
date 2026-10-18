@@ -23,6 +23,7 @@ import type { RoomEvent } from '@shared/room'
 import { buildInvite, parseInvite } from '@shared/invite'
 import { loadOrCreateCertificate } from '../host/certificate'
 import { appMenuTemplate } from './app-menu'
+import { PushToTalk, type KeyHook } from './push-to-talk'
 import { integrateAppImage } from './appimage-integration'
 import { HostProcess, HostStartError } from './host-process'
 import { findInviteLink, InviteLinks } from './invite-links'
@@ -153,6 +154,37 @@ const screenCapture = new ScreenCapture({
 // Wayland: screen capture goes through the desktop portal (PipeWire).
 if (process.platform === 'linux')
   app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer')
+
+// Push-to-talk (PLAN #39). TOLKI_GLOBAL_KEYS=off keeps the key to the focused window (e2e: no
+// real keyboard hook on the developer's machine, no macOS permission request).
+const pushToTalk = new PushToTalk({
+  loadHook: () => {
+    try {
+      // Native; loaded only when push-to-talk is first turned on.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const native = require('uiohook-napi') as {
+        uIOhook: KeyHook
+        UiohookKey: Record<string, number>
+      }
+      return { hook: native.uIOhook, keycodes: native.UiohookKey }
+    } catch (error) {
+      logs.main.warn(`push-to-talk: no global key hook: ${logText(error)}`)
+      return null
+    }
+  },
+  globalAllowed:
+    process.env['TOLKI_GLOBAL_KEYS'] !== 'off' &&
+    !(process.platform === 'linux' && process.env['XDG_SESSION_TYPE'] === 'wayland'),
+  trusted: (ask) =>
+    process.platform !== 'darwin' || systemPreferences.isTrustedAccessibilityClient(ask),
+  onKey: (pressed) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send('ptt:key', { pressed })
+  },
+})
+
+/** macOS privacy pane for «Универсальный доступ» (push-to-talk over other apps). */
+const ACCESSIBILITY_SETTINGS =
+  'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
 
 /** macOS privacy pane for «Запись экрана». */
 const SCREEN_PRIVACY_SETTINGS =
@@ -513,6 +545,15 @@ registerIpcHandlers(
     'recent:remove': (id) => recentRooms().remove(id),
     'screen:list-sources': () => screenCapture.list(),
     'screen:select': (id) => screenCapture.select(id),
+    'ptt:configure': (request) => {
+      const mode = pushToTalk.configure(request)
+      logs.main.info(`push-to-talk: ${mode}`)
+      return mode
+    },
+    'ptt:open-permission-settings': async () => {
+      if (process.platform === 'darwin') await shell.openExternal(ACCESSIBILITY_SETTINGS)
+      return null
+    },
     'screen:open-permission-settings': async () => {
       if (process.platform === 'darwin') await shell.openExternal(SCREEN_PRIVACY_SETTINGS)
       return null
@@ -577,6 +618,7 @@ app.on('window-all-closed', () => {
 
 // Stop the host process before quitting so it can release ports and mappings.
 app.on('before-quit', (event) => {
+  pushToTalk.close()
   if (host.state.status === 'stopped') logs.main.info('quit')
   leaveRoom()
   if (host.state.status === 'stopped') return

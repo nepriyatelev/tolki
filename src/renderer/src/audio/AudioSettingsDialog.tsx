@@ -1,7 +1,17 @@
 import Volume2 from 'lucide-solid/icons/volume-2'
 import X from 'lucide-solid/icons/x'
-import { createEffect, createSignal, onCleanup, onMount, Show, type JSX } from 'solid-js'
-import { Button, IconButton, Select } from '../ui'
+import {
+  createEffect,
+  createSignal,
+  Match,
+  onCleanup,
+  onMount,
+  Show,
+  Switch,
+  type JSX,
+} from 'solid-js'
+import { isPushToTalkKey, pushToTalkKeyLabel, type PushToTalkMode } from '@shared/push-to-talk'
+import { Button, Checkbox, IconButton, Select } from '../ui'
 import { MicCheck } from './MicCheck'
 import { browserMicrophone, type AudioInput, type MicrophoneAccess } from './microphone'
 import { playTestSound as playRealTestSound } from './test-sound'
@@ -20,6 +30,11 @@ export function AudioSettingsDialog(props: {
   onOutputChange: (deviceId: string) => void
   access?: MicrophoneAccess
   playTestSound?: (outputDeviceId: string) => Promise<void>
+  /** Push-to-talk (PLAN #39): on/off and the key; how the key reaches the app now. */
+  pushToTalk?: { enabled: boolean; key: string }
+  pushToTalkMode?: PushToTalkMode
+  /** Already saved in settings; `askPermission`: the user just turned it on. */
+  onPushToTalkChange?: (next: { enabled: boolean; key: string }, askPermission: boolean) => void
 }): JSX.Element {
   let dialog: HTMLDialogElement | undefined
   const access = (): MicrophoneAccess => props.access ?? browserMicrophone
@@ -53,6 +68,37 @@ export function AudioSettingsDialog(props: {
     props.onOutputChange(deviceId)
     void window.tolki.settings.update({ audio: { outputDeviceId: deviceId } })
   }
+
+  const ptt = (): { enabled: boolean; key: string } =>
+    props.pushToTalk ?? { enabled: false, key: 'Backquote' }
+  const savePtt = (next: { enabled: boolean; key: string }, askPermission: boolean): void => {
+    void window.tolki.settings.update({ pushToTalk: next })
+    props.onPushToTalkChange?.(next, askPermission)
+  }
+  /** «Нажмите клавишу…»: the next key pressed becomes the push-to-talk key; Esc cancels. */
+  const [capturing, setCapturing] = createSignal(false)
+  const capture = (event: KeyboardEvent): void => {
+    if (!capturing()) return
+    event.preventDefault()
+    event.stopPropagation()
+    if (event.code === 'Escape') {
+      setCapturing(false)
+      return
+    }
+    if (!isPushToTalkKey(event.code)) return
+    setCapturing(false)
+    savePtt({ ...ptt(), key: event.code }, false)
+  }
+  createEffect(() => {
+    if (!props.open) setCapturing(false)
+  })
+  onMount(() => {
+    // Capture phase: before the dialog's own Esc and the call's hotkeys.
+    window.addEventListener('keydown', capture, true)
+    onCleanup(() => {
+      window.removeEventListener('keydown', capture, true)
+    })
+  })
 
   const test = async (): Promise<void> => {
     setPlaying(true)
@@ -112,7 +158,65 @@ export function AudioSettingsDialog(props: {
             {playing() ? 'Играет…' : 'Проверить звук'}
           </Button>
         </section>
+        <Show when={props.onPushToTalkChange}>
+          <section class="audio-settings-section" aria-label="Режим микрофона">
+            <Checkbox
+              label="Говорить, только пока нажата клавиша"
+              checked={ptt().enabled}
+              onChange={(e) => {
+                savePtt({ ...ptt(), enabled: e.currentTarget.checked }, e.currentTarget.checked)
+              }}
+            />
+            <Show when={ptt().enabled}>
+              <div class="audio-settings-ptt-key">
+                <span>Клавиша</span>
+                <Button
+                  aria-label={
+                    capturing()
+                      ? 'Нажмите клавишу для разговора'
+                      : `Клавиша для разговора: ${pushToTalkKeyLabel(ptt().key)}`
+                  }
+                  onClick={() => setCapturing(true)}
+                >
+                  {capturing() ? 'Нажмите клавишу…' : pushToTalkKeyLabel(ptt().key)}
+                </Button>
+              </div>
+              <PushToTalkNote
+                mode={props.pushToTalkMode ?? 'off'}
+                onOpenSettings={() => void window.tolki.ptt.openPermissionSettings()}
+              />
+            </Show>
+          </section>
+        </Show>
       </Show>
     </dialog>
+  )
+}
+
+/** How the key works now: everywhere, only in this window, or after a permission on macOS. */
+function PushToTalkNote(props: { mode: PushToTalkMode; onOpenSettings: () => void }): JSX.Element {
+  return (
+    <Switch>
+      <Match when={props.mode === 'global'}>
+        <p class="audio-settings-note">Работает и поверх других окон, в том числе в играх.</p>
+      </Match>
+      <Match when={props.mode === 'focus'}>
+        <p class="audio-settings-note">Работает, только когда окно Tolki активно.</p>
+      </Match>
+      <Match when={props.mode === 'needs-permission'}>
+        <p class="audio-settings-note">
+          Пока работает, только когда окно Tolki активно. Чтобы клавиша работала и поверх других
+          окон, разрешите Tolki в «Системные настройки → Конфиденциальность и безопасность →
+          Универсальный доступ».
+        </p>
+        <Button
+          onClick={() => {
+            props.onOpenSettings()
+          }}
+        >
+          Открыть настройки
+        </Button>
+      </Match>
+    </Switch>
   )
 }

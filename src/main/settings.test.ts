@@ -35,6 +35,7 @@ describe('SettingsStore', () => {
         speedTest: { enabled: false },
         profile: { name: '' },
         audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: {} },
+        pushToTalk: { enabled: false, key: 'Backquote' },
       },
     ])
   })
@@ -46,7 +47,23 @@ describe('SettingsStore', () => {
       speedTest: { enabled: false },
       profile: { name: '' },
       audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: {} },
+      pushToTalk: { enabled: false, key: 'Backquote' },
     })
+  })
+
+  it('saves push-to-talk: on/off and the key, each on its own (#39)', () => {
+    const store = new SettingsStore(backend({}))
+    store.update({ pushToTalk: { enabled: true } })
+    expect(store.update({ pushToTalk: { key: 'KeyV' } }).pushToTalk).toEqual({
+      enabled: true,
+      key: 'KeyV',
+    })
+  })
+
+  it('takes only keys push-to-talk can use (#39)', () => {
+    expect(settingsPatchSchema.safeParse({ pushToTalk: { key: 'KeyV' } }).success).toBe(true)
+    expect(settingsPatchSchema.safeParse({ pushToTalk: { key: 'Escape' } }).success).toBe(false)
+    expect(settingsPatchSchema.safeParse({ pushToTalk: { key: 'MediaPlay' } }).success).toBe(false)
   })
 
   it('remembers the profile name', () => {

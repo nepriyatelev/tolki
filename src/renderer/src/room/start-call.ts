@@ -14,6 +14,8 @@ export interface CallHandle {
   /** False when there is no microphone (denied or missing): the user only listens. */
   readonly sending: boolean
   setMuted(muted: boolean): Promise<void>
+  /** Push-to-talk: sends the voice only while the key is held, without telling the host. */
+  setTransmitting(on: boolean): void
   /** Switches to another microphone on the fly (PLAN #24). */
   setInputDevice(deviceId: string): Promise<void>
   /** Sends a captured screen to the room (PLAN #27); the track stays the caller's. */
@@ -52,6 +54,9 @@ export async function startCall(options: StartCallOptions): Promise<CallHandle> 
     return {
       sending: call.producing,
       setMuted: (muted) => call.setMuted(muted),
+      setTransmitting: (on) => {
+        call.setTransmitting(on)
+      },
       startScreen: (track, mode) => call.startScreen(track, mode),
       stopScreen: () => call.stopScreen(),
       setScreenVisible: (consumerId, visible) => call.setScreenVisible(consumerId, visible),

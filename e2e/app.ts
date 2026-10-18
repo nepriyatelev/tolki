@@ -22,6 +22,8 @@ function appEnv(userDataDir: string): Record<string, string> {
     TOLKI_UPDATE_CHECK: 'off',
     // «Сохранить логи…» must not open Finder / Explorer windows (#106).
     TOLKI_SHOW_IN_FOLDER: 'off',
+    // Push-to-talk keeps to the focused window: no hook on the real keyboard, no macOS prompt.
+    TOLKI_GLOBAL_KEYS: 'off',
   }
 }
 

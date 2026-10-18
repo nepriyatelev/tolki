@@ -31,6 +31,7 @@ function setup(invite: Invite, result: JoinResult, startCall?: StartCall) {
           Promise.resolve({
             sending: true,
             setMuted: () => Promise.resolve(),
+            setTransmitting: () => undefined,
             setInputDevice: () => Promise.resolve(),
             startScreen: () => Promise.resolve(),
             stopScreen: () => Promise.resolve(),
@@ -212,6 +213,7 @@ describe('the call after joining', () => {
       Promise.resolve({
         sending: true,
         setMuted: () => Promise.resolve(),
+        setTransmitting: () => undefined,
         setInputDevice: () => Promise.resolve(),
         startScreen: () => Promise.resolve(),
         stopScreen: () => Promise.resolve(),
@@ -243,6 +245,7 @@ describe('the call after joining', () => {
       Promise.resolve({
         sending: false,
         setMuted: () => Promise.resolve(),
+        setTransmitting: () => undefined,
         setInputDevice: () => Promise.resolve(),
         startScreen: () => Promise.resolve(),
         stopScreen: () => Promise.resolve(),

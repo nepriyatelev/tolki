@@ -5,6 +5,7 @@ import type { NetworkCheckResult } from './network'
 import type { RecentRoom, RecentStatus } from './recent'
 import { SCREEN_MODES, type ScreenMode, type ScreenSourcesResult } from './screen'
 import type { JoinResult, MediaResponse, RoomClosedEvent, RoomEvent, RoomPreview } from './room'
+import { isPushToTalkKey, type PushToTalkMode } from './push-to-talk'
 import { mediaRequestSchema, peerNameSchema, type MediaRequest } from './signaling'
 import { settingsPatchSchema, type Settings, type SettingsPatch } from './settings'
 import type { UploadMeasurement } from './upload-capacity'
@@ -55,6 +56,16 @@ export interface InvokeContract {
   'screen:select': { args: [id: string]; result: boolean }
   /** macOS: the privacy pane where «Запись экрана» is allowed. */
   'screen:open-permission-settings': { args: []; result: null }
+  /**
+   * Push-to-talk (PLAN #39): hook the key globally while active (in a call, turned on); the
+   * answer says how the key reaches the app. `askPermission` lets macOS show its request.
+   */
+  'ptt:configure': {
+    args: [request: { active: boolean; key: string; askPermission: boolean }]
+    result: PushToTalkMode
+  }
+  /** macOS «Универсальный доступ» pane (fixed URL). */
+  'ptt:open-permission-settings': { args: []; result: null }
 }
 
 export interface JoinRoomRequest {
@@ -97,6 +108,8 @@ export interface EventContract {
   'room:reconnecting': null
   /** Back in the room as a new participant: the call starts over with this state. */
   'room:reconnected': Extract<JoinResult, { ok: true }>
+  /** The global push-to-talk key went down or up (PLAN #39). */
+  'ptt:key': { pressed: boolean }
 }
 
 export type InvokeChannel = keyof InvokeContract
@@ -156,6 +169,14 @@ export const invokeArgsSchemas: {
   'screen:list-sources': z.tuple([]),
   'screen:select': z.tuple([z.string().max(256)]),
   'screen:open-permission-settings': z.tuple([]),
+  'ptt:configure': z.tuple([
+    z.strictObject({
+      active: z.boolean(),
+      key: z.string().refine(isPushToTalkKey),
+      askPermission: z.boolean(),
+    }),
+  ]),
+  'ptt:open-permission-settings': z.tuple([]),
 }
 
 /** The API the preload script exposes to the renderer as `window.tolki`. */
@@ -205,6 +226,16 @@ export interface TolkiApi {
     listSources(): Promise<ScreenSourcesResult>
     select(id: string): Promise<boolean>
     openPermissionSettings(): Promise<null>
+  }
+  ptt: {
+    configure(request: {
+      active: boolean
+      key: string
+      askPermission: boolean
+    }): Promise<PushToTalkMode>
+    openPermissionSettings(): Promise<null>
+    /** Returns an unsubscribe function. */
+    onKey(listener: (event: { pressed: boolean }) => void): () => void
   }
   invite: {
     takePending(): Promise<InviteParseResult | null>

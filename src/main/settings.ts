@@ -34,6 +34,14 @@ export class SettingsStore {
         : {}),
       ...(patch.profile ? { profile: { ...this.#settings.profile, ...patch.profile } } : {}),
       ...(patch.audio ? { audio: mergeAudio(this.#settings.audio, patch.audio) } : {}),
+      ...(patch.pushToTalk
+        ? {
+            pushToTalk: {
+              enabled: patch.pushToTalk.enabled ?? this.#settings.pushToTalk.enabled,
+              key: patch.pushToTalk.key ?? this.#settings.pushToTalk.key,
+            },
+          }
+        : {}),
     }
     this.backend.write(this.#settings)
     return this.get()

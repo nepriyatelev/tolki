@@ -11,6 +11,7 @@ const startCall = vi.fn(() =>
   Promise.resolve({
     sending: true,
     setMuted: () => Promise.resolve(),
+    setTransmitting: () => undefined,
     setInputDevice: () => Promise.resolve(),
     startScreen: () => Promise.resolve(),
     stopScreen: () => Promise.resolve(),

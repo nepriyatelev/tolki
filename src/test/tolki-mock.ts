@@ -1,3 +1,4 @@
+import type { PushToTalkMode } from '@shared/push-to-talk'
 import { vi, type Mock } from 'vitest'
 import type { InviteParseResult } from '@shared/invite'
 import type { TolkiApi } from '@shared/ipc'
@@ -66,6 +67,12 @@ export interface TolkiMock {
     emitReconnecting(): void
     emitReconnected(result: Extract<JoinResult, { ok: true }>): void
   }
+  ptt: {
+    configure: Mock<TolkiApi['ptt']['configure']>
+    openPermissionSettings: Mock<TolkiApi['ptt']['openPermissionSettings']>
+    /** Simulates main's global hook seeing the key. */
+    emitKey(pressed: boolean): void
+  }
   invite: {
     takePending: Mock<TolkiApi['invite']['takePending']>
     /** Simulates main delivering a link while the app is open. */
@@ -86,6 +93,10 @@ export interface TolkiMockOptions extends Partial<TolkiApi['network']> {
   profileName?: string
   hostStart?: TolkiApi['host']['start']
   preview?: RoomPreview
+  /** Saved push-to-talk settings (PLAN #39). */
+  pushToTalk?: { enabled: boolean; key: string }
+  /** What main answers to ptt.configure when active; `off` when not. */
+  pushToTalkMode?: PushToTalkMode
 }
 
 export const LIVE_PREVIEW: RoomPreview = {
@@ -96,6 +107,7 @@ export const LIVE_PREVIEW: RoomPreview = {
 /** Installs a fake preload bridge on window for renderer tests. */
 export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
   const inviteListeners = new Set<(result: InviteParseResult) => void>()
+  const pttListeners = new Set<(event: { pressed: boolean }) => void>()
   const closedListeners = new Set<(event: RoomClosedEvent) => void>()
   const eventListeners = new Set<(event: RoomEvent) => void>()
   const reconnectingListeners = new Set<() => void>()
@@ -150,6 +162,7 @@ export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
           ...DEFAULT_SETTINGS,
           profile: { name: options.profileName ?? '' },
           audio: { ...DEFAULT_SETTINGS.audio, peerVolumes: options.peerVolumes ?? {} },
+          pushToTalk: options.pushToTalk ?? DEFAULT_SETTINGS.pushToTalk,
         }),
       ),
       update: vi.fn<TolkiApi['settings']['update']>(() => Promise.resolve(DEFAULT_SETTINGS)),
@@ -203,6 +216,21 @@ export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
       },
       emitReconnected: (result: Extract<JoinResult, { ok: true }>) => {
         for (const listener of reconnectedListeners) listener(result)
+      },
+    },
+    ptt: {
+      configure: vi.fn<TolkiApi['ptt']['configure']>((request) =>
+        Promise.resolve(request.active ? (options.pushToTalkMode ?? 'global') : 'off'),
+      ),
+      openPermissionSettings: vi.fn<TolkiApi['ptt']['openPermissionSettings']>(() =>
+        Promise.resolve(null),
+      ),
+      onKey: (listener: (event: { pressed: boolean }) => void) => {
+        pttListeners.add(listener)
+        return () => pttListeners.delete(listener)
+      },
+      emitKey: (pressed: boolean) => {
+        for (const listener of pttListeners) listener({ pressed })
       },
     },
     invite: {

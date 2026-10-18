@@ -23,6 +23,11 @@ import {
   type JSX,
 } from 'solid-js'
 import type { JoinResult, RoomEvent } from '@shared/room'
+import {
+  DEFAULT_PUSH_TO_TALK_KEY,
+  pushToTalkKeyLabel,
+  type PushToTalkMode,
+} from '@shared/push-to-talk'
 import { volumeKey } from '@shared/settings'
 import type { Peer } from '@shared/signaling'
 import { AudioSettingsDialog } from '../audio/AudioSettingsDialog'
@@ -285,6 +290,9 @@ export function CallScreen(props: {
         }
         call = handle
         setSound(handle.sending ? 'on' : 'listen-only')
+        // Push-to-talk turned on before the call could start (joined muted): the key decides.
+        if (ptt().enabled && muted() && handle.sending) setMuted(false)
+        applyTransmit()
         // main writes the window's console.info to renderer.log (#106).
         console.info(`[call] started: ${handle.sending ? 'microphone on' : 'listening only'}`)
         // Still sharing from before the reconnect: send the same capture again.
@@ -325,6 +333,7 @@ export function CallScreen(props: {
     void window.tolki.settings.get().then((settings) => {
       setVolumes((current) => ({ ...settings.audio.peerVolumes, ...current }))
       setOutputDeviceId(settings.audio.outputDeviceId)
+      if (settings.pushToTalk.enabled) changePtt(settings.pushToTalk, false)
     })
     startTheCall(joined(), callEvents)
     onCleanup(
@@ -340,15 +349,59 @@ export function CallScreen(props: {
   const canSpeak = (): boolean => sound() === 'on'
 
   const setMuted = (value: boolean): void => {
-    setMutedSignal(value)
+    // The call first: push-to-talk then holds the voice back again (applyTransmit, on the signal).
     void call?.setMuted(value).catch((error: unknown) => {
       console.warn('[call] could not change the microphone:', error)
     })
+    setMutedSignal(value)
+  }
+
+  // Push-to-talk (PLAN #39): the voice goes out only while the key is held. Main hooks the key
+  // globally (over games); where it cannot, the key works while this window has focus.
+  const [ptt, setPtt] = createSignal({ enabled: false, key: DEFAULT_PUSH_TO_TALK_KEY })
+  const [pttMode, setPttMode] = createSignal<PushToTalkMode>('off')
+  const [pttPressed, setPttPressed] = createSignal(false)
+  /** The microphone as it was before push-to-talk: turning it off restores it. */
+  let mutedBeforePtt = false
+  const configurePtt = (askPermission: boolean): void => {
+    const { enabled, key } = ptt()
+    void window.tolki.ptt
+      .configure({ active: enabled && !hasLeft(), key, askPermission })
+      .then(setPttMode, () => {
+        setPttMode(enabled ? 'focus' : 'off')
+      })
+  }
+  /** Held key, not deafened, microphone not off: only then the voice goes out. */
+  const transmitting = (): boolean => pttPressed() && !deafened() && !muted()
+  const applyTransmit = (): void => {
+    if (!ptt().enabled) return
+    // Read before `call?.`: with no call yet the arguments would not be read, and the effect
+    // would stop following the key.
+    const on = transmitting()
+    call?.setTransmitting(on)
+  }
+  createEffect(applyTransmit)
+  const changePtt = (next: { enabled: boolean; key: string }, askPermission: boolean): void => {
+    const was = ptt().enabled
+    if (next.enabled && !was) {
+      mutedBeforePtt = muted()
+      // The key decides now; the producer must be on at the host for it to work.
+      if (muted() && canSpeak()) setMuted(false)
+    }
+    if (!next.enabled && was) {
+      setPttPressed(false)
+      call?.setTransmitting(true)
+      if (mutedBeforePtt && canSpeak()) setMuted(true)
+    }
+    setPtt(next)
+    applyTransmit()
+    configurePtt(askPermission)
   }
 
   /** M: the microphone. Turning it on while deafened brings the sound back too. */
   const toggleMic = (): void => {
-    if (!canSpeak()) return
+    // With push-to-talk the key decides.
+    if (!canSpeak() || ptt().enabled) return
     if (muted()) {
       setDeafened(false)
       setMuted(false)
@@ -371,6 +424,14 @@ export function CallScreen(props: {
 
   // Hotkeys work while the window has focus, but not while typing.
   const onKeyDown = (event: KeyboardEvent): void => {
+    // The push-to-talk key in this window (the global hook may be unavailable).
+    if (ptt().enabled && event.code === ptt().key) {
+      if (!isTyping(event.target) && !settingsOpen()) {
+        setPttPressed(true)
+        event.preventDefault()
+      }
+      return
+    }
     if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return
     if (isTyping(event.target) || settingsOpen() || pickerOpen()) return
     // event.code: the same physical keys on the Russian layout (Ь and В).
@@ -379,10 +440,29 @@ export function CallScreen(props: {
     else return
     event.preventDefault()
   }
+  const onKeyUp = (event: KeyboardEvent): void => {
+    if (ptt().enabled && event.code === ptt().key) setPttPressed(false)
+  }
+  // Leaving the window lets go of the key — unless main sees it everywhere.
+  const onBlur = (): void => {
+    if (pttMode() !== 'global') setPttPressed(false)
+  }
+  // Back from «Системные настройки»: «Универсальный доступ» may be allowed now.
+  const onFocus = (): void => {
+    if (ptt().enabled && pttMode() === 'needs-permission') configurePtt(false)
+  }
   onMount(() => {
     window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', onBlur)
+    window.addEventListener('focus', onFocus)
+    const stopGlobalKey = window.tolki.ptt.onKey(({ pressed }) => setPttPressed(pressed))
     onCleanup(() => {
       window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', onBlur)
+      window.removeEventListener('focus', onFocus)
+      stopGlobalKey()
     })
   })
 
@@ -507,6 +587,12 @@ export function CallScreen(props: {
 
   const end = (): void => {
     stopScreen()
+    if (!left) {
+      // Out of the call: no global key hook (PLAN #39).
+      void window.tolki.ptt
+        .configure({ active: false, key: ptt().key, askPermission: false })
+        .catch(() => undefined)
+    }
     left = true
     call?.close()
     call = null
@@ -695,14 +781,28 @@ export function CallScreen(props: {
           <button
             type="button"
             class="call-control"
-            classList={{ 'call-control--off': muted() }}
-            aria-pressed={muted()}
-            aria-label={muted() ? 'Включить микрофон' : 'Выключить микрофон'}
-            disabled={!canSpeak()}
+            classList={{ 'call-control--off': ptt().enabled ? !transmitting() : muted() }}
+            aria-pressed={ptt().enabled ? undefined : muted()}
+            aria-label={
+              ptt().enabled
+                ? `Микрофон по клавише ${pushToTalkKeyLabel(ptt().key)}`
+                : muted()
+                  ? 'Включить микрофон'
+                  : 'Выключить микрофон'
+            }
+            disabled={!canSpeak() || ptt().enabled}
             onClick={toggleMic}
           >
-            <span class="call-control-icon">{muted() ? <MicOff /> : <Mic />}</span>
-            {muted() ? 'Выкл.' : 'Микрофон'}
+            <span class="call-control-icon">
+              {(ptt().enabled ? transmitting() : !muted()) ? <Mic /> : <MicOff />}
+            </span>
+            {ptt().enabled
+              ? transmitting()
+                ? 'Говорите'
+                : 'По клавише'
+              : muted()
+                ? 'Выкл.'
+                : 'Микрофон'}
           </button>
           <button
             type="button"
@@ -755,13 +855,25 @@ export function CallScreen(props: {
           open={settingsOpen()}
           onClose={() => setSettingsOpen(false)}
           onInputChange={switchMicrophone}
+          pushToTalk={ptt()}
+          pushToTalkMode={pttMode()}
+          onPushToTalkChange={changePtt}
           outputDeviceId={outputDeviceId()}
           onOutputChange={setOutputDeviceId}
           {...(props.microphone ? { access: props.microphone } : {})}
           {...(props.playTestSound ? { playTestSound: props.playTestSound } : {})}
         />
         <p class="call-hotkeys">
-          <kbd>M</kbd> — микрофон · <kbd>D</kbd> — звук
+          <Show
+            when={ptt().enabled}
+            fallback={
+              <>
+                <kbd>M</kbd> — микрофон · <kbd>D</kbd> — звук
+              </>
+            }
+          >
+            <kbd>{pushToTalkKeyLabel(ptt().key)}</kbd> — говорить · <kbd>D</kbd> — звук
+          </Show>
         </p>
       </footer>
       <RemoteAudio
