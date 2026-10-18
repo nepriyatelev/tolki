@@ -299,7 +299,8 @@ export function CallScreen(props: {
         // Still sharing from before the reconnect: send the same capture again.
         const track = myScreen()?.getVideoTracks()[0]
         if (track) {
-          void handle.startScreen(track, room.screenMode).catch((error: unknown) => {
+          const sound = myScreen()?.getAudioTracks()[0] ?? null
+          void handle.startScreen(track, room.screenMode, sound).catch((error: unknown) => {
             console.warn('[screen] could not resume after reconnecting:', error)
             stopScreen()
           })
@@ -509,11 +510,11 @@ export function CallScreen(props: {
       console.warn('[screen] could not stop sending:', error)
     })
   }
-  const shareScreen = async (sourceId: string | null): Promise<void> => {
+  const shareScreen = async (sourceId: string | null, systemAudio: boolean): Promise<void> => {
     setPickerOpen(false)
     setScreenError(false)
     try {
-      const stream = await (props.screen ?? browserScreen).capture(sourceId)
+      const stream = await (props.screen ?? browserScreen).capture(sourceId, systemAudio)
       stopScreen()
       // The system's own «stop sharing» or a closed window ends it too.
       const track = stream.getVideoTracks()[0]
@@ -523,8 +524,12 @@ export function CallScreen(props: {
       setMyScreen(stream)
       // Everyone else gets it in the room's mode (sharp text, smooth motion or auto).
       if (track && call) {
-        await call.startScreen(track, joined().screenMode)
-        console.info(`[screen] sharing started: ${captureText(track)}, mode ${joined().screenMode}`)
+        const sound = stream.getAudioTracks()[0] ?? null
+        await call.startScreen(track, joined().screenMode, sound)
+        console.info(
+          `[screen] sharing started: ${captureText(track)}, mode ${joined().screenMode}` +
+            (sound ? ', with the computer’s sound' : ''),
+        )
       }
     } catch (error) {
       // Someone else started first: the room shows one screen at a time.
@@ -879,7 +884,7 @@ export function CallScreen(props: {
         <ScreenSourceDialog
           open={pickerOpen()}
           onClose={() => setPickerOpen(false)}
-          onPick={(sourceId) => void shareScreen(sourceId)}
+          onPick={(sourceId, systemAudio) => void shareScreen(sourceId, systemAudio)}
           {...(props.screen ? { access: props.screen } : {})}
         />
         <AudioSettingsDialog

@@ -19,7 +19,12 @@ export interface CallHandle {
   /** Switches to another microphone on the fly (PLAN #24). */
   setInputDevice(deviceId: string): Promise<void>
   /** Sends a captured screen to the room (PLAN #27); the track stays the caller's. */
-  startScreen(track: MediaStreamTrack, mode: ScreenMode): Promise<void>
+  /** With `audio`: the computer's sound goes along (#41). */
+  startScreen(
+    track: MediaStreamTrack,
+    mode: ScreenMode,
+    audio?: MediaStreamTrack | null,
+  ): Promise<void>
   stopScreen(): Promise<void>
   /** Others' screens: shown or hidden, and the layer for the size shown (PLAN #28). */
   setScreenVisible(consumerId: string, visible: boolean): Promise<void>
@@ -57,7 +62,7 @@ export async function startCall(options: StartCallOptions): Promise<CallHandle> 
       setTransmitting: (on) => {
         call.setTransmitting(on)
       },
-      startScreen: (track, mode) => call.startScreen(track, mode),
+      startScreen: (track, mode, audio) => call.startScreen(track, mode, audio ?? null),
       stopScreen: () => call.stopScreen(),
       setScreenVisible: (consumerId, visible) => call.setScreenVisible(consumerId, visible),
       setScreenLayer: (consumerId, layer) => call.setScreenLayer(consumerId, layer),

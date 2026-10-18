@@ -10,8 +10,8 @@ export interface CaptureSource {
 }
 
 export type ScreenSourcesResult =
-  /** Our own picker with previews. */
-  | { picker: 'app'; sources: CaptureSource[] }
+  /** Our own picker with previews; `systemAudio`: the computer's sound can go along (#41). */
+  | { picker: 'app'; sources: CaptureSource[]; systemAudio: boolean }
   /** Linux Wayland: the system portal (PipeWire) asks the user itself. */
   | { picker: 'system' }
   /** macOS: «Запись экрана» is not allowed for the app. */
@@ -71,3 +71,17 @@ export function screenStreams(
     },
   }
 }
+
+/**
+ * Whether the computer's sound can go along with a shared screen (PLAN #41): Windows (WASAPI
+ * loopback), macOS from 14.2 (Darwin 23.2, CoreAudio taps). Linux: not yet.
+ */
+export function systemAudioSupported(platform: string, osRelease: string): boolean {
+  if (platform === 'win32') return true
+  if (platform !== 'darwin') return false
+  const [major = 0, minor = 0] = osRelease.split('.').map(Number)
+  return major > 23 || (major === 23 && minor >= 2)
+}
+
+/** Opus for the computer's sound: music and films, not a voice — stereo and more bits. */
+export const SCREEN_AUDIO = { stereo: true, maxAverageBitrate: 128_000 } as const

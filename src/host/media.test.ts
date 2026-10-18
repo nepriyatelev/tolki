@@ -470,6 +470,66 @@ describe('media on the host (mediasoup)', () => {
     )
   })
 
+  it('sends the sharer’s computer sound to every viewer, not as a voice (#41)', async () => {
+    const consumers = watchConsumers()
+    const { port } = await startRoom()
+    const alice = await connect(port, 'Алиса')
+    await alice.next('welcome')
+    const bob = await connect(port, 'Боб')
+    const { routerRtpCapabilities: caps } = await bob.next('welcome')
+    const send = await alice.ok<Transport>({ method: 'createTransport', direction: 'send' })
+    await alice.ok({ method: 'connectTransport', transportId: send.id, dtlsParameters: DTLS })
+    const screenAudio = () =>
+      alice.request({
+        method: 'produce',
+        transportId: send.id,
+        kind: 'audio',
+        screenAudio: true,
+        rtpParameters: { ...OPUS_SEND, mid: '5', encodings: [{ ssrc: 5555 }] },
+      })
+
+    // Not sharing a screen: no computer sound either.
+    expect((await screenAudio()).error).toBe('not sharing a screen')
+
+    await alice.ok({
+      method: 'produce',
+      transportId: send.id,
+      kind: 'video',
+      screenLayer: 1,
+      rtpParameters: {
+        mid: '1',
+        codecs: [
+          {
+            mimeType: 'video/VP8',
+            payloadType: 96,
+            clockRate: 90000,
+            parameters: {},
+            rtcpFeedback: [],
+          },
+        ],
+        headerExtensions: [{ uri: 'urn:ietf:params:rtp-hdrext:sdes:mid', id: 1 }],
+        encodings: [{ ssrc: 1111 }],
+        rtcp: { cname: 'screen' },
+      },
+    })
+    const sound = (await screenAudio()).data as { id: string }
+    expect(await bob.next('new-producer', (m) => m.producerId === sound.id)).toMatchObject({
+      kind: 'audio',
+      screenAudio: true,
+    })
+
+    // Bob gets it as soon as he is ready, though it is not among the loudest voices.
+    const recv = await bob.ok<Transport>({ method: 'createTransport', direction: 'recv' })
+    const consumer = await bob.ok<{ id: string }>({
+      method: 'consume',
+      transportId: recv.id,
+      producerId: sound.id,
+      rtpCapabilities: caps,
+    })
+    await bob.ok({ method: 'resumeConsumer', consumerId: consumer.id })
+    expect(consumers.find((c) => c.id === consumer.id)?.paused).toBe(false)
+  })
+
   it('tells everyone the room’s screen mode', async () => {
     const port = await freePort()
     media = await MediaServer.start({ port })

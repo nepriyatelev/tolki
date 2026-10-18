@@ -109,9 +109,9 @@ export function receivedVideo(
 }
 
 /** Loudest level of the remote voice played on this page over a short window (0 = silence). */
-export function heardLevel(page: Page): Promise<number> {
-  return page.evaluate(async () => {
-    const audio = document.querySelector('audio[data-peer-id]')
+export function heardLevel(page: Page, selector = 'audio[data-peer-id]'): Promise<number> {
+  return page.evaluate(async (query) => {
+    const audio = document.querySelector(query)
     if (!(audio instanceof HTMLAudioElement) || !(audio.srcObject instanceof MediaStream)) return 0
     const context = new AudioContext()
     const analyser = context.createAnalyser()
@@ -125,5 +125,5 @@ export function heardLevel(page: Page): Promise<number> {
     }
     await context.close()
     return loudest
-  })
+  }, selector)
 }

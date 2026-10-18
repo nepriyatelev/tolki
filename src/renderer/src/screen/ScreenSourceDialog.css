@@ -167,7 +167,13 @@
 .screen-picker-actions {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: var(--space-3);
+}
+
+/* «Звук компьютера» (#41) on the left, the buttons on the right. */
+.screen-picker-sound {
+  margin-right: auto;
 }
 
 @keyframes screen-picker-in {

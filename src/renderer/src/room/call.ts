@@ -6,7 +6,13 @@ import type {
   ScreenLayer,
   TransportParameters,
 } from '@shared/signaling'
-import { SCREEN_ENCODING, SCREEN_LAYERS, screenStreams, type ScreenMode } from '@shared/screen'
+import {
+  SCREEN_AUDIO,
+  SCREEN_ENCODING,
+  SCREEN_LAYERS,
+  screenStreams,
+  type ScreenMode,
+} from '@shared/screen'
 import { VOICE } from '@shared/voice'
 
 /** How the microphone is encoded (PLAN #25). */
@@ -70,6 +76,8 @@ export interface RemoteAudio {
   consumerId: string
   peerId: string
   track: MediaStreamTrack
+  /** The sharer's computer sound with their screen (#41), not their voice. */
+  screen?: boolean
 }
 
 /**
@@ -142,7 +150,10 @@ export class CallError extends Error {
  * microphone and one receive transport for everyone else's voices.
  */
 export class Call {
-  readonly #voices = new Map<string, { consumer: types.Consumer; peerId: string }>()
+  readonly #voices = new Map<
+    string,
+    { consumer: types.Consumer; peerId: string; screen: boolean }
+  >()
   /** Screens by who shares them: a consumer per stream (≈1080p, ≈360p — #34). */
   readonly #screens = new Map<string, RemoteScreenState>()
   /** Which stream of the screen the host sends us now (`screen-layer`). */
@@ -155,6 +166,8 @@ export class Call {
     high: types.Producer
     low: types.Producer | null
     lowTrack: MediaStreamTrack | null
+    /** The computer's sound with the screen (#41). */
+    audio: types.Producer | null
   } | null = null
   #sending: Promise<types.Transport> | null = null
   #closed = false
@@ -245,7 +258,8 @@ export class Call {
       if (this.#closed) return
       if (event.type === 'new-producer') {
         const layer = event.screenLayer ?? 1
-        void this.#consume(transport, event.peerId, event.producerId, layer).catch(
+        const screenAudio = event.screenAudio === true
+        void this.#consume(transport, event.peerId, event.producerId, layer, screenAudio).catch(
           (error: unknown) => {
             console.warn('[call] could not receive a voice or screen:', error)
           },
@@ -279,13 +293,17 @@ export class Call {
       this.#send = transport
       this.#connectOnDemand(transport)
       transport.on('produce', ({ kind, rtpParameters, appData }, callback, errback) => {
-        const { screenLayer } = appData as { screenLayer?: ScreenLayer }
+        const { screenLayer, screenAudio } = appData as {
+          screenLayer?: ScreenLayer
+          screenAudio?: boolean
+        }
         this.#request({
           method: 'produce',
           transportId: transport.id,
           kind,
           rtpParameters: { ...rtpParameters },
           ...(screenLayer !== undefined ? { screenLayer } : {}),
+          ...(screenAudio === true ? { screenAudio: true as const } : {}),
         }).then(callback, errback)
       })
       return transport
@@ -299,7 +317,12 @@ export class Call {
    * VP8, cheap in software. Each viewer gets one of them. Sharpness or smoothness by the
    * room's mode. The track stays the caller's.
    */
-  async startScreen(track: MediaStreamTrack, mode: ScreenMode): Promise<void> {
+  async startScreen(
+    track: MediaStreamTrack,
+    mode: ScreenMode,
+    /** The computer's sound (#41): goes to every viewer, stereo, not among the voices. */
+    audio: MediaStreamTrack | null = null,
+  ): Promise<void> {
     if (this.#closed) return
     await this.stopScreen()
     const { contentHint, frameRate } = SCREEN_ENCODING[mode]
@@ -332,7 +355,7 @@ export class Call {
         appData: { source: 'screen', screenLayer: layer },
       })
     const high = await produce(1, track, highCodec)
-    this.#screen = { high, low: null, lowTrack: null }
+    this.#screen = { high, low: null, lowTrack: null, audio: null }
     // A track of its own: senders of one track share the smallest frame rate asked for, and
     // ≈360p at 15 fps would hold ≈1080p to 15 fps too.
     const lowTrack = track.clone()
@@ -349,6 +372,29 @@ export class Call {
     }
     this.#screen.low = low
     this.#screen.lowTrack = lowTrack
+    if (!audio) return
+    // Without the sound the screen still works.
+    const sound = await transport
+      .produce({
+        track: audio,
+        codecOptions: {
+          opusStereo: SCREEN_AUDIO.stereo,
+          opusMaxAverageBitrate: SCREEN_AUDIO.maxAverageBitrate,
+          opusDtx: true,
+          opusFec: true,
+        },
+        stopTracks: false,
+        appData: { source: 'screen', screenAudio: true },
+      })
+      .catch((error: unknown) => {
+        console.warn('[call] could not send the computer’s sound:', error)
+        return null
+      })
+    if (!this.#isSending(high)) {
+      sound?.close()
+      return
+    }
+    this.#screen.audio = sound
   }
 
   /** Stops sending the screen; others' consumers of it end. */
@@ -356,7 +402,7 @@ export class Call {
     const screen = this.#screen
     this.#screen = null
     screen?.lowTrack?.stop()
-    for (const producer of [screen?.high, screen?.low]) {
+    for (const producer of [screen?.high, screen?.low, screen?.audio]) {
       if (!producer || producer.closed) continue
       producer.close()
       if (!this.#closed) await this.#request({ method: 'closeProducer', producerId: producer.id })
@@ -451,6 +497,7 @@ export class Call {
     peerId: string,
     producerId: string,
     layer: ScreenLayer,
+    screenAudio = false,
   ): Promise<void> {
     const answer = await this.#request({
       method: 'consume',
@@ -472,7 +519,7 @@ export class Call {
       return
     }
     if (consumer.kind === 'audio') {
-      this.#voices.set(consumer.id, { consumer, peerId })
+      this.#voices.set(consumer.id, { consumer, peerId, screen: screenAudio })
       this.#publishVoices()
       return
     }
@@ -564,10 +611,11 @@ export class Call {
 
   #publishVoices(): void {
     this.options.onRemoteAudio(
-      [...this.#voices.values()].map(({ consumer, peerId }) => ({
+      [...this.#voices.values()].map(({ consumer, peerId, screen }) => ({
         consumerId: consumer.id,
         peerId,
         track: consumer.track,
+        ...(screen ? { screen: true } : {}),
       })),
     )
   }

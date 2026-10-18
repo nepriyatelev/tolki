@@ -52,6 +52,8 @@ mac:
   hardenedRuntime: false
   extendInfo:
     NSMicrophoneUsageDescription: Tolki использует микрофон для голосовых звонков.
+    # CoreAudio taps (macOS 14.2+): the computer's sound with a shared screen (#41).
+    NSAudioCaptureUsageDescription: Tolki передаёт звук компьютера участникам, когда экран показывается со звуком.
 
 dmg:
   title: ${productName} ${version}
