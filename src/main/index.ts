@@ -18,6 +18,7 @@ import {
 } from 'electron'
 import Store from 'electron-store'
 import { APP_NAME, DOWNLOAD_PAGE } from '@shared/app'
+import { systemAudioSupported } from '@shared/screen'
 import { DEFAULT_HOST_PORT } from '@shared/host-protocol'
 import type { RecentStatus } from '@shared/recent'
 import type { RoomEvent } from '@shared/room'
@@ -146,13 +147,29 @@ const network = new NetworkChecker({
     ),
 })
 
+// The computer's sound with the screen (#41). TOLKI_SYSTEM_AUDIO=fake (e2e): a hidden window's
+// steady tone stands in for it, so the whole way can be checked where there is no loopback.
+const fakeSystemAudio = process.env['TOLKI_SYSTEM_AUDIO'] === 'fake'
 const screenCapture = new ScreenCapture({
   getSources: (options) => desktopCapturer.getSources(options),
   platform: process.platform,
   screenAccess: () =>
     process.platform === 'darwin' ? systemPreferences.getMediaAccessStatus('screen') : 'granted',
   env: process.env,
+  systemAudio: fakeSystemAudio || systemAudioSupported(process.platform, release()),
 })
+let toneWindow: BrowserWindow | null = null
+/** e2e only: a hidden window playing a tone, captured as if it were the computer's sound. */
+async function fakeSystemAudioFrame(): Promise<Electron.WebFrameMain> {
+  if (!toneWindow || toneWindow.isDestroyed()) {
+    toneWindow = new BrowserWindow({ show: false, webPreferences: { sandbox: true } })
+    await toneWindow.loadURL(
+      'data:text/html,<script>const c=new AudioContext();const o=c.createOscillator();' +
+        'o.frequency.value=330;o.connect(c.destination);o.start()</script>',
+    )
+  }
+  return toneWindow.webContents.mainFrame
+}
 // Wayland: screen capture goes through the desktop portal (PipeWire).
 if (process.platform === 'linux')
   // Wayland: screen capture through the portal (PipeWire), global hotkeys (#40) too.
@@ -618,8 +635,19 @@ void app.whenReady().then(() => {
       return
     }
     void screenCapture.take().then(
-      (source) => {
-        callback(source ? { video: source as Electron.DesktopCapturerSource } : {})
+      async (source) => {
+        if (!source) {
+          callback({})
+          return
+        }
+        // The window asked for the computer's sound too (only offered where it works, #41).
+        const audio =
+          request.audioRequested && screenCapture.systemAudio
+            ? fakeSystemAudio
+              ? await fakeSystemAudioFrame()
+              : ('loopback' as const)
+            : undefined
+        callback({ video: source as Electron.DesktopCapturerSource, ...(audio ? { audio } : {}) })
       },
       () => {
         callback({})

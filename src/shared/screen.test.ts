@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SCREEN_ENCODING, screenStreams } from './screen'
+import { SCREEN_ENCODING, screenStreams, systemAudioSupported } from './screen'
 
 describe('screen encodings (PLAN #27, #34)', () => {
   it('sharp text: detail, 15 fps; smooth: motion, up to 60 fps; auto in between', () => {
@@ -26,5 +26,16 @@ describe('screen encodings (PLAN #27, #34)', () => {
   it('keeps the small stream at 15 fps at most', () => {
     expect(screenStreams('text', 1080).low.maxFramerate).toBe(15)
     expect(screenStreams('auto', 1080).low.maxFramerate).toBe(15)
+  })
+})
+
+describe('the computer’s sound with the screen (#41)', () => {
+  it('is offered on Windows and on macOS from 14.2, not on Linux yet', () => {
+    expect(systemAudioSupported('win32', '10.0.22631')).toBe(true)
+    expect(systemAudioSupported('darwin', '23.2.0')).toBe(true)
+    expect(systemAudioSupported('darwin', '25.6.0')).toBe(true)
+    expect(systemAudioSupported('darwin', '23.1.0')).toBe(false)
+    expect(systemAudioSupported('darwin', '22.6.0')).toBe(false)
+    expect(systemAudioSupported('linux', '6.8.0')).toBe(false)
   })
 })

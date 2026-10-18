@@ -10,10 +10,15 @@ export class MediaRequestError extends Error {
 
 /** One send and one receive transport per participant. */
 const MAX_TRANSPORTS = 2
-/** The microphone and the screen's two streams (#34). */
-const MAX_PRODUCERS = 3
+/** The microphone, the screen's two streams (#34) and the computer's sound with it (#41). */
+const MAX_PRODUCERS = 4
 
 /** Which of the screen's streams a video producer is; the ≈1080p one unless told otherwise. */
+/** The computer's sound shared with the screen (#41): forwarded to everyone, not a voice. */
+export function isScreenAudio(producer: types.Producer): boolean {
+  return (producer.appData as { screenAudio?: boolean }).screenAudio === true
+}
+
 export function screenLayerOf(producer: types.Producer): ScreenLayer {
   return (producer.appData as { screenLayer?: ScreenLayer }).screenLayer ?? 1
 }
@@ -30,7 +35,7 @@ export interface PeerMediaEvents {
   /** The participant muted or unmuted a producer. */
   onProducerPaused: (producer: types.Producer, paused: boolean) => void
   /** Called before producing; throws to refuse (one screen at a time, PLAN #29). */
-  beforeProduce: (kind: 'audio' | 'video') => void
+  beforeProduce: (kind: 'audio' | 'video', screenAudio: boolean) => void
   /** This viewer now gets another of the screen's streams (#34). */
   onScreenLayer: (layer: ScreenLayer) => void
 }
@@ -89,11 +94,17 @@ export class PeerMedia {
       case 'produce': {
         const transport = this.#transport(request.transportId, 'send')
         if (this.#producers.size >= MAX_PRODUCERS) throw new MediaRequestError('too many producers')
-        this.events.beforeProduce(request.kind)
+        const screenAudio = request.kind === 'audio' && request.screenAudio === true
+        this.events.beforeProduce(request.kind, screenAudio)
         const producer = await transport.produce({
           kind: request.kind,
           rtpParameters: request.rtpParameters as unknown as types.RtpParameters,
-          appData: request.kind === 'video' ? { screenLayer: request.screenLayer ?? 1 } : {},
+          appData:
+            request.kind === 'video'
+              ? { screenLayer: request.screenLayer ?? 1 }
+              : screenAudio
+                ? { screenAudio: true }
+                : {},
         })
         this.#producers.set(producer.id, producer)
         producer.observer.on('close', () => this.#producers.delete(producer.id))
@@ -229,12 +240,13 @@ export class PeerMedia {
   }
 
   async #apply(consumer: types.Consumer): Promise<void> {
-    const producer =
-      consumer.kind === 'video' ? this.events.findProducer(consumer.producerId) : undefined
+    const producer = this.events.findProducer(consumer.producerId)
     const run =
       this.#ready.has(consumer.id) &&
       (consumer.kind === 'audio'
-        ? this.events.isForwarded(consumer.producerId)
+        ? // The screen's sound goes to everyone; voices only when among the loudest (#21).
+          (producer !== undefined && isScreenAudio(producer)) ||
+          this.events.isForwarded(consumer.producerId)
         : producer !== undefined && screenLayerOf(producer) === this.#sentLayer)
     if (consumer.closed) return
     try {

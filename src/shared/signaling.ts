@@ -72,6 +72,8 @@ export const mediaRequestSchema = z.discriminatedUnion('method', [
     rtpParameters: mediaObjectSchema,
     /** Video only: which of the screen's streams this is; without it, the ≈1080p one. */
     screenLayer: screenLayerSchema.optional(),
+    /** Audio only: the computer's sound shared with the screen (#41), not a voice. */
+    screenAudio: z.literal(true).optional(),
   }),
   /** Consumers start paused; the client resumes them once its side is ready. */
   z.object({
@@ -189,6 +191,8 @@ export const hostMessageSchema = z.discriminatedUnion('type', [
     kind: z.enum(['audio', 'video']),
     /** Video: which of the screen's streams (see `produce`). */
     screenLayer: screenLayerSchema.optional(),
+    /** Audio: the sharer's computer sound, played with the screen (#41). */
+    screenAudio: z.boolean().optional(),
   }),
   /** To a viewer: which of the screen's streams the host sends them now (#34). */
   z.object({ type: z.literal('screen-layer'), layer: screenLayerSchema }),

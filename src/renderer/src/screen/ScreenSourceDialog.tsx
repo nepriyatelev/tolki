@@ -12,7 +12,7 @@ import {
   type JSX,
 } from 'solid-js'
 import type { CaptureSource } from '@shared/screen'
-import { Button, IconButton } from '../ui'
+import { Button, Checkbox, IconButton } from '../ui'
 import { browserScreen, type ScreenAccess } from './screen-share'
 import './ScreenSourceDialog.css'
 
@@ -25,14 +25,20 @@ type Tab = 'screen' | 'window'
 export function ScreenSourceDialog(props: {
   open: boolean
   onClose: () => void
-  /** null: the system picker (Wayland) chooses. */
-  onPick: (sourceId: string | null) => void
+  /** null: the system picker (Wayland) chooses; `systemAudio`: the computer's sound goes too. */
+  onPick: (sourceId: string | null, systemAudio: boolean) => void
   access?: ScreenAccess
 }): JSX.Element {
   let dialog: HTMLDialogElement | undefined
   const access = (): ScreenAccess => props.access ?? browserScreen
   const [tab, setTab] = createSignal<Tab>('screen')
   const [selected, setSelected] = createSignal<string | null>(null)
+  /** «Звук компьютера» (#41): off at first, as in Zoom; remembered while the app runs. */
+  const [withSound, setWithSound] = createSignal(false)
+  const soundOffered = (): boolean => {
+    const result = sources.latest
+    return result?.picker === 'app' && result.systemAudio
+  }
   // Fresh previews every time the dialog opens.
   const [sources, { refetch }] = createResource(
     () => props.open || undefined,
@@ -58,7 +64,7 @@ export function ScreenSourceDialog(props: {
 
   const pick = (): void => {
     const id = selected()
-    if (id !== null) props.onPick(id)
+    if (id !== null) props.onPick(id, soundOffered() && withSound())
   }
 
   return (
@@ -121,7 +127,7 @@ export function ScreenSourceDialog(props: {
                 variant="primary"
                 icon={<Monitor />}
                 onClick={() => {
-                  props.onPick(null)
+                  props.onPick(null, false)
                 }}
               >
                 Выбрать экран
@@ -197,6 +203,15 @@ export function ScreenSourceDialog(props: {
               </div>
             </Show>
             <div class="screen-picker-actions">
+              <Show when={soundOffered()}>
+                <Checkbox
+                  class="screen-picker-sound"
+                  label="Звук компьютера"
+                  description="Участники услышат то, что играет на компьютере: видео, игру, музыку."
+                  checked={withSound()}
+                  onChange={(e) => setWithSound(e.currentTarget.checked)}
+                />
+              </Show>
               <Button
                 onClick={() => {
                   props.onClose()

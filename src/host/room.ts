@@ -16,7 +16,7 @@ import {
 import { peerAlias } from '@shared/log-alias'
 import { AttemptLimiter } from './attempt-limiter'
 import type { MediaServer, MediaTransport } from './media-server'
-import { MediaRequestError, PeerMedia, screenLayerOf } from './peer-media'
+import { isScreenAudio, MediaRequestError, PeerMedia, screenLayerOf } from './peer-media'
 import { SpeakerSelector } from './speakers'
 
 export interface RoomConfig {
@@ -203,19 +203,25 @@ export class Room {
     const peer: Peer = { id: randomUUID(), name }
     const media = this.#media
       ? new PeerMedia(this.#media, {
-          beforeProduce: (kind) => {
+          beforeProduce: (kind, screenAudio) => {
             if (kind === 'video' && this.#sharer && this.#sharer.peerId !== peer.id) {
               throw new MediaRequestError('SCREEN_BUSY')
+            }
+            // The computer's sound only goes along with one's own screen (#41).
+            if (screenAudio && this.#sharer?.peerId !== peer.id) {
+              throw new MediaRequestError('not sharing a screen')
             }
           },
           onProducer: (producer) => {
             console.log(
-              `${peerAlias(peer.id)} sends ${producer.kind}` +
+              `${peerAlias(peer.id)} sends ${isScreenAudio(producer) ? 'the screen’s sound' : producer.kind}` +
                 (producer.kind === 'video'
                   ? ` (${screenLayerOf(producer) === 1 ? '≈1080p' : '≈360p'})`
                   : ''),
             )
-            if (producer.kind === 'audio') this.#addVoice(producer, peer.id)
+            if (isScreenAudio(producer)) {
+              // Part of the screen: neither a voice nor a new share.
+            } else if (producer.kind === 'audio') this.#addVoice(producer, peer.id)
             else this.#startSharing(producer, peer.id)
             this.#broadcast(newProducer(peer.id, producer), socket)
           },
@@ -392,6 +398,7 @@ function newProducer(peerId: string, producer: types.Producer): HostMessage {
     producerId: producer.id,
     kind: producer.kind,
     ...(producer.kind === 'video' ? { screenLayer: screenLayerOf(producer) } : {}),
+    ...(isScreenAudio(producer) ? { screenAudio: true } : {}),
   }
 }
 

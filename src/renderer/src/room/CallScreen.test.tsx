@@ -46,10 +46,14 @@ const SCREENS: ScreenSourcesResult = {
     { id: 'screen:2:0', name: 'Экран 2', kind: 'screen', thumbnail: 'data:b', icon: null },
     { id: 'window:42:0', name: 'Редактор', kind: 'window', thumbnail: 'data:c', icon: 'data:i' },
   ],
+  systemAudio: false,
 }
 
 function fakeScreen(sources: ScreenSourcesResult = SCREENS) {
   const stop = vi.fn()
+  /** The computer's sound (#41) when asked for. */
+  const sound = { kind: 'audio', stop: vi.fn() }
+  let withSound = false
   let ended: () => void = () => undefined
   const track = {
     stop,
@@ -58,17 +62,24 @@ function fakeScreen(sources: ScreenSourcesResult = SCREENS) {
     },
   }
   const stream = {
-    getTracks: () => [track],
+    getTracks: () => (withSound ? [track, sound] : [track]),
     getVideoTracks: () => [track],
+    getAudioTracks: () => (withSound ? [sound] : []),
   } as unknown as MediaStream
   const access = {
     listSources: vi.fn(() => Promise.resolve(sources)),
-    capture: vi.fn<(id: string | null) => Promise<MediaStream>>(() => Promise.resolve(stream)),
+    capture: vi.fn<(id: string | null, systemAudio: boolean) => Promise<MediaStream>>(
+      (_id, systemAudio) => {
+        withSound = systemAudio
+        return Promise.resolve(stream)
+      },
+    ),
     openPermissionSettings: vi.fn(() => Promise.resolve()),
   }
   return {
     access,
     stop,
+    sound,
     end: () => {
       ended()
     },
@@ -100,9 +111,9 @@ function setup(
   const setMuted = vi.fn<(muted: boolean) => Promise<void>>(() => Promise.resolve())
   const setTransmitting = vi.fn<(on: boolean) => void>()
   const setInputDevice = vi.fn<(deviceId: string) => Promise<void>>(() => Promise.resolve())
-  const startScreen = vi.fn<(track: MediaStreamTrack, mode: ScreenMode) => Promise<void>>(() =>
-    Promise.resolve(),
-  )
+  const startScreen = vi.fn<
+    (track: MediaStreamTrack, mode: ScreenMode, audio?: unknown) => Promise<void>
+  >(() => Promise.resolve())
   const stopScreen = vi.fn(() => Promise.resolve())
   const setScreenVisible = vi.fn<(consumerId: string, visible: boolean) => Promise<void>>(() =>
     Promise.resolve(),
@@ -529,14 +540,40 @@ describe('showing your screen: picking the source (#26)', () => {
     ).toBe('true')
     await user.click(show)
 
-    expect(capture.access.capture).toHaveBeenCalledWith('window:42:0')
+    expect(capture.access.capture).toHaveBeenCalledWith('window:42:0', false)
     expect(screen.queryByRole('dialog')).toBeNull()
     // Sent to everyone in the room's mode (#27).
     await vi.waitFor(() => {
-      expect(startScreenSpy).toHaveBeenCalledWith(expect.anything(), 'auto')
+      expect(startScreenSpy).toHaveBeenCalledWith(expect.anything(), 'auto', null)
     })
     expect(await screen.findByRole('region', { name: 'Мой экран' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Остановить показ экрана' })).toBeTruthy()
+  })
+
+  it('offers «Звук компьютера» where it works and sends it with the screen (#41)', async () => {
+    const ctx = setup({ screenSources: { ...SCREENS, systemAudio: true } })
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(screen.getByRole('button', { name: 'Показать экран' }))
+    const dialog = screen.getByRole('dialog', { name: 'Что показать' })
+    const sound = await within(dialog).findByRole<HTMLInputElement>('checkbox', {
+      name: 'Звук компьютера',
+    })
+    // Off at first, as in Zoom.
+    expect(sound.checked).toBe(false)
+    await ctx.user.click(sound)
+    await ctx.user.click(within(dialog).getByRole('radio', { name: 'Экран 1' }))
+    await ctx.user.click(within(dialog).getByRole('button', { name: 'Показать' }))
+
+    expect(ctx.screen.access.capture).toHaveBeenCalledWith('screen:1:0', true)
+    await vi.waitFor(() => {
+      expect(ctx.startScreen).toHaveBeenCalledWith(expect.anything(), 'auto', ctx.screen.sound)
+    })
+  })
+
+  it('does not offer the computer’s sound where it does not work', async () => {
+    const { dialog } = await openPicker()
+    await within(dialog).findByRole('radio', { name: 'Экран 1' })
+    expect(within(dialog).queryByRole('checkbox', { name: 'Звук компьютера' })).toBeNull()
   })
 
   it('stops showing from the button or when the system ends it', async () => {
@@ -587,7 +624,7 @@ describe('showing your screen: picking the source (#26)', () => {
     await ctx.user.click(screen.getByRole('button', { name: 'Показать экран' }))
 
     await ctx.user.click(await screen.findByRole('button', { name: 'Выбрать экран' }))
-    expect(ctx.screen.access.capture).toHaveBeenCalledWith(null)
+    expect(ctx.screen.access.capture).toHaveBeenCalledWith(null, false)
   })
 
   it('stays quiet when the user cancels, and says so when capture fails', async () => {

@@ -45,6 +45,8 @@ export function RemoteAudio(props: {
         {(voice) => (
           <audio
             data-peer-id={voice.peerId}
+            // The sharer's computer sound (#41), played like their voice and with its volume.
+            data-screen-audio={voice.screen ? '' : undefined}
             // Chromium only feeds a remote track into WebAudio while a media element plays it;
             // the element itself stays silent, WebAudio does the output.
             muted

@@ -27,6 +27,7 @@ function capture(options: Partial<ScreenCaptureOptions> = {}) {
       platform: 'win32',
       screenAccess: () => 'granted',
       env: {},
+      systemAudio: true,
       ...options,
     }),
   }
@@ -49,11 +50,20 @@ describe('ScreenCapture', () => {
         },
         { id: 'window:7:0', name: 'Пусто', kind: 'window', thumbnail: '', icon: null },
       ],
+      systemAudio: true,
     })
     expect(getSources).toHaveBeenCalledWith(expect.objectContaining({ types: ['screen'] }))
     expect(getSources).toHaveBeenCalledWith(
       expect.objectContaining({ types: ['window'], fetchWindowIcons: true }),
     )
+  })
+
+  it('offers the computer’s sound only where it works, never with the Wayland portal (#41)', async () => {
+    expect(await capture({ systemAudio: false }).screen.list()).toMatchObject({
+      systemAudio: false,
+    })
+    const wayland = capture({ platform: 'linux', env: { XDG_SESSION_TYPE: 'wayland' } })
+    expect(wayland.screen.systemAudio).toBe(false)
   })
 
   it('still lists screens when windows cannot be listed', async () => {

@@ -18,6 +18,8 @@ export interface ScreenCaptureOptions {
   /** macOS «Запись экрана» permission (systemPreferences.getMediaAccessStatus('screen')). */
   screenAccess: () => string
   env: NodeJS.ProcessEnv
+  /** The computer's sound can go along with the screen on this system (#41). */
+  systemAudio: boolean
 }
 
 const THUMBNAIL = { width: 320, height: 180 }
@@ -28,6 +30,12 @@ const THUMBNAIL = { width: 320, height: 180 }
  */
 export class ScreenCapture {
   #listed = new Map<string, DesktopSource>()
+
+  /** The computer's sound can go along (#41). */
+  get systemAudio(): boolean {
+    return this.options.systemAudio && !this.usesSystemPicker
+  }
+
   #selected: DesktopSource | null = null
 
   constructor(private readonly options: ScreenCaptureOptions) {}
@@ -55,7 +63,11 @@ export class ScreenCapture {
     ])
     const sources = [...screens, ...windows]
     this.#listed = new Map(sources.map((source) => [source.id, source]))
-    return { picker: 'app', sources: sources.map(toCaptureSource) }
+    return {
+      picker: 'app',
+      sources: sources.map(toCaptureSource),
+      systemAudio: this.systemAudio,
+    }
   }
 
   /** The user picked a source in our dialog; false if it was not in the list. */
