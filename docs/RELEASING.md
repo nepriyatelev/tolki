@@ -10,11 +10,24 @@
    git push origin v0.1.0
    ```
    Версию берём из тега: `package.json` не меняется (в нём `0.0.0` для dev-сборок).
+
+   Теги — только трёх видов (иначе workflow сразу падает с ошибкой, до сборки):
+   - `v0.1.0` — полная версия, становится «latest»;
+   - `v0.1.0-alpha.1`, `v0.1.0-alpha.2`, … — альфа, публикуется как пре-релиз;
+   - `v0.1.0-beta.1`, … — бета, тоже пре-релиз.
+
+   Номер после `alpha.` / `beta.` — через точку и без ведущих нулей: так версии сравниваются
+   как числа (`alpha.10` новее `alpha.9`). Другие суффиксы (`-rc.1`, `-alpha1`) electron-updater
+   считает отдельным каналом, и альфы их не получат.
+
+   Кто обновится автоматически: альфа — до следующей альфы, беты или полной версии; бета — до
+   следующей беты или полной; полная — только до полной.
 3. Workflow [Release](https://github.com/nepriyatelev/tolki/actions/workflows/release.yml):
    - собирает установщики на четырёх раннерах (Windows x64, macOS arm64, macOS x64, Linux x64);
    - на каждой ОС запускает e2e-набор на собранном приложении;
    - публикует релиз в [tolki-releases](https://github.com/nepriyatelev/tolki-releases/releases):
-     5 установщиков, `SHA256SUMS.txt` и release notes на русском.
+     5 установщиков, файлы автообновления (`latest.yml`, `latest-linux.yml`, `*.blockmap`),
+     `SHA256SUMS.txt` и release notes на русском.
    - обновляет README `tolki-releases` из [`docs/INSTALL.md`](INSTALL.md) — инструкцию по
      установке; правки инструкции попадают туда со следующим релизом.
 4. Release notes собираются скриптом `.github/release-notes.sh`: таблица файлов, подсказки

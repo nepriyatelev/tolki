@@ -36,6 +36,8 @@ const api: TolkiApi = {
     openDownloadPage: () => invoke('app:open-download-page'),
     openLink: (url) => invoke('app:open-link', url),
     checkUpdate: () => invoke('app:check-update'),
+    installUpdate: () => invoke('app:install-update'),
+    onUpdate: (listener) => subscribe('app:update', listener),
   },
   host: {
     start: (options = {}) => invoke('host:start', options),

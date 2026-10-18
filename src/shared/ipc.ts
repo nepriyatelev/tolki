@@ -19,6 +19,12 @@ export interface TrayCallState {
   deafened: boolean
 }
 
+/**
+ * A newer version (#36, #46): `ready` — downloaded, installs when Tolki quits or by
+ * «Перезапустить»; otherwise only the download page. null — nothing new.
+ */
+export type UpdateOffer = { version: string; ready: boolean } | null
+
 export interface AppInfo {
   name: string
   version: string
@@ -35,7 +41,9 @@ export interface InvokeContract {
   /** A link from the chat (#45) in the browser; main opens http(s) only, ignores anything else. */
   'app:open-link': { args: [url: string]; result: null }
   /** A newer release in tolki-releases, if any (PLAN #36); asked once per run. */
-  'app:check-update': { args: []; result: { version: string } | null }
+  'app:check-update': { args: []; result: UpdateOffer }
+  /** «Перезапустить» (#46): quits and installs the downloaded version; false if there is none. */
+  'app:install-update': { args: []; result: boolean }
   /** Never throws for expected failures: returns `stopped` with `lastError` instead. */
   'host:start': { args: [options: HostStartRequest]; result: HostState }
   'host:stop': { args: []; result: HostState }
@@ -136,6 +144,8 @@ export interface EventContract {
   'hotkeys:pressed': { action: HotkeyAction }
   /** Chosen in the tray menu (PLAN #44). */
   'tray:command': { command: 'mute' | 'deafen' | 'leave' }
+  /** The update finished downloading in the background, or turned out to need the page (#46). */
+  'app:update': UpdateOffer
 }
 
 export type InvokeChannel = keyof InvokeContract
@@ -160,6 +170,7 @@ export const invokeArgsSchemas: {
   'app:open-download-page': z.tuple([]),
   'app:open-link': z.tuple([z.string().max(4096)]),
   'app:check-update': z.tuple([]),
+  'app:install-update': z.tuple([]),
   'host:start': z.tuple([
     z.strictObject({
       port: hostPortSchema.optional(),
@@ -229,7 +240,9 @@ export interface TolkiApi {
     copyText(text: string): Promise<null>
     openDownloadPage(): Promise<null>
     openLink(url: string): Promise<null>
-    checkUpdate(): Promise<{ version: string } | null>
+    checkUpdate(): Promise<UpdateOffer>
+    installUpdate(): Promise<boolean>
+    onUpdate(listener: (offer: UpdateOffer) => void): () => void
   }
   host: {
     start(options?: HostStartRequest): Promise<HostState>

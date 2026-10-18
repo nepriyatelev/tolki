@@ -21,6 +21,7 @@ import {
   systemPreferences,
 } from 'electron'
 import Store from 'electron-store'
+import electronUpdater from 'electron-updater'
 import { APP_NAME, DOWNLOAD_PAGE } from '@shared/app'
 import { isOpenableLink } from '@shared/chat'
 import { systemAudioSupported } from '@shared/screen'
@@ -43,6 +44,7 @@ import { RoomSession } from './room-session'
 import { SettingsStore } from './settings'
 import { measureUpload } from './speed-test'
 import { UpdateCheck } from './update-check'
+import { AutoUpdate, type Updater } from './auto-update'
 import { UploadEstimator } from './upload-estimator'
 import { registerIpcHandlers } from './ipc'
 import { isTrustedRendererOrigin, isTrustedRendererUrl } from './trusted-url'
@@ -120,6 +122,42 @@ const updates = new UpdateCheck({
   fetch: (url, init) => net.fetch(url, init),
   ...(updateApi ? { url: updateApi } : {}),
 })
+
+// Auto-update (#46): Windows (NSIS) and Linux AppImage download the new version in the
+// background and install it on quit; macOS (no Developer ID) and .deb get the banner with the
+// download page. TOLKI_UPDATE_CONFIG is an app-update.yml pointing at a local feed (e2e): the
+// AppImage updater then runs on any OS, as far as the download, which is what the test checks.
+const updateConfig = process.env['TOLKI_UPDATE_CONFIG']
+const autoUpdate = new AutoUpdate({
+  updater: createUpdater(),
+  fallback: () => updates.check(),
+  onChange: (offer) => {
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send('app:update', offer)
+  },
+  log: logs.main,
+})
+
+function createUpdater(): Updater | null {
+  if (process.env['TOLKI_UPDATE_CHECK'] === 'off' || !(app.isPackaged || updateConfig)) return null
+  const updater =
+    process.platform === 'win32' && !updateConfig
+      ? new electronUpdater.NsisUpdater()
+      : (process.platform === 'linux' && process.env['APPIMAGE']) || updateConfig
+        ? new electronUpdater.AppImageUpdater()
+        : null
+  if (!updater) return null
+  updater.logger = logs.main
+  updater.autoDownload = true
+  // In e2e nothing is installed: the test ends at «downloaded».
+  updater.autoInstallOnAppQuit = !updateConfig
+  if (updateConfig) {
+    updater.forceDevUpdateConfig = true
+    updater.updateConfigPath = updateConfig
+    // The stub installer is no AppImage to diff against.
+    updater.disableDifferentialDownload = true
+  }
+  return updater
+}
 
 const store = new Store({ name: 'settings' })
 const settings = new SettingsStore({
@@ -535,7 +573,8 @@ registerIpcHandlers(
       if (openChatLinks) await shell.openExternal(url)
       return null
     },
-    'app:check-update': () => updates.check(),
+    'app:check-update': () => autoUpdate.offer(),
+    'app:install-update': () => autoUpdate.install(),
     'app:get-info': () => ({
       name: APP_NAME,
       version: app.getVersion(),
