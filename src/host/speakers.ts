@@ -2,9 +2,15 @@
 export const FORWARDED_VOICES = 3
 
 /**
+ * Level reports come every 300 ms: about two seconds of silence free a slot — longer than the
+ * pause between phrases, so a speaker is not cut off mid-thought.
+ */
+export const QUIET_TICKS = 7
+
+/**
  * Picks the voices the host forwards. Up to three stay forwarded; a new loud voice takes the
- * place of the one that has been quiet the longest, so people who talk in turns keep their slot
- * and nobody's voice flickers on and off.
+ * place of the one that has been quiet the longest (and quiet for about two seconds), so people who
+ * talk in turns keep their slot and nobody's voice flickers on and off.
  */
 export class SpeakerSelector {
   readonly #known = new Set<string>()
@@ -12,7 +18,11 @@ export class SpeakerSelector {
   readonly #lastHeard = new Map<string, number>()
   #tick = 0
 
-  constructor(private readonly limit = FORWARDED_VOICES) {}
+  constructor(
+    private readonly limit = FORWARDED_VOICES,
+    /** Intervals a forwarded voice must be silent before it can lose its slot. */
+    private readonly quietTicks = QUIET_TICKS,
+  ) {}
 
   get forwarded(): ReadonlySet<string> {
     return this.#forwarded
@@ -38,12 +48,16 @@ export class SpeakerSelector {
     return true
   }
 
-  /** The loudest voices of the last interval, loudest first. */
-  heard(loudest: string[]): boolean {
+  /**
+   * Everyone heard in the last interval, loudest first. The loudest ones not yet forwarded take
+   * the slot of a forwarded voice only if that one has been quiet for a while: while people keep
+   * talking their voices stay, and equally loud speakers do not flap in and out.
+   */
+  heard(speaking: string[]): boolean {
     const now = ++this.#tick
-    for (const id of loudest) if (this.#known.has(id)) this.#lastHeard.set(id, now)
+    for (const id of speaking) if (this.#known.has(id)) this.#lastHeard.set(id, now)
     let changed = false
-    for (const id of loudest) {
+    for (const id of speaking.slice(0, this.limit)) {
       if (!this.#known.has(id) || this.#forwarded.has(id)) continue
       if (this.#forwarded.size < this.limit) {
         this.#forwarded.add(id)
@@ -51,7 +65,7 @@ export class SpeakerSelector {
         continue
       }
       const quietest = [...this.#forwarded]
-        .filter((f) => !loudest.includes(f))
+        .filter((f) => now - (this.#lastHeard.get(f) ?? -Infinity) > this.quietTicks)
         .sort((a, b) => (this.#lastHeard.get(a) ?? -1) - (this.#lastHeard.get(b) ?? -1))[0]
       if (quietest === undefined) break
       this.#forwarded.delete(quietest)

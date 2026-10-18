@@ -3,7 +3,7 @@ import * as mediasoup from 'mediasoup'
 import type { types } from 'mediasoup'
 import type { TransportParameters } from '@shared/signaling'
 import { VOICE, VOICE_OPUS_PARAMETERS } from '@shared/voice'
-import { FORWARDED_VOICES } from './speakers'
+import { MAX_PARTICIPANTS } from '@shared/upload-capacity'
 
 /**
  * Codecs the room's router speaks. Opus is always "/48000/2" in WebRTC; the voice itself is mono
@@ -83,7 +83,9 @@ export class MediaServer {
       const tcpPort = tcpServers[0]?.port
       if (tcpPort === undefined) throw new Error('mediasoup did not open an ICE-TCP listener')
       const audioLevels = await router.createAudioLevelObserver({
-        maxEntries: FORWARDED_VOICES,
+        // Everyone above the threshold: the selector keeps talking voices (and the speaking
+        // frame shows them all); only the three loudest can take a free or quiet slot.
+        maxEntries: MAX_PARTICIPANTS,
         // dBov: quieter than this is background noise, not speech.
         threshold: -70,
         interval: 300,

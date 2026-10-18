@@ -111,6 +111,10 @@ export async function startSignalingServer(
 
 function forward(socket: Socket, port: number): void {
   const upstream = connect(port, '127.0.0.1')
+  // Media is many small packets that must not wait: no Nagle on either side (it alone added
+  // well over 100 ms of round trip with a busy room, see docs/perf/load-15.md).
+  socket.setNoDelay(true)
+  upstream.setNoDelay(true)
   const drop = (): void => {
     socket.destroy()
     upstream.destroy()

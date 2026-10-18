@@ -22,7 +22,8 @@
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.e2e.json",
     "test": "vitest run --coverage",
-    "test:e2e": "electron-vite build && playwright test"
+    "test:e2e": "electron-vite build && playwright test",
+    "perf:load": "electron-vite build && vite build -c perf/vite.client.config.ts && playwright test -c perf/playwright.config.ts"
   },
   "dependencies": {
     "mediasoup": "3.27.1",
