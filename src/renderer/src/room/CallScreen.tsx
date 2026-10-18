@@ -23,6 +23,7 @@ import {
   type JSX,
 } from 'solid-js'
 import type { JoinResult, RoomEvent } from '@shared/room'
+import type { HotkeyAction, HotkeyStatus } from '@shared/global-hotkeys'
 import {
   DEFAULT_PUSH_TO_TALK_KEY,
   pushToTalkKeyLabel,
@@ -334,6 +335,8 @@ export function CallScreen(props: {
       setVolumes((current) => ({ ...settings.audio.peerVolumes, ...current }))
       setOutputDeviceId(settings.audio.outputDeviceId)
       if (settings.pushToTalk.enabled) changePtt(settings.pushToTalk, false)
+      setHotkeyKeys(settings.globalHotkeys)
+      if (settings.globalHotkeys.mute || settings.globalHotkeys.deafen) configureHotkeys()
     })
     startTheCall(joined(), callEvents)
     onCleanup(
@@ -371,6 +374,23 @@ export function CallScreen(props: {
         setPttMode(enabled ? 'focus' : 'off')
       })
   }
+  // Global hotkeys (PLAN #40): set by the user, registered in main only during the call.
+  const [hotkeyKeys, setHotkeyKeys] = createSignal<Record<HotkeyAction, string>>({
+    mute: '',
+    deafen: '',
+  })
+  const [hotkeyStatus, setHotkeyStatus] = createSignal<Record<HotkeyAction, HotkeyStatus>>({
+    mute: 'none',
+    deafen: 'none',
+  })
+  /** While a combination is being typed in «Настройки звука», nothing is registered. */
+  let capturingHotkey = false
+  const configureHotkeys = (): void => {
+    void window.tolki.hotkeys
+      .configure({ active: !hasLeft() && !capturingHotkey, ...hotkeyKeys() })
+      .then(setHotkeyStatus, () => undefined)
+  }
+
   /** Held key, not deafened, microphone not off: only then the voice goes out. */
   const transmitting = (): boolean => pttPressed() && !deafened() && !muted()
   const applyTransmit = (): void => {
@@ -457,12 +477,20 @@ export function CallScreen(props: {
     window.addEventListener('blur', onBlur)
     window.addEventListener('focus', onFocus)
     const stopGlobalKey = window.tolki.ptt.onKey(({ pressed }) => setPttPressed(pressed))
+    // From IPC, outside any tracking scope, like room events.
+    const stopHotkeys = window.tolki.hotkeys.onPressed(({ action }) => {
+      untrack(() => {
+        if (action === 'mute') toggleMic()
+        else toggleSound()
+      })
+    })
     onCleanup(() => {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('keyup', onKeyUp)
       window.removeEventListener('blur', onBlur)
       window.removeEventListener('focus', onFocus)
       stopGlobalKey()
+      stopHotkeys()
     })
   })
 
@@ -588,9 +616,12 @@ export function CallScreen(props: {
   const end = (): void => {
     stopScreen()
     if (!left) {
-      // Out of the call: no global key hook (PLAN #39).
+      // Out of the call: no global key hook (PLAN #39), no global hotkeys (PLAN #40).
       void window.tolki.ptt
         .configure({ active: false, key: ptt().key, askPermission: false })
+        .catch(() => undefined)
+      void window.tolki.hotkeys
+        .configure({ active: false, mute: '', deafen: '' })
         .catch(() => undefined)
     }
     left = true
@@ -858,6 +889,16 @@ export function CallScreen(props: {
           pushToTalk={ptt()}
           pushToTalkMode={pttMode()}
           onPushToTalkChange={changePtt}
+          globalHotkeys={hotkeyKeys()}
+          hotkeyStatus={hotkeyStatus()}
+          onGlobalHotkeysChange={(next) => {
+            setHotkeyKeys(next)
+            configureHotkeys()
+          }}
+          onHotkeyCapture={(capturing) => {
+            capturingHotkey = capturing
+            configureHotkeys()
+          }}
           outputDeviceId={outputDeviceId()}
           onOutputChange={setOutputDeviceId}
           {...(props.microphone ? { access: props.microphone } : {})}

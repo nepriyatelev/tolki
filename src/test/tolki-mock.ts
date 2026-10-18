@@ -1,3 +1,4 @@
+import type { HotkeyAction } from '@shared/global-hotkeys'
 import type { PushToTalkMode } from '@shared/push-to-talk'
 import { vi, type Mock } from 'vitest'
 import type { InviteParseResult } from '@shared/invite'
@@ -67,6 +68,11 @@ export interface TolkiMock {
     emitReconnecting(): void
     emitReconnected(result: Extract<JoinResult, { ok: true }>): void
   }
+  hotkeys: {
+    configure: Mock<TolkiApi['hotkeys']['configure']>
+    /** Simulates main seeing a global hotkey. */
+    emitPressed(action: HotkeyAction): void
+  }
   ptt: {
     configure: Mock<TolkiApi['ptt']['configure']>
     openPermissionSettings: Mock<TolkiApi['ptt']['openPermissionSettings']>
@@ -97,6 +103,10 @@ export interface TolkiMockOptions extends Partial<TolkiApi['network']> {
   pushToTalk?: { enabled: boolean; key: string }
   /** What main answers to ptt.configure when active; `off` when not. */
   pushToTalkMode?: PushToTalkMode
+  /** Saved global hotkeys (PLAN #40). */
+  globalHotkeys?: Record<HotkeyAction, string>
+  /** Accelerators another app holds: hotkeys.configure answers `taken` for them. */
+  takenHotkeys?: string[]
 }
 
 export const LIVE_PREVIEW: RoomPreview = {
@@ -108,6 +118,7 @@ export const LIVE_PREVIEW: RoomPreview = {
 export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
   const inviteListeners = new Set<(result: InviteParseResult) => void>()
   const pttListeners = new Set<(event: { pressed: boolean }) => void>()
+  const hotkeyListeners = new Set<(event: { action: HotkeyAction }) => void>()
   const closedListeners = new Set<(event: RoomClosedEvent) => void>()
   const eventListeners = new Set<(event: RoomEvent) => void>()
   const reconnectingListeners = new Set<() => void>()
@@ -163,6 +174,7 @@ export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
           profile: { name: options.profileName ?? '' },
           audio: { ...DEFAULT_SETTINGS.audio, peerVolumes: options.peerVolumes ?? {} },
           pushToTalk: options.pushToTalk ?? DEFAULT_SETTINGS.pushToTalk,
+          globalHotkeys: options.globalHotkeys ?? DEFAULT_SETTINGS.globalHotkeys,
         }),
       ),
       update: vi.fn<TolkiApi['settings']['update']>(() => Promise.resolve(DEFAULT_SETTINGS)),
@@ -216,6 +228,24 @@ export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
       },
       emitReconnected: (result: Extract<JoinResult, { ok: true }>) => {
         for (const listener of reconnectedListeners) listener(result)
+      },
+    },
+    hotkeys: {
+      configure: vi.fn<TolkiApi['hotkeys']['configure']>((request) => {
+        const status = (accelerator: string) =>
+          !request.active || !accelerator
+            ? ('none' as const)
+            : options.takenHotkeys?.includes(accelerator)
+              ? ('taken' as const)
+              : ('ok' as const)
+        return Promise.resolve({ mute: status(request.mute), deafen: status(request.deafen) })
+      }),
+      onPressed: (listener: (event: { action: HotkeyAction }) => void) => {
+        hotkeyListeners.add(listener)
+        return () => hotkeyListeners.delete(listener)
+      },
+      emitPressed: (action: HotkeyAction) => {
+        for (const listener of hotkeyListeners) listener({ action })
       },
     },
     ptt: {

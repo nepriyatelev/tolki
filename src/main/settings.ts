@@ -42,6 +42,14 @@ export class SettingsStore {
             },
           }
         : {}),
+      ...(patch.globalHotkeys
+        ? {
+            globalHotkeys: {
+              mute: patch.globalHotkeys.mute ?? this.#settings.globalHotkeys.mute,
+              deafen: patch.globalHotkeys.deafen ?? this.#settings.globalHotkeys.deafen,
+            },
+          }
+        : {}),
     }
     this.backend.write(this.#settings)
     return this.get()

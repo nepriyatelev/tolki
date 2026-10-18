@@ -3,6 +3,7 @@ import X from 'lucide-solid/icons/x'
 import {
   createEffect,
   createSignal,
+  For,
   Match,
   onCleanup,
   onMount,
@@ -10,6 +11,12 @@ import {
   Switch,
   type JSX,
 } from 'solid-js'
+import {
+  acceleratorFromPress,
+  acceleratorLabel,
+  type HotkeyAction,
+  type HotkeyStatus,
+} from '@shared/global-hotkeys'
 import { isPushToTalkKey, pushToTalkKeyLabel, type PushToTalkMode } from '@shared/push-to-talk'
 import { Button, Checkbox, IconButton, Select } from '../ui'
 import { MicCheck } from './MicCheck'
@@ -35,6 +42,13 @@ export function AudioSettingsDialog(props: {
   pushToTalkMode?: PushToTalkMode
   /** Already saved in settings; `askPermission`: the user just turned it on. */
   onPushToTalkChange?: (next: { enabled: boolean; key: string }, askPermission: boolean) => void
+  /** Global hotkeys (PLAN #40): the accelerators, '' when not set, and how they are held now. */
+  globalHotkeys?: Record<HotkeyAction, string>
+  hotkeyStatus?: Record<HotkeyAction, HotkeyStatus>
+  /** Already saved in settings. */
+  onGlobalHotkeysChange?: (next: Record<HotkeyAction, string>) => void
+  /** While a combination is being typed here, the registered ones step aside. */
+  onHotkeyCapture?: (capturing: boolean) => void
 }): JSX.Element {
   let dialog: HTMLDialogElement | undefined
   const access = (): MicrophoneAccess => props.access ?? browserMicrophone
@@ -75,22 +89,53 @@ export function AudioSettingsDialog(props: {
     void window.tolki.settings.update({ pushToTalk: next })
     props.onPushToTalkChange?.(next, askPermission)
   }
-  /** «Нажмите клавишу…»: the next key pressed becomes the push-to-talk key; Esc cancels. */
-  const [capturing, setCapturing] = createSignal(false)
+  const hotkeys = (): Record<HotkeyAction, string> =>
+    props.globalHotkeys ?? { mute: '', deafen: '' }
+  const saveHotkey = (action: HotkeyAction, accelerator: string): void => {
+    const next = { ...hotkeys(), [action]: accelerator }
+    void window.tolki.settings.update({ globalHotkeys: { [action]: accelerator } })
+    props.onGlobalHotkeysChange?.(next)
+  }
+  /**
+   * «Нажмите клавишу…»: the next key pressed becomes the push-to-talk key or a global hotkey;
+   * Esc cancels.
+   */
+  const [capturing, setCapturingSignal] = createSignal<'ptt' | HotkeyAction | null>(null)
+  const [needsModifier, setNeedsModifier] = createSignal(false)
+  const setCapturing = (what: 'ptt' | HotkeyAction | null): void => {
+    const hotkeyBefore = capturing() === 'mute' || capturing() === 'deafen'
+    const hotkeyNow = what === 'mute' || what === 'deafen'
+    setCapturingSignal(what)
+    setNeedsModifier(false)
+    if (hotkeyBefore !== hotkeyNow) props.onHotkeyCapture?.(hotkeyNow)
+  }
   const capture = (event: KeyboardEvent): void => {
-    if (!capturing()) return
+    const what = capturing()
+    if (what === null) return
     event.preventDefault()
     event.stopPropagation()
     if (event.code === 'Escape') {
-      setCapturing(false)
+      setCapturing(null)
       return
     }
-    if (!isPushToTalkKey(event.code)) return
-    setCapturing(false)
-    savePtt({ ...ptt(), key: event.code }, false)
+    if (what === 'ptt') {
+      if (!isPushToTalkKey(event.code)) return
+      setCapturing(null)
+      savePtt({ ...ptt(), key: event.code }, false)
+      return
+    }
+    // Ctrl, Shift… alone: the combination is still being pressed.
+    if (/^(Control|Shift|Alt|Meta)(Left|Right)$/.test(event.code)) return
+    const accelerator = acceleratorFromPress(event)
+    if (accelerator === null) {
+      setNeedsModifier(true)
+      return
+    }
+    setCapturing(null)
+    saveHotkey(what, accelerator)
   }
   createEffect(() => {
-    if (!props.open) setCapturing(false)
+    if (!props.open) setCapturing(null)
   })
   onMount(() => {
     // Capture phase: before the dialog's own Esc and the call's hotkeys.
@@ -172,13 +217,15 @@ export function AudioSettingsDialog(props: {
                 <span>Клавиша</span>
                 <Button
                   aria-label={
-                    capturing()
+                    capturing() === 'ptt'
                       ? 'Нажмите клавишу для разговора'
                       : `Клавиша для разговора: ${pushToTalkKeyLabel(ptt().key)}`
                   }
-                  onClick={() => setCapturing(true)}
+                  onClick={() => {
+                    setCapturing('ptt')
+                  }}
                 >
-                  {capturing() ? 'Нажмите клавишу…' : pushToTalkKeyLabel(ptt().key)}
+                  {capturing() === 'ptt' ? 'Нажмите клавишу…' : pushToTalkKeyLabel(ptt().key)}
                 </Button>
               </div>
               <PushToTalkNote
@@ -188,10 +235,65 @@ export function AudioSettingsDialog(props: {
             </Show>
           </section>
         </Show>
+        <Show when={props.onGlobalHotkeysChange}>
+          <section class="audio-settings-section" aria-label="Клавиши в любом окне">
+            <h3 class="audio-settings-subtitle">Клавиши в любом окне</h3>
+            <For each={HOTKEY_ROWS}>
+              {(row) => (
+                <div class="audio-settings-hotkey">
+                  <span>{row.title}</span>
+                  <span class="audio-settings-hotkey-actions">
+                    <Button
+                      aria-label={
+                        capturing() === row.action
+                          ? `Нажмите сочетание: ${row.title.toLowerCase()}`
+                          : `${row.title}: ${hotkeys()[row.action] ? acceleratorLabel(hotkeys()[row.action]) : 'не задано'}`
+                      }
+                      onClick={() => {
+                        setCapturing(row.action)
+                      }}
+                    >
+                      {capturing() === row.action
+                        ? 'Нажмите сочетание…'
+                        : hotkeys()[row.action]
+                          ? acceleratorLabel(hotkeys()[row.action])
+                          : 'Задать'}
+                    </Button>
+                    <Show when={hotkeys()[row.action] && capturing() !== row.action}>
+                      <IconButton
+                        variant="ghost"
+                        label={`Убрать: ${row.title.toLowerCase()}`}
+                        icon={<X />}
+                        onClick={() => {
+                          saveHotkey(row.action, '')
+                        }}
+                      />
+                    </Show>
+                  </span>
+                  <Show when={props.hotkeyStatus?.[row.action] === 'taken'}>
+                    <p class="audio-settings-note audio-settings-note--bad">
+                      Это сочетание занято другим приложением — нужно другое.
+                    </p>
+                  </Show>
+                </div>
+              )}
+            </For>
+            <p class="audio-settings-note">
+              {needsModifier()
+                ? 'Нужно сочетание с Ctrl, Alt или Cmd — иначе клавиша срабатывала бы при наборе текста. Esc — отмена.'
+                : 'Работают в звонке, даже когда окно Tolki не активно.'}
+            </p>
+          </section>
+        </Show>
       </Show>
     </dialog>
   )
 }
+
+const HOTKEY_ROWS: { action: HotkeyAction; title: string }[] = [
+  { action: 'mute', title: 'Микрофон' },
+  { action: 'deafen', title: 'Звук' },
+]
 
 /** How the key works now: everywhere, only in this window, or after a permission on macOS. */
 function PushToTalkNote(props: { mode: PushToTalkMode; onOpenSettings: () => void }): JSX.Element {

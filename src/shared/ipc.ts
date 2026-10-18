@@ -5,6 +5,7 @@ import type { NetworkCheckResult } from './network'
 import type { RecentRoom, RecentStatus } from './recent'
 import { SCREEN_MODES, type ScreenMode, type ScreenSourcesResult } from './screen'
 import type { JoinResult, MediaResponse, RoomClosedEvent, RoomEvent, RoomPreview } from './room'
+import { isHotkeyAccelerator, type HotkeyAction, type HotkeyStatus } from './global-hotkeys'
 import { isPushToTalkKey, type PushToTalkMode } from './push-to-talk'
 import { mediaRequestSchema, peerNameSchema, type MediaRequest } from './signaling'
 import { settingsPatchSchema, type Settings, type SettingsPatch } from './settings'
@@ -66,6 +67,11 @@ export interface InvokeContract {
   }
   /** macOS «Универсальный доступ» pane (fixed URL). */
   'ptt:open-permission-settings': { args: []; result: null }
+  /** Register the user's global hotkeys while active (in a call), PLAN #40. */
+  'hotkeys:configure': {
+    args: [request: { active: boolean; mute: string; deafen: string }]
+    result: Record<HotkeyAction, HotkeyStatus>
+  }
 }
 
 export interface JoinRoomRequest {
@@ -110,6 +116,8 @@ export interface EventContract {
   'room:reconnected': Extract<JoinResult, { ok: true }>
   /** The global push-to-talk key went down or up (PLAN #39). */
   'ptt:key': { pressed: boolean }
+  /** A global hotkey was pressed (PLAN #40). */
+  'hotkeys:pressed': { action: HotkeyAction }
 }
 
 export type InvokeChannel = keyof InvokeContract
@@ -177,6 +185,13 @@ export const invokeArgsSchemas: {
     }),
   ]),
   'ptt:open-permission-settings': z.tuple([]),
+  'hotkeys:configure': z.tuple([
+    z.strictObject({
+      active: z.boolean(),
+      mute: z.string().refine((v) => v === '' || isHotkeyAccelerator(v)),
+      deafen: z.string().refine((v) => v === '' || isHotkeyAccelerator(v)),
+    }),
+  ]),
 }
 
 /** The API the preload script exposes to the renderer as `window.tolki`. */
@@ -236,6 +251,15 @@ export interface TolkiApi {
     openPermissionSettings(): Promise<null>
     /** Returns an unsubscribe function. */
     onKey(listener: (event: { pressed: boolean }) => void): () => void
+  }
+  hotkeys: {
+    configure(request: {
+      active: boolean
+      mute: string
+      deafen: string
+    }): Promise<Record<HotkeyAction, HotkeyStatus>>
+    /** Returns an unsubscribe function. */
+    onPressed(listener: (event: { action: HotkeyAction }) => void): () => void
   }
   invite: {
     takePending(): Promise<InviteParseResult | null>

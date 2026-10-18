@@ -9,6 +9,7 @@ test('settings default to the speed test being on and survive a restart', async 
       profile: { name: '' },
       audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: {} },
       pushToTalk: { enabled: false, key: 'Backquote' },
+      globalHotkeys: { mute: '', deafen: '' },
     })
     expect(
       await first.page.evaluate(() =>
@@ -19,6 +20,7 @@ test('settings default to the speed test being on and survive a restart', async 
       profile: { name: '' },
       audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: {} },
       pushToTalk: { enabled: false, key: 'Backquote' },
+      globalHotkeys: { mute: '', deafen: '' },
     })
     // A friend's volume is remembered by name (PLAN #23).
     await first.page.evaluate(() =>
@@ -35,6 +37,7 @@ test('settings default to the speed test being on and survive a restart', async 
       profile: { name: '' },
       audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: { катя: 150 } },
       pushToTalk: { enabled: false, key: 'Backquote' },
+      globalHotkeys: { mute: '', deafen: '' },
     })
   } finally {
     await second.app.close()
