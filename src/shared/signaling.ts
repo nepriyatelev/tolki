@@ -50,6 +50,13 @@ export type RoomInfo = z.infer<typeof roomInfoSchema>
 const mediaObjectSchema = z.record(z.string(), z.unknown())
 const mediaIdSchema = z.string().min(1).max(64)
 
+/**
+ * A shared screen goes out as two streams (#34): 1 is ≈1080p (H.264, in hardware where the
+ * computer can), 0 is ≈360p (cheap VP8). Each viewer gets one of them.
+ */
+export const screenLayerSchema = z.union([z.literal(0), z.literal(1)])
+export type ScreenLayer = z.infer<typeof screenLayerSchema>
+
 export const mediaRequestSchema = z.discriminatedUnion('method', [
   /** `send` carries the microphone (later the screen), `recv` everything from others. */
   z.object({ method: z.literal('createTransport'), direction: z.enum(['send', 'recv']) }),
@@ -63,6 +70,8 @@ export const mediaRequestSchema = z.discriminatedUnion('method', [
     transportId: mediaIdSchema,
     kind: z.enum(['audio', 'video']),
     rtpParameters: mediaObjectSchema,
+    /** Video only: which of the screen's streams this is; without it, the ≈1080p one. */
+    screenLayer: screenLayerSchema.optional(),
   }),
   /** Consumers start paused; the client resumes them once its side is ready. */
   z.object({
@@ -75,14 +84,11 @@ export const mediaRequestSchema = z.discriminatedUnion('method', [
   /** The viewer hid it (window minimized, screen scrolled away): stop sending it to them. */
   z.object({ method: z.literal('pauseConsumer'), consumerId: mediaIdSchema }),
   /**
-   * Which simulcast layer the viewer wants (0: ≈360p, 1: ≈1080p) by the size it is shown at.
-   * The host still drops to a lower layer when the network cannot carry it.
+   * Which of the screen's streams the viewer wants by the size it is shown at. The host still
+   * sends ≈360p when the viewer's network cannot carry ≈1080p, and says which with
+   * `screen-layer`.
    */
-  z.object({
-    method: z.literal('setPreferredLayers'),
-    consumerId: mediaIdSchema,
-    spatialLayer: z.number().int().min(0).max(1),
-  }),
+  z.object({ method: z.literal('setScreenLayer'), layer: screenLayerSchema }),
   /** Mute and unmute: the host stops forwarding the producer and tells everyone. */
   z.object({ method: z.literal('pauseProducer'), producerId: mediaIdSchema }),
   z.object({ method: z.literal('resumeProducer'), producerId: mediaIdSchema }),
@@ -126,7 +132,7 @@ export interface MediaResults {
   }
   resumeConsumer: Record<string, never>
   pauseConsumer: Record<string, never>
-  setPreferredLayers: Record<string, never>
+  setScreenLayer: Record<string, never>
   pauseProducer: Record<string, never>
   resumeProducer: Record<string, never>
   closeProducer: Record<string, never>
@@ -181,7 +187,11 @@ export const hostMessageSchema = z.discriminatedUnion('type', [
     peerId: z.string(),
     producerId: z.string(),
     kind: z.enum(['audio', 'video']),
+    /** Video: which of the screen's streams (see `produce`). */
+    screenLayer: screenLayerSchema.optional(),
   }),
+  /** To a viewer: which of the screen's streams the host sends them now (#34). */
+  z.object({ type: z.literal('screen-layer'), layer: screenLayerSchema }),
   /** Someone started or stopped sharing a screen (only one at a time). */
   z.object({ type: z.literal('screen-share-started'), peerId: z.string() }),
   z.object({ type: z.literal('screen-share-stopped'), peerId: z.string() }),

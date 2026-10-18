@@ -1,10 +1,10 @@
 import { defineConfig } from '@playwright/test'
 
-// The load test (PLAN #33) runs on its own: `pnpm perf:load`. Not part of the e2e suite.
+// Measurements run on their own (`pnpm perf:load`, `perf:share`, `perf:budgets`), not in e2e.
 export default defineConfig({
   testDir: '.',
-  testMatch: 'load.spec.ts',
-  timeout: 240_000,
+  testMatch: ['load.spec.ts', 'share.spec.ts', 'budgets.spec.ts'],
+  timeout: 600_000,
   workers: 1,
   reporter: 'list',
 })

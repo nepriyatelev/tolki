@@ -15,7 +15,7 @@ import {
 } from '@shared/signaling'
 import { AttemptLimiter } from './attempt-limiter'
 import type { MediaServer, MediaTransport } from './media-server'
-import { MediaRequestError, PeerMedia } from './peer-media'
+import { MediaRequestError, PeerMedia, screenLayerOf } from './peer-media'
 import { SpeakerSelector } from './speakers'
 
 export interface RoomConfig {
@@ -63,8 +63,8 @@ export class Room {
   /** Audio producer → the participant whose voice it is. */
   readonly #voiceOwner = new Map<string, string>()
   #speaking: string[] = []
-  /** Who shares a screen; the room allows one (PLAN #29). */
-  #sharer: { peerId: string; producerId: string } | null = null
+  /** Who shares a screen, and its streams (≈1080p and ≈360p, #34); the room allows one (#29). */
+  #sharer: { peerId: string; producerIds: Set<string> } | null = null
   /** Participants waiting for the sharer's answer to «Показать свой». */
   readonly #screenRequests = new Set<string>()
 
@@ -207,21 +207,16 @@ export class Room {
           onProducer: (producer) => {
             if (producer.kind === 'audio') this.#addVoice(producer, peer.id)
             else this.#startSharing(producer, peer.id)
-            this.#broadcast(
-              {
-                type: 'new-producer',
-                peerId: peer.id,
-                producerId: producer.id,
-                kind: producer.kind,
-              },
-              socket,
-            )
+            this.#broadcast(newProducer(peer.id, producer), socket)
           },
           findProducer: (id) => this.#findProducer(id),
           onConsumerClosed: (consumerId) => {
             send({ type: 'consumer-closed', consumerId })
           },
           isForwarded: (producerId) => this.#speakers.forwarded.has(producerId),
+          onScreenLayer: (layer) => {
+            send({ type: 'screen-layer', layer })
+          },
           onProducerPaused: (producer, paused) => {
             const member = this.#peers.get(socket)
             if (producer.kind !== 'audio' || !member || member.muted === paused) return
@@ -245,12 +240,7 @@ export class Room {
     // Whoever is already talking can be consumed right away.
     for (const member of others) {
       for (const producer of member.media?.producers ?? []) {
-        send({
-          type: 'new-producer',
-          peerId: member.peer.id,
-          producerId: producer.id,
-          kind: producer.kind,
-        })
+        send(newProducer(member.peer.id, producer))
       }
     }
   }
@@ -276,11 +266,17 @@ export class Room {
     }
   }
 
+  /** A stream of the screen: the first one starts the share, the last one to close ends it. */
   #startSharing(producer: types.Producer, peerId: string): void {
-    this.#sharer = { peerId, producerId: producer.id }
-    this.#broadcast({ type: 'screen-share-started', peerId })
+    if (this.#sharer?.peerId === peerId) {
+      this.#sharer.producerIds.add(producer.id)
+    } else {
+      this.#sharer = { peerId, producerIds: new Set([producer.id]) }
+      this.#broadcast({ type: 'screen-share-started', peerId })
+    }
     producer.observer.on('close', () => {
-      if (this.#sharer?.producerId !== producer.id) return
+      const sharer = this.#sharer
+      if (!sharer?.producerIds.delete(producer.id) || sharer.producerIds.size > 0) return
       this.#sharer = null
       // Whoever was waiting can show theirs now.
       this.#screenRequests.clear()
@@ -373,6 +369,16 @@ export class Room {
     if (valid) return true
     this.#limiter.recordFailure(address)
     return 'WRONG_PASSWORD'
+  }
+}
+
+function newProducer(peerId: string, producer: types.Producer): HostMessage {
+  return {
+    type: 'new-producer',
+    peerId,
+    producerId: producer.id,
+    kind: producer.kind,
+    ...(producer.kind === 'video' ? { screenLayer: screenLayerOf(producer) } : {}),
   }
 }
 

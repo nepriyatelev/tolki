@@ -12,7 +12,9 @@ app.commandLine.appendSwitch('disable-renderer-backgrounding')
 // Hidden windows may still play audio (at zero volume) without a click.
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
-const [url, mediaHost, count] = process.argv.slice(-3)
+// url, mediaHost, count, then an optional query for every page (share CPU variants, #34).
+const args = process.argv.slice(2).filter((a) => !a.endsWith('.mjs'))
+const [url, mediaHost, count, extra = ''] = args
 
 app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((_c, _p, callback) => callback(true))
@@ -27,6 +29,7 @@ app.whenReady().then(() => {
       mediaHost,
       name: `Участник ${i + 1}`,
       share: i === 0 ? '1' : '0',
+      ...Object.fromEntries(new URLSearchParams(extra)),
     })
     void win.loadURL(`${page.href}?${query}`)
   }

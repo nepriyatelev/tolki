@@ -48,3 +48,39 @@ export function processTree(root: number): number[] {
   walk(root)
   return tree
 }
+
+/** "60M", "7041K+", "1.2G-" from top's MEM column, in bytes. */
+export function parseTopMemory(text: string): number {
+  const match = /^([\d.]+)([BKMG])?/.exec(text.trim())
+  if (!match) return 0
+  const units = { B: 1, K: 1024, M: 1024 ** 2, G: 1024 ** 3 }
+  return Number(match[1]) * units[(match[2] ?? 'B') as keyof typeof units]
+}
+
+/**
+ * Memory the processes really own, as the system monitor shows it: the physical footprint on
+ * macOS (Activity Monitor's «Память»), PSS on Linux. Unlike the working set (RSS), the shared
+ * Electron framework pages mapped by every process count once, not in each.
+ */
+export function footprintBytes(pids: number[]): number {
+  if (process.platform === 'linux') {
+    return pids.reduce((sum, pid) => {
+      const pss = /^Pss:\s+(\d+) kB/m.exec(readFileSync(`/proc/${pid}/smaps_rollup`, 'utf8'))
+      return sum + Number(pss?.[1] ?? 0) * 1024
+    }, 0)
+  }
+  const out = execFileSync('top', [
+    '-l',
+    '1',
+    ...pids.flatMap((pid) => ['-pid', String(pid)]),
+    '-stats',
+    'pid,mem',
+  ])
+    .toString()
+    .trim()
+    .split('\n')
+  return out.reduce((sum, row) => {
+    const [pid, mem] = row.trim().split(/\s+/)
+    return pids.includes(Number(pid)) && mem ? sum + parseTopMemory(mem) : sum
+  }, 0)
+}

@@ -30,10 +30,14 @@ export interface ScreenEncoding {
   maxBitrate: number
 }
 
-/** The two simulcast layers (PLAN §2): ≈1080p for big windows, ≈360p for small or slow ones. */
+/**
+ * The screen's two streams (PLAN §2, #34): ≈1080p for big windows, ≈360p for small windows or
+ * slow networks. Not simulcast: Chromium encodes simulcast H.264 in software only, and a single
+ * ≈1080p stream gets the hardware encoder; the ≈360p one is cheap VP8.
+ */
 export const SCREEN_LAYERS = { high: 1080, low: 360 } as const
 export const LOW_LAYER_BITRATE = 500_000
-/** The low layer never needs more frames than this. */
+/** The ≈360p stream never needs more frames than this. */
 export const LOW_LAYER_MAX_FPS = 15
 
 export const SCREEN_ENCODING: Record<ScreenMode, ScreenEncoding> = {
@@ -45,25 +49,25 @@ export const SCREEN_ENCODING: Record<ScreenMode, ScreenEncoding> = {
   motion: { contentHint: 'motion', frameRate: 60, maxBitrate: 2_800_000 },
 }
 
-/** Simulcast encodings for a captured screen of the given height. */
-export function screenEncodings(
+export interface StreamEncoding {
+  scaleResolutionDownBy: number
+  maxBitrate: number
+  maxFramerate: number
+}
+
+/** Encodings of the two streams for a captured screen of the given height. */
+export function screenStreams(
   mode: ScreenMode,
   height: number,
-): { rid: string; scaleResolutionDownBy: number; maxBitrate: number; maxFramerate: number }[] {
+): { high: StreamEncoding; low: StreamEncoding } {
   const { frameRate, maxBitrate } = SCREEN_ENCODING[mode]
   const scale = (target: number): number => Math.max(1, height / target)
-  return [
-    {
-      rid: 'low',
+  return {
+    high: { scaleResolutionDownBy: scale(SCREEN_LAYERS.high), maxBitrate, maxFramerate: frameRate },
+    low: {
       scaleResolutionDownBy: scale(SCREEN_LAYERS.low),
       maxBitrate: LOW_LAYER_BITRATE,
       maxFramerate: Math.min(frameRate, LOW_LAYER_MAX_FPS),
     },
-    {
-      rid: 'high',
-      scaleResolutionDownBy: scale(SCREEN_LAYERS.high),
-      maxBitrate,
-      maxFramerate: frameRate,
-    },
-  ]
+  }
 }

@@ -1,7 +1,12 @@
 import { Device, type types } from 'mediasoup-client'
 import type { MediaResponse, RoomEvent } from '@shared/room'
-import type { MediaRequest, MediaResults, TransportParameters } from '@shared/signaling'
-import { SCREEN_ENCODING, SCREEN_LAYERS, screenEncodings, type ScreenMode } from '@shared/screen'
+import type {
+  MediaRequest,
+  MediaResults,
+  ScreenLayer,
+  TransportParameters,
+} from '@shared/signaling'
+import { SCREEN_ENCODING, SCREEN_LAYERS, screenStreams, type ScreenMode } from '@shared/screen'
 import { VOICE } from '@shared/voice'
 
 /** How the microphone is encoded (PLAN #25). */
@@ -43,8 +48,20 @@ export interface ConnectionSample {
   packetsLost: number
 }
 
-/** Simulcast layers of a shared screen: 0 is ≈360p, 1 is ≈1080p. */
-export type ScreenLayer = 0 | 1
+/** Which of a shared screen's streams: 0 is ≈360p, 1 is ≈1080p (#34). */
+export type { ScreenLayer }
+
+/** Someone else's screen as received: one consumer per stream the host may send us. */
+interface RemoteScreenState {
+  /** Stable id of the screen for the UI: the consumer id of the first stream that came. */
+  key: string
+  peerId: string
+  consumers: Map<ScreenLayer, types.Consumer>
+  /** Shown to the user: hidden ones are not sent at all. */
+  visible: boolean
+  /** The stream asked for by the size it is shown at. */
+  layer: ScreenLayer | null
+}
 
 /** A voice from someone else in the room, ready to play. */
 export interface RemoteAudio {
@@ -124,14 +141,19 @@ export class CallError extends Error {
  */
 export class Call {
   readonly #voices = new Map<string, { consumer: types.Consumer; peerId: string }>()
-  readonly #screens = new Map<
-    string,
-    { consumer: types.Consumer; peerId: string; visible: boolean; layer: ScreenLayer | null }
-  >()
+  /** Screens by who shares them: a consumer per stream (≈1080p, ≈360p — #34). */
+  readonly #screens = new Map<string, RemoteScreenState>()
+  /** Which stream of the screen the host sends us now (`screen-layer`). */
+  #screenLayer: ScreenLayer = 1
   #send: types.Transport | null = null
   #recv: types.Transport | null = null
   #producer: types.Producer | null = null
-  #screen: types.Producer | null = null
+  /** The user's own screen: ≈1080p and ≈360p streams; the latter's track is ours to stop. */
+  #screen: {
+    high: types.Producer
+    low: types.Producer | null
+    lowTrack: MediaStreamTrack | null
+  } | null = null
   #sending: Promise<types.Transport> | null = null
   #closed = false
 
@@ -191,6 +213,7 @@ export class Call {
     if (this.#closed) return
     this.#closed = true
     this.options.events.stop()
+    this.#screen?.lowTrack?.stop()
     this.#send?.close()
     this.#recv?.close()
     this.#voices.clear()
@@ -207,11 +230,17 @@ export class Call {
     this.options.events.listen((event) => {
       if (this.#closed) return
       if (event.type === 'new-producer') {
-        void this.#consume(transport, event.peerId, event.producerId).catch((error: unknown) => {
-          console.warn('[call] could not receive a voice:', error)
-        })
+        const layer = event.screenLayer ?? 1
+        void this.#consume(transport, event.peerId, event.producerId, layer).catch(
+          (error: unknown) => {
+            console.warn('[call] could not receive a voice or screen:', error)
+          },
+        )
       } else if (event.type === 'consumer-closed') {
         this.#drop(event.consumerId)
+      } else if (event.type === 'screen-layer') {
+        this.#screenLayer = event.layer
+        this.#publishScreens()
       }
     })
   }
@@ -235,12 +264,14 @@ export class Call {
       const transport = this.device.createSendTransport(asTransportOptions(parameters))
       this.#send = transport
       this.#connectOnDemand(transport)
-      transport.on('produce', ({ kind, rtpParameters }, callback, errback) => {
+      transport.on('produce', ({ kind, rtpParameters, appData }, callback, errback) => {
+        const { screenLayer } = appData as { screenLayer?: ScreenLayer }
         this.#request({
           method: 'produce',
           transportId: transport.id,
           kind,
           rtpParameters: { ...rtpParameters },
+          ...(screenLayer !== undefined ? { screenLayer } : {}),
         }).then(callback, errback)
       })
       return transport
@@ -249,8 +280,9 @@ export class Call {
   }
 
   /**
-   * Sends the captured screen (PLAN #27): two simulcast layers (≈1080p and ≈360p), H.264 when
-   * this computer can (usually in hardware), VP8 otherwise; sharpness or smoothness by the
+   * Sends the captured screen (PLAN #27, #34) as two streams: ≈1080p with H.264 when this
+   * computer can (one stream, so it gets the hardware encoder), VP8 otherwise; and ≈360p with
+   * VP8, cheap in software. Each viewer gets one of them. Sharpness or smoothness by the
    * room's mode. The track stays the caller's.
    */
   async startScreen(track: MediaStreamTrack, mode: ScreenMode): Promise<void> {
@@ -266,26 +298,55 @@ export class Call {
       })
       .catch(() => undefined)
     const transport = await this.#sendTransport()
-    const codec = preferredScreenCodec(this.device.sendRtpCapabilities)
-    this.#screen = await transport.produce({
-      track,
-      encodings: screenEncodings(mode, track.getSettings().height ?? SCREEN_LAYERS.high),
-      ...(codec ? { codec } : {}),
-      // Start at 1 Mbit/s instead of the browser's ~300 kbit/s: the first seconds of a shared
-      // screen should already be readable.
-      codecOptions: { videoGoogleStartBitrate: SCREEN_START_KBPS },
-      stopTracks: false,
-      appData: { source: 'screen' },
+    const capabilities = this.device.sendRtpCapabilities
+    const highCodec = preferredScreenCodec(capabilities)
+    const lowCodec = capabilities.codecs?.find((c) => c.mimeType.toLowerCase() === 'video/vp8')
+    const streams = screenStreams(mode, track.getSettings().height ?? SCREEN_LAYERS.high)
+    const produce = (
+      layer: ScreenLayer,
+      source: MediaStreamTrack,
+      codec: types.RtpCodecCapability | undefined,
+    ) =>
+      transport.produce({
+        track: source,
+        encodings: [layer === 1 ? streams.high : streams.low],
+        ...(codec ? { codec } : {}),
+        // Start at 1 Mbit/s instead of the browser's ~300 kbit/s: the first seconds of a shared
+        // screen should already be readable.
+        codecOptions: { videoGoogleStartBitrate: SCREEN_START_KBPS },
+        stopTracks: false,
+        appData: { source: 'screen', screenLayer: layer },
+      })
+    const high = await produce(1, track, highCodec)
+    this.#screen = { high, low: null, lowTrack: null }
+    // A track of its own: senders of one track share the smallest frame rate asked for, and
+    // ≈360p at 15 fps would hold ≈1080p to 15 fps too.
+    const lowTrack = track.clone()
+    // Without the small stream every viewer gets ≈1080p; the screen still works.
+    const low = await produce(0, lowTrack, lowCodec ?? highCodec).catch((error: unknown) => {
+      console.warn('[call] could not send the ≈360p screen stream:', error)
+      return null
     })
+    // Stopped (or started anew) meanwhile.
+    if (!this.#isSending(high)) {
+      low?.close()
+      lowTrack.stop()
+      return
+    }
+    this.#screen.low = low
+    this.#screen.lowTrack = lowTrack
   }
 
   /** Stops sending the screen; others' consumers of it end. */
   async stopScreen(): Promise<void> {
-    const producer = this.#screen
+    const screen = this.#screen
     this.#screen = null
-    if (!producer || producer.closed) return
-    producer.close()
-    if (!this.#closed) await this.#request({ method: 'closeProducer', producerId: producer.id })
+    screen?.lowTrack?.stop()
+    for (const producer of [screen?.high, screen?.low]) {
+      if (!producer || producer.closed) continue
+      producer.close()
+      if (!this.#closed) await this.#request({ method: 'closeProducer', producerId: producer.id })
+    }
   }
 
   /** «Показать свой»: asks whoever shares now to give way (PLAN #29). */
@@ -303,10 +364,20 @@ export class Call {
    * the biggest layer being sent counts, and bytes of all layers add up.
    */
   async screenSample(consumerId: string | null): Promise<ScreenSample | null> {
-    const source = consumerId === null ? this.#screen : this.#screens.get(consumerId)?.consumer
-    if (!source || source.closed) return null
-    const type = consumerId === null ? 'outbound-rtp' : 'inbound-rtp'
-    return sampleOf(await source.getStats(), type)
+    if (consumerId === null) {
+      const own = [this.#screen?.high, this.#screen?.low].filter(
+        (p): p is types.Producer => p !== undefined && p !== null && !p.closed,
+      )
+      if (own.length === 0) return null
+      const reports = await Promise.all(own.map((p) => p.getStats()))
+      return sampleOf(
+        reports.flatMap((r) => [...r.values()] as unknown[]),
+        'outbound-rtp',
+      )
+    }
+    const consumer = this.#shownConsumer(this.#screenByKey(consumerId))
+    if (!consumer || consumer.closed) return null
+    return sampleOf([...(await consumer.getStats()).values()] as unknown[], 'inbound-rtp')
   }
 
   /** The link to the organizer, from the receive transport (always there, PLAN #32). */
@@ -318,7 +389,7 @@ export class Call {
 
   /** The codec the screen goes out with, e.g. "video/H264"; null when not sharing. */
   get screenCodec(): string | null {
-    return this.#screen?.rtpParameters.codecs[0]?.mimeType ?? null
+    return this.#screen?.high.rtpParameters.codecs[0]?.mimeType ?? null
   }
 
   /**
@@ -359,7 +430,12 @@ export class Call {
     })
   }
 
-  async #consume(transport: types.Transport, peerId: string, producerId: string): Promise<void> {
+  async #consume(
+    transport: types.Transport,
+    peerId: string,
+    producerId: string,
+    layer: ScreenLayer,
+  ): Promise<void> {
     const answer = await this.#request({
       method: 'consume',
       transportId: transport.id,
@@ -382,10 +458,27 @@ export class Call {
     if (consumer.kind === 'audio') {
       this.#voices.set(consumer.id, { consumer, peerId })
       this.#publishVoices()
-    } else {
-      this.#screens.set(consumer.id, { consumer, peerId, visible: true, layer: null })
-      this.#publishScreens()
+      return
     }
+    let screen = this.#screens.get(peerId)
+    if (!screen) {
+      // The first stream to arrive names the screen for the UI, for as long as it is shared.
+      screen = { key: consumer.id, peerId, consumers: new Map(), visible: true, layer: null }
+      this.#screens.set(peerId, screen)
+    }
+    screen.consumers.set(layer, consumer)
+    // Hidden before this stream arrived: it should not be sent either.
+    if (!screen.visible) await this.#request({ method: 'pauseConsumer', consumerId: consumer.id })
+    this.#publishScreens()
+  }
+
+  #screenByKey(key: string): RemoteScreenState | undefined {
+    return [...this.#screens.values()].find((screen) => screen.key === key)
+  }
+
+  /** The stream the host sends now, or whichever there is. */
+  #shownConsumer(screen: RemoteScreenState | undefined): types.Consumer | undefined {
+    return screen?.consumers.get(this.#screenLayer) ?? screen?.consumers.values().next().value
   }
 
   /**
@@ -393,18 +486,30 @@ export class Call {
    * sent at all, so nobody's upload is spent on it.
    */
   async setScreenVisible(consumerId: string, visible: boolean): Promise<void> {
-    const screen = this.#screens.get(consumerId)
+    const screen = this.#screenByKey(consumerId)
     if (!screen || screen.visible === visible || this.#closed) return
     screen.visible = visible
-    await this.#request({ method: visible ? 'resumeConsumer' : 'pauseConsumer', consumerId })
+    await Promise.all(
+      [...screen.consumers.values()].map((consumer) =>
+        this.#request({
+          method: visible ? 'resumeConsumer' : 'pauseConsumer',
+          consumerId: consumer.id,
+        }),
+      ),
+    )
   }
 
-  /** The layer that fits the size the screen is shown at; the host may still go lower. */
+  /** The stream that fits the size the screen is shown at; the host may still send ≈360p. */
   async setScreenLayer(consumerId: string, layer: ScreenLayer): Promise<void> {
-    const screen = this.#screens.get(consumerId)
+    const screen = this.#screenByKey(consumerId)
     if (!screen || screen.layer === layer || this.#closed) return
     screen.layer = layer
-    await this.#request({ method: 'setPreferredLayers', consumerId, spatialLayer: layer })
+    await this.#request({ method: 'setScreenLayer', layer })
+  }
+
+  /** A method, not the field: the screen may stop while a request is in flight. */
+  #isSending(high: types.Producer): boolean {
+    return this.#screen?.high === high
   }
 
   /** A method, not the field: the call may close while a request is in flight. */
@@ -414,26 +519,30 @@ export class Call {
 
   #drop(consumerId: string): void {
     const voice = this.#voices.get(consumerId)
-    const screen = this.#screens.get(consumerId)
     if (voice) {
       voice.consumer.close()
       this.#voices.delete(consumerId)
       this.#publishVoices()
     }
-    if (screen) {
-      screen.consumer.close()
-      this.#screens.delete(consumerId)
-      this.#publishScreens()
+    for (const screen of this.#screens.values()) {
+      for (const [layer, consumer] of screen.consumers) {
+        if (consumer.id !== consumerId) continue
+        consumer.close()
+        screen.consumers.delete(layer)
+        if (screen.consumers.size === 0) this.#screens.delete(screen.peerId)
+        this.#publishScreens()
+      }
     }
   }
 
   #publishScreens(): void {
     this.options.onRemoteScreens?.(
-      [...this.#screens.values()].map(({ consumer, peerId }) => ({
-        consumerId: consumer.id,
-        peerId,
-        track: consumer.track,
-      })),
+      [...this.#screens.values()].flatMap((screen) => {
+        const consumer = this.#shownConsumer(screen)
+        return consumer
+          ? [{ consumerId: screen.key, peerId: screen.peerId, track: consumer.track }]
+          : []
+      }),
     )
   }
 
@@ -496,11 +605,12 @@ interface RtpStat {
 
 /** Folds an RTCStatsReport into one sample: the tallest layer, all bytes. */
 export function sampleOf(
-  report: RTCStatsReport,
+  report: RTCStatsReport | unknown[],
   type: 'inbound-rtp' | 'outbound-rtp',
 ): ScreenSample | null {
   // mediasoup's 'probator' only probes bandwidth.
-  const streams = ([...report.values()] as RtpStat[]).filter(
+  const all = Array.isArray(report) ? report : [...report.values()]
+  const streams = (all as RtpStat[]).filter(
     (s) => s.type === type && s.kind === 'video' && s.mid !== 'probator',
   )
   if (streams.length === 0) return null
