@@ -13,6 +13,11 @@ files:
   - package.json
   - '!**/*.map'
 
+# No rebuilding native modules for Electron: uiohook-napi is N-API and ships prebuilt binaries
+# for every OS (development and CI use them too, see allowBuilds in pnpm-workspace.yaml);
+# building it from source needs X11 headers on Linux. mediasoup's worker is a separate binary.
+npmRebuild: false
+
 # Native binaries cannot be executed from inside app.asar.
 asarUnpack:
   - '**/node_modules/mediasoup/worker/out/Release/mediasoup-worker*'
