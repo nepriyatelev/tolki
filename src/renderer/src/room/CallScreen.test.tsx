@@ -1,3 +1,4 @@
+import type { Cue } from '../audio/cue-sounds'
 import type { PushToTalkMode } from '@shared/push-to-talk'
 import { cleanup, fireEvent, render, screen, within } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
@@ -103,6 +104,7 @@ function setup(
     organizer?: boolean
     approval?: boolean
   } = {},
+  playCue = vi.fn<(cue: Cue, outputDeviceId: string) => Promise<void>>(() => Promise.resolve()),
 ) {
   const api = installTolkiMock({
     peerVolumes: options.peerVolumes ?? {},
@@ -144,6 +146,7 @@ function setup(
     <CallScreen
       microphone={FAKE_DEVICES}
       screen={screenAccess.access}
+      playCue={playCue}
       playTestSound={playTestSound}
       session={{
         result: {
@@ -200,6 +203,7 @@ function setup(
       showScreens(screens)
     },
     playTestSound,
+    playCue,
     screen: screenAccess,
     onLeft,
     labels,
@@ -1120,5 +1124,42 @@ describe('the organizer’s rights (#42)', () => {
     expect(screen.queryByRole('button', { name: /Подтверждать вход/ })).toBeNull()
     await ctx.user.click(screen.getByRole('button', { name: 'Меню: Дима' }))
     expect(screen.queryByRole('button', { name: 'Удалить из комнаты' })).toBeNull()
+  })
+})
+
+describe('cues when people come and go (#43)', () => {
+  it('chimes for someone coming and leaving, on the chosen output', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    ctx.api.room.emitEvent({ type: 'peer-joined', peer: { id: 'katya', name: 'Катя' } })
+    expect(ctx.playCue).toHaveBeenLastCalledWith('join', '')
+    vi.setSystemTime(Date.now() + 1000)
+    ctx.api.room.emitEvent({ type: 'peer-left', peerId: 'katya' })
+    expect(ctx.playCue).toHaveBeenLastCalledWith('leave', '')
+    vi.useRealTimers()
+  })
+
+  it('stays quiet while the sound is off, and when cues are turned off in the settings', async () => {
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    await ctx.user.keyboard('d')
+    ctx.api.room.emitEvent({ type: 'peer-joined', peer: { id: 'katya', name: 'Катя' } })
+    expect(ctx.playCue).not.toHaveBeenCalled()
+    await ctx.user.keyboard('d')
+
+    await ctx.user.click(screen.getByRole('button', { name: 'Настройки' }))
+    const dialog = screen.getByRole('dialog', { name: 'Настройки звука' })
+    await ctx.user.click(within(dialog).getByRole('checkbox', { name: 'Звуки входа и выхода' }))
+    expect(ctx.api.settings.update).toHaveBeenLastCalledWith({ sounds: { enabled: false } })
+    ctx.api.room.emitEvent({ type: 'peer-left', peerId: 'katya' })
+    expect(ctx.playCue).not.toHaveBeenCalled()
+  })
+
+  it('knocks for the organizer when someone asks to be let in', async () => {
+    const ctx = setup({ organizer: true, approval: true })
+    await screen.findByText('Звук подключён')
+    ctx.api.room.emitEvent({ type: 'join-request', requestId: 'r1', name: 'Катя' })
+    expect(ctx.playCue).toHaveBeenLastCalledWith('knock', '')
   })
 })

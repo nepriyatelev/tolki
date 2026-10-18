@@ -46,6 +46,7 @@ import {
   type RoomEventSource,
   type ScreenSample,
 } from './call'
+import { cueLimiter, playCue as playRealCue, type Cue } from '../audio/cue-sounds'
 import { CALL_LOG_INTERVAL_MS, callLogLine } from './call-log'
 import { formatCallTime } from './call-timer'
 import { ConnectionIndicator } from './ConnectionIndicator'
@@ -90,6 +91,8 @@ export function CallScreen(props: {
   playTestSound?: (outputDeviceId: string) => Promise<void>
   /** Tests replace screen capture. */
   screen?: ScreenAccess
+  /** Tests replace the cues (PLAN #43). */
+  playCue?: (cue: Cue, outputDeviceId: string) => Promise<void>
   /**
    * For «Пригласить»: the organizer's link (#100), or the one a participant came by (#80) —
    * with the password only if the organizer put it into the link.
@@ -182,6 +185,15 @@ export function CallScreen(props: {
     return id !== null && id !== joined().peerId
   }
   const [outputDeviceId, setOutputDeviceId] = createSignal('')
+  // Cues (PLAN #43): someone came, left or asks to be let in — not while the sound is off.
+  const [soundsOn, setSoundsOn] = createSignal(true)
+  // eslint-disable-next-line solid/reactivity -- called from room events; reads the device then
+  const playCueNow = cueLimiter((which) => {
+    void (props.playCue ?? playRealCue)(which, outputDeviceId()).catch(() => undefined)
+  })
+  const cue = (which: Cue): void => {
+    if (soundsOn() && !deafened()) playCueNow(which)
+  }
   /** Remembered volumes by name (PLAN #23); loaded from settings. */
   const [volumes, setVolumes] = createSignal<Record<string, number>>({})
   const volumeOfName = (peerName: string): number => volumes()[volumeKey(peerName)] ?? 100
@@ -245,9 +257,11 @@ export function CallScreen(props: {
     switch (event.type) {
       case 'peer-joined':
         setPeers((list) => [...list.filter((p) => p.id !== event.peer.id), event.peer])
+        cue('join')
         break
       case 'peer-left':
         setPeers((list) => list.filter((p) => p.id !== event.peerId))
+        cue('leave')
         break
       case 'active-speakers':
         showSpeakers(event.peerIds)
@@ -272,6 +286,7 @@ export function CallScreen(props: {
         break
       // The organizer's side of entry by approval (#42).
       case 'join-request':
+        cue('knock')
         setJoinRequests((list) => [
           ...list.filter((r) => r.requestId !== event.requestId),
           { requestId: event.requestId, name: event.name },
@@ -371,6 +386,7 @@ export function CallScreen(props: {
     void window.tolki.settings.get().then((settings) => {
       setVolumes((current) => ({ ...settings.audio.peerVolumes, ...current }))
       setOutputDeviceId(settings.audio.outputDeviceId)
+      setSoundsOn(settings.sounds.enabled)
       if (settings.pushToTalk.enabled) changePtt(settings.pushToTalk, false)
       setHotkeyKeys(settings.globalHotkeys)
       if (settings.globalHotkeys.mute || settings.globalHotkeys.deafen) configureHotkeys()
@@ -967,6 +983,8 @@ export function CallScreen(props: {
           pushToTalk={ptt()}
           pushToTalkMode={pttMode()}
           onPushToTalkChange={changePtt}
+          sounds={soundsOn()}
+          onSoundsChange={setSoundsOn}
           globalHotkeys={hotkeyKeys()}
           hotkeyStatus={hotkeyStatus()}
           onGlobalHotkeysChange={(next) => {

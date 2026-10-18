@@ -42,6 +42,10 @@ export function AudioSettingsDialog(props: {
   pushToTalkMode?: PushToTalkMode
   /** Already saved in settings; `askPermission`: the user just turned it on. */
   onPushToTalkChange?: (next: { enabled: boolean; key: string }, askPermission: boolean) => void
+  /** Cues when someone comes, leaves or asks to be let in (PLAN #43). */
+  sounds?: boolean
+  /** Already saved in settings. */
+  onSoundsChange?: (enabled: boolean) => void
   /** Global hotkeys (PLAN #40): the accelerators, '' when not set, and how they are held now. */
   globalHotkeys?: Record<HotkeyAction, string>
   hotkeyStatus?: Record<HotkeyAction, HotkeyStatus>
@@ -202,6 +206,20 @@ export function AudioSettingsDialog(props: {
           <Button icon={<Volume2 />} disabled={playing()} onClick={() => void test()}>
             {playing() ? 'Играет…' : 'Проверить звук'}
           </Button>
+          <Show when={props.onSoundsChange}>
+            {(change) => (
+              <Checkbox
+                label="Звуки входа и выхода"
+                description="Короткий сигнал, когда кто-то входит, выходит или просит впустить."
+                checked={props.sounds ?? true}
+                onChange={(e) => {
+                  const enabled = e.currentTarget.checked
+                  void window.tolki.settings.update({ sounds: { enabled } })
+                  change()(enabled)
+                }}
+              />
+            )}
+          </Show>
         </section>
         <Show when={props.onPushToTalkChange}>
           <section class="audio-settings-section" aria-label="Режим микрофона">

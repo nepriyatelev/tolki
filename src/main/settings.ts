@@ -42,6 +42,7 @@ export class SettingsStore {
             },
           }
         : {}),
+      ...(patch.sounds ? { sounds: { ...this.#settings.sounds, ...patch.sounds } } : {}),
       ...(patch.globalHotkeys
         ? {
             globalHotkeys: {
