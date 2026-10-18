@@ -88,7 +88,7 @@ export default function UiKit(): JSX.Element {
             <Input label="Порт" mono value="80" error="Порт должен быть от 1024 до 65535" />
             <Checkbox
               label="Вшить пароль в ссылку"
-              description="Удобнее: друзьям не нужно ничего вводить. Безопаснее — отправить пароль отдельно."
+              description="Удобнее: участникам не нужно ничего вводить. Безопаснее — отправить пароль отдельно."
               checked={embed()}
               onChange={(e) => setEmbed(e.currentTarget.checked)}
             />
@@ -113,11 +113,11 @@ export default function UiKit(): JSX.Element {
                 Идёт · 2 человека
               </Chip>
               <Chip dot>Не запущена</Chip>
-              <Chip>Хост не в сети</Chip>
+              <Chip>Организатор не в сети</Chip>
               <Chip mono>12:48</Chip>
-              <Chip tone="accent">24 мс · через хост</Chip>
+              <Chip tone="accent">24 мс · через организатора</Chip>
               <Chip tone="danger">микрофон выкл.</Chip>
-              <Chip size="sm">хост</Chip>
+              <Chip size="sm">организатор</Chip>
               <Chip tone="overlay" mono>
                 1080p · 30 к/с · 2,8 Мбит/с
               </Chip>

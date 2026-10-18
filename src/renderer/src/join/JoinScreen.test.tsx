@@ -38,7 +38,7 @@ describe('JoinScreen', () => {
     expect(screen.getByText('В комнате 2 человека')).toBeTruthy()
     expect(screen.getByText('203.0.113.5:47000')).toBeTruthy()
     expect(
-      screen.getByText('Подключение напрямую к хосту · сертификат совпадает со ссылкой'),
+      screen.getByText('Подключение напрямую к организатору · сертификат совпадает со ссылкой'),
     ).toBeTruthy()
     // The light check never carries the password.
     expect(api.room.preview).toHaveBeenCalledWith({
@@ -73,7 +73,7 @@ describe('JoinScreen', () => {
   it('warns about a changed certificate and does not let the user join', async () => {
     show(INVITE, { status: 'certificate-changed' })
 
-    expect((await screen.findByRole('alert')).textContent).toContain('Не подключайся')
+    expect((await screen.findByRole('alert')).textContent).toContain('Подключаться не стоит')
     expect(
       screen.getByRole<HTMLButtonElement>('button', { name: 'Войти в комнату' }).disabled,
     ).toBe(true)
@@ -82,7 +82,7 @@ describe('JoinScreen', () => {
   it('still lets the user try when the host is offline', async () => {
     show(INVITE, { status: 'offline' })
 
-    expect(await screen.findByText('Хост сейчас не в сети')).toBeTruthy()
+    expect(await screen.findByText('Организатор сейчас не в сети')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Вход по ссылке' })).toBeTruthy()
     expect(
       screen.getByRole<HTMLButtonElement>('button', { name: 'Войти в комнату' }).disabled,
@@ -96,7 +96,7 @@ describe('JoinScreen', () => {
     ))
 
     expect(screen.getByRole('heading', { name: 'Не получилось открыть ссылку' })).toBeTruthy()
-    expect(screen.getByText(/Обнови приложение/)).toBeTruthy()
+    expect(screen.getByText(/Нужна последняя версия/)).toBeTruthy()
   })
 
   it('cancels', async () => {
@@ -111,11 +111,8 @@ describe('JoinScreen', () => {
 
 describe('peopleText', () => {
   it.each<[RoomPreview | undefined, string]>([
-    [undefined, 'Проверяем комнату…'],
-    [
-      { status: 'live', room: { name: 'x', peerCount: 0, hasPassword: false } },
-      'Пока никого нет — ты будешь первым',
-    ],
+    [undefined, 'Проверка комнаты…'],
+    [{ status: 'live', room: { name: 'x', peerCount: 0, hasPassword: false } }, 'Пока никого нет'],
     [
       { status: 'live', room: { name: 'x', peerCount: 1, hasPassword: false } },
       'В комнате 1 человек',
@@ -124,7 +121,7 @@ describe('peopleText', () => {
       { status: 'live', room: { name: 'x', peerCount: 5, hasPassword: false } },
       'В комнате 5 человек',
     ],
-    [{ status: 'offline' }, 'Хост сейчас не в сети'],
+    [{ status: 'offline' }, 'Организатор сейчас не в сети'],
     [{ status: 'certificate-changed' }, 'Не удалось проверить комнату'],
   ])('%j → %s', (preview, text) => {
     expect(peopleText(preview)).toBe(text)

@@ -9,14 +9,14 @@ describe('errorContent', () => {
   it.each<[ErrorKind, string]>([
     [
       { kind: 'cannot-host', problem: 'unsupported', port: 47000, localAddress: null },
-      'Нельзя хостить',
+      'Этот компьютер не может быть организатором',
     ],
-    [{ kind: 'host-offline' }, 'Хост не в сети'],
+    [{ kind: 'host-offline' }, 'Организатор не в сети'],
     [{ kind: 'too-many-attempts' }, 'Неверный пароль'],
-    [{ kind: 'host-closed', roomName: 'Кино' }, 'Хост закрыл комнату'],
+    [{ kind: 'host-closed', roomName: 'Кино' }, 'Организатор закрыл комнату'],
     [{ kind: 'connection-lost', roomName: 'Кино' }, 'Связь с комнатой потеряна'],
     [{ kind: 'room-full' }, 'Комната заполнена'],
-    [{ kind: 'update-required', reason: 'newer-link' }, 'Обнови приложение'],
+    [{ kind: 'update-required', reason: 'newer-link' }, 'Нужна новая версия'],
   ])('%j has the title «%s»', (error, title) => {
     expect(errorContent(error).title).toBe(title)
   })
@@ -25,9 +25,9 @@ describe('errorContent', () => {
     const titles = cannotHost('unsupported').tips.map((t) => t.title)
 
     expect(titles).toEqual([
-      'Пробрось порт вручную',
-      'Включи IPv6',
-      'Пусть хостит другой',
+      'Пробросить порт вручную',
+      'Включить IPv6',
+      'Выбрать другого организатора',
       'Tailscale',
     ])
     expect(cannotHost('unsupported').tips[0]?.text).toContain(
@@ -41,23 +41,23 @@ describe('errorContent', () => {
 
     expect(content.text).toContain('VPN')
     expect(content.tips.map((t) => t.title)).toEqual([
-      'Выключи VPN',
-      'Или добавь Ratatosk в исключения VPN',
+      'Выключить VPN',
+      'Или добавить Ratatosk в исключения VPN',
     ])
     expect(JSON.stringify(content)).not.toContain('Tailscale')
   })
 
   it('does not suggest manual forwarding where it cannot help', () => {
-    expect(cannotHost('cgnat').tips[0]?.title).toBe('Попроси у провайдера белый IP')
-    expect(cannotHost('double-nat').tips[0]?.title).toBe('Убери второй роутер')
-    expect(cannotHost('no-gateway').tips[0]?.title).toBe('Проверь подключение')
+    expect(cannotHost('cgnat').tips[0]?.title).toBe('Подключить белый IP у провайдера')
+    expect(cannotHost('double-nat').tips[0]?.title).toBe('Убрать второй роутер')
+    expect(cannotHost('no-gateway').tips[0]?.title).toBe('Проверить подключение')
   })
 
   it.each<HostingProblem>(['refused', 'bad-address', 'mapping-disabled'])(
     'explains «%s» and suggests manual forwarding',
     (problem) => {
       expect(cannotHost(problem).text).not.toBe('')
-      expect(cannotHost(problem).tips[0]?.title).toBe('Пробрось порт вручную')
+      expect(cannotHost(problem).tips[0]?.title).toBe('Пробросить порт вручную')
     },
   )
 

@@ -12,8 +12,9 @@ import './MicCheck.css'
 export const LEVEL_SEGMENTS = 20
 
 const PROBLEMS: Record<MicrophoneProblem, string> = {
-  denied: 'Нет доступа к микрофону. Разреши его в системных настройках и открой экран снова.',
-  'not-found': 'Микрофон не найден. Подключи его или войди с выключенным микрофоном.',
+  denied:
+    'Нет доступа к микрофону. Его можно разрешить в системных настройках и открыть экран снова.',
+  'not-found': 'Микрофон не найден. Можно подключить его или войти с выключенным микрофоном.',
   unavailable: 'Микрофон сейчас недоступен — возможно, его заняла другая программа.',
 }
 
@@ -102,9 +103,7 @@ export function MicCheck(props: {
       </div>
       <Show
         when={problem()}
-        fallback={
-          <p class="mic-hint">{props.hint ?? 'Скажи что-нибудь — полоска должна двигаться.'}</p>
-        }
+        fallback={<p class="mic-hint">{props.hint ?? 'При разговоре полоска должна двигаться.'}</p>}
       >
         {(p) => (
           <p class="mic-hint mic-hint--problem" role="status">

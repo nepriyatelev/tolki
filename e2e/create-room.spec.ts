@@ -31,7 +31,7 @@ test('a room is created and opened from the UI, and a friend can join it', async
     await expect(page.getByText(/Ссылку не из чего собрать/)).toBeVisible()
 
     await page.getByLabel('Название комнаты').fill('Вечерний созвон')
-    await page.getByLabel('Твоё имя').fill('Дима')
+    await page.getByLabel('Имя').fill('Дима')
     await page.getByRole('button', { name: 'Сгенерировать' }).click()
     const password = await page.getByLabel('Пароль', { exact: true }).inputValue()
     expect(password).toMatch(/^[а-яё]+-[а-яё]+-\d{2}$/)
@@ -54,7 +54,7 @@ test('a room is created and opened from the UI, and a friend can join it', async
       args: [`ratatosk://join?v=1&h=127.0.0.1&p=${port}&r=room&fp=${fingerprint}`],
     })
     try {
-      await friend.page.getByLabel('Твоё имя').fill('Катя')
+      await friend.page.getByLabel('Имя').fill('Катя')
       await friend.page.getByLabel('Пароль комнаты').fill(password)
       await friend.page.getByRole('button', { name: 'Войти в комнату' }).click()
       await expect(friend.page.getByRole('heading', { name: 'Вечерний созвон' })).toBeVisible()

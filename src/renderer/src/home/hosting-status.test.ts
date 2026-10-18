@@ -14,7 +14,7 @@ describe('describeHosting', () => {
   it('says hosting works and shows the method and external address', () => {
     expect(describeHosting(PUBLIC_IPV4_CHECK)).toEqual({
       tone: 'ok',
-      title: 'Можно хостить: порт открыт через UPnP',
+      title: 'Этот компьютер может быть организатором: порт открыт через UPnP',
       details: ['Внешний адрес 93.184.216.34'],
     })
   })
@@ -45,7 +45,7 @@ describe('describeHosting', () => {
 
     expect(describeHosting(result)).toEqual({
       tone: 'ok',
-      title: 'Можно хостить через IPv6',
+      title: 'Этот компьютер может быть организатором через IPv6',
       details: ['По IPv4 нельзя: провайдер выдаёт общий адрес (CGNAT)'],
     })
   })
@@ -54,14 +54,14 @@ describe('describeHosting', () => {
     ['cgnat', 'провайдер выдаёт общий адрес (CGNAT)', 'белый IP'],
     ['double-nat', 'двойной NAT', 'режим моста'],
     ['no-gateway', 'не найден роутер', 'VPN'],
-    ['unsupported', 'не открывает порты автоматически', 'порт 47000 вручную'],
-    ['refused', 'отказался открыть порт', 'порт 47000 вручную'],
-    ['mapping-disabled', 'проброс порта выключен', 'порт 47000'],
+    ['unsupported', 'не открывает порты автоматически', 'порта 47000 вручную'],
+    ['refused', 'отказался открыть порт', 'порта 47000 вручную'],
+    ['mapping-disabled', 'проброс порта выключен', 'Порт 47000'],
   ] as const)('explains "%s" in plain words with advice', (problem, title, advice) => {
     const text = describeHosting(withVerdict({ canHost: false, problem }))
 
     expect(text.tone).toBe('bad')
-    expect(text.title).toContain('Нельзя хостить')
+    expect(text.title).toContain('Этот компьютер не может быть организатором')
     expect(text.title).toContain(title)
     expect(text.details[0]).toContain(advice)
   })

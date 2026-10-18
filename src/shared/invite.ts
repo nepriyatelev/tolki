@@ -146,11 +146,11 @@ export function inviteAddress(invite: Pick<Invite, 'host' | 'hostKind' | 'port'>
 export function inviteErrorMessage(error: InviteError): string {
   switch (error.code) {
     case 'unsupported-version':
-      return 'Ссылка создана в более новой версии Ratatosk. Обнови приложение.'
+      return 'Ссылка создана в более новой версии Ratatosk. Нужна последняя версия приложения.'
     case 'not-an-invite':
       return 'Это не ссылка-приглашение Ratatosk.'
     default:
-      return 'Ссылка-приглашение повреждена. Попроси хоста прислать её ещё раз.'
+      return 'Ссылка-приглашение повреждена. Нужна новая ссылка от организатора.'
   }
 }
 

@@ -28,7 +28,9 @@ describe('CreateRoomScreen', () => {
     expect(
       await screen.findByText('Отдача 92 Мбит/с — хватит на 15 человек и экран в 1080p'),
     ).toBeTruthy()
-    expect(screen.getByText('Друзья смогут подключиться к тебе напрямую.')).toBeTruthy()
+    expect(
+      screen.getByText('Участники смогут подключаться к этому компьютеру напрямую.'),
+    ).toBeTruthy()
     expect(parseInvite(await linkText())).toMatchObject({
       ok: true,
       invite: { host: '93.184.216.34', port: 47000, fingerprint: MOCK_FINGERPRINT },
@@ -74,7 +76,11 @@ describe('CreateRoomScreen', () => {
     show({ check: () => Promise.resolve(cannot) })
 
     expect(await screen.findByText(/Ссылку не из чего собрать/)).toBeTruthy()
-    expect(screen.getByText('Нельзя хостить: роутер не открывает порты автоматически')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Этот компьютер не может быть организатором: роутер не открывает порты автоматически',
+      ),
+    ).toBeTruthy()
   })
 
   it('opens the room: starts the host with name and password and joins it over localhost', async () => {
@@ -94,7 +100,9 @@ describe('CreateRoomScreen', () => {
     expect(api.room.join).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'Алексей', password: 'secret' }) as unknown,
     )
-    expect(await screen.findByText('Комната открыта. Отправь ссылку друзьям.')).toBeTruthy()
+    expect(
+      await screen.findByText('Комната открыта, ссылку можно отправить участникам.'),
+    ).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Назад' })).toBeNull()
 
     await user.click(screen.getByRole('button', { name: 'Закрыть комнату' }))
@@ -107,8 +115,8 @@ describe('CreateRoomScreen', () => {
 
     await user.click(screen.getByRole('button', { name: 'Открыть комнату' }))
 
-    expect(screen.getByText('Назови комнату — это название увидят друзья')).toBeTruthy()
-    expect(screen.getByText('Введи имя — его увидят остальные')).toBeTruthy()
+    expect(screen.getByText('Нужно название — его увидят участники')).toBeTruthy()
+    expect(screen.getByText('Нужно имя — его увидят участники')).toBeTruthy()
     expect(api.host.start).not.toHaveBeenCalled()
   })
 
@@ -120,7 +128,7 @@ describe('CreateRoomScreen', () => {
     await user.click(screen.getByRole('button', { name: 'Открыть комнату' }))
 
     expect((await screen.findByRole('alert')).textContent).toBe(
-      'Порт 47000 занят другой программой. Выбери другой в «Дополнительно».',
+      'Порт 47000 занят другой программой. Другой порт можно указать в «Дополнительно».',
     )
 
     await user.click(screen.getByText('Дополнительно'))

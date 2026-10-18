@@ -166,7 +166,7 @@ describe('CallScreen', () => {
     const { labels } = setup()
 
     expect(screen.getByRole('heading', { name: 'Вечерний созвон' })).toBeTruthy()
-    expect(labels()).toEqual(['Дима', 'Алексей (ты)'])
+    expect(labels()).toEqual(['Дима', 'Алексей (я)'])
     expect(await screen.findByText('Звук подключён')).toBeTruthy()
   })
 
@@ -175,15 +175,15 @@ describe('CallScreen', () => {
     const { api, labels } = setup()
 
     api.room.emitEvent({ type: 'active-speakers', peerIds: ['dima'] })
-    expect(labels()).toEqual(['Дима, говорит', 'Алексей (ты)'])
+    expect(labels()).toEqual(['Дима, говорит', 'Алексей (я)'])
     expect(document.querySelector('[data-peer-id="dima"]')?.classList).toContain(
       'call-tile--speaking',
     )
 
     api.room.emitEvent({ type: 'active-speakers', peerIds: ['me'] })
-    expect(labels()).toEqual(['Дима, говорит', 'Алексей (ты), говорит'])
+    expect(labels()).toEqual(['Дима, говорит', 'Алексей (я), говорит'])
     vi.advanceTimersByTime(SPEAKING_HOLD_MS)
-    expect(labels()).toEqual(['Дима', 'Алексей (ты), говорит'])
+    expect(labels()).toEqual(['Дима', 'Алексей (я), говорит'])
 
     api.room.emitEvent({ type: 'active-speakers', peerIds: [] })
     vi.advanceTimersByTime(SPEAKING_HOLD_MS)
@@ -211,9 +211,9 @@ describe('CallScreen', () => {
     const { api, labels } = setup()
 
     api.room.emitEvent({ type: 'peer-joined', peer: { id: 'katya', name: 'Катя' } })
-    expect(labels()).toEqual(['Дима', 'Катя', 'Алексей (ты)'])
+    expect(labels()).toEqual(['Дима', 'Катя', 'Алексей (я)'])
     api.room.emitEvent({ type: 'peer-left', peerId: 'dima' })
-    expect(labels()).toEqual(['Катя', 'Алексей (ты)'])
+    expect(labels()).toEqual(['Катя', 'Алексей (я)'])
   })
 
   it('marks the user’s tile when joined muted', () => {
@@ -316,7 +316,7 @@ describe('microphone and sound (#22)', () => {
 
   it('cannot unmute without a microphone', async () => {
     setup({ sending: false })
-    await screen.findByText('Микрофон недоступен — ты только слушаешь')
+    await screen.findByText('Микрофон недоступен — только прослушивание')
     expect(mic()).toHaveProperty('disabled', true)
   })
 
@@ -358,7 +358,7 @@ describe('volume of each participant: the «⋯» menu (#23, #77)', () => {
   it('shows a changed volume on the tile', async () => {
     const { labels } = setup({ peerVolumes: { дима: 150 } })
     await vi.waitFor(() => {
-      expect(labels()).toEqual(['Дима, громкость 150 %', 'Алексей (ты)'])
+      expect(labels()).toEqual(['Дима, громкость 150 %', 'Алексей (я)'])
     })
   })
 
@@ -415,7 +415,7 @@ describe('volume of each participant: the «⋯» menu (#23, #77)', () => {
 
   it('says in the tile label when someone has the microphone off', () => {
     const { labels } = setup({ mutedPeers: ['dima'] })
-    expect(labels()).toEqual(['Дима, микрофон выключен', 'Алексей (ты)'])
+    expect(labels()).toEqual(['Дима, микрофон выключен', 'Алексей (я)'])
   })
 })
 
@@ -493,7 +493,7 @@ describe('showing your screen: picking the source (#26)', () => {
     await vi.waitFor(() => {
       expect(startScreenSpy).toHaveBeenCalledWith(expect.anything(), 'auto')
     })
-    expect(await screen.findByRole('listitem', { name: 'Твой экран' })).toBeTruthy()
+    expect(await screen.findByRole('listitem', { name: 'Мой экран' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Остановить показ экрана' })).toBeTruthy()
   })
 
@@ -501,20 +501,20 @@ describe('showing your screen: picking the source (#26)', () => {
     const { screen: capture, dialog, user, stopScreen: stopScreenSpy } = await openPicker()
     await user.click(await within(dialog).findByRole('radio', { name: 'Экран 1' }))
     await user.click(within(dialog).getByRole('button', { name: 'Показать' }))
-    await screen.findByRole('listitem', { name: 'Твой экран' })
+    await screen.findByRole('listitem', { name: 'Мой экран' })
 
     await user.click(screen.getByRole('button', { name: 'Остановить показ экрана' }))
     expect(capture.stop).toHaveBeenCalled()
     expect(stopScreenSpy).toHaveBeenCalled()
-    expect(screen.queryByRole('listitem', { name: 'Твой экран' })).toBeNull()
+    expect(screen.queryByRole('listitem', { name: 'Мой экран' })).toBeNull()
 
     await user.click(screen.getByRole('button', { name: 'Показать экран' }))
     const again = screen.getByRole('dialog', { name: 'Что показать' })
     await user.dblClick(await within(again).findByRole('radio', { name: 'Экран 2' }))
-    await screen.findByRole('listitem', { name: 'Твой экран' })
+    await screen.findByRole('listitem', { name: 'Мой экран' })
     capture.end()
     await vi.waitFor(() => {
-      expect(screen.queryByRole('listitem', { name: 'Твой экран' })).toBeNull()
+      expect(screen.queryByRole('listitem', { name: 'Мой экран' })).toBeNull()
     })
   })
 
@@ -593,7 +593,7 @@ describe('one screen at a time: «Показать свой» (#29)', () => {
 
     await ctx.user.click(button('Попросить показать свой экран'))
     expect(ctx.requestScreen).toHaveBeenCalledOnce()
-    expect(button('Ждём ответа на запрос показа')).toHaveProperty('disabled', true)
+    expect(button('Ожидание ответа на запрос показа')).toHaveProperty('disabled', true)
 
     ctx.api.room.emitEvent({ type: 'screen-request-answer', accepted: true })
     expect(await screen.findByRole('dialog', { name: 'Что показать' })).toBeTruthy()
@@ -636,7 +636,7 @@ describe('one screen at a time: «Показать свой» (#29)', () => {
     const dialog = screen.getByRole('dialog', { name: 'Что показать' })
     await ctx.user.click(await within(dialog).findByRole('radio', { name: 'Экран 1' }))
     await ctx.user.click(within(dialog).getByRole('button', { name: 'Показать' }))
-    await screen.findByRole('listitem', { name: 'Твой экран' })
+    await screen.findByRole('listitem', { name: 'Мой экран' })
 
     ctx.api.room.emitEvent({ type: 'screen-request', fromPeerId: 'dima' })
     expect((await screen.findByRole('alert')).textContent).toContain(
@@ -644,13 +644,13 @@ describe('one screen at a time: «Показать свой» (#29)', () => {
     )
     await ctx.user.click(button('Продолжить показ'))
     expect(ctx.answerScreenRequest).toHaveBeenLastCalledWith('dima', false)
-    expect(screen.getByRole('listitem', { name: 'Твой экран' })).toBeTruthy()
+    expect(screen.getByRole('listitem', { name: 'Мой экран' })).toBeTruthy()
 
     ctx.api.room.emitEvent({ type: 'screen-request', fromPeerId: 'dima' })
     await ctx.user.click(await screen.findByRole('button', { name: 'Уступить' }))
     expect(ctx.answerScreenRequest).toHaveBeenLastCalledWith('dima', true)
     await vi.waitFor(() => {
-      expect(screen.queryByRole('listitem', { name: 'Твой экран' })).toBeNull()
+      expect(screen.queryByRole('listitem', { name: 'Мой экран' })).toBeNull()
     })
     expect(ctx.stopScreen).toHaveBeenCalled()
   })
@@ -667,7 +667,7 @@ describe('one screen at a time: «Показать свой» (#29)', () => {
     await ctx.user.click(within(dialog).getByRole('button', { name: 'Показать' }))
 
     expect(await screen.findByText(/Сейчас показывает/)).toBeTruthy()
-    expect(screen.queryByRole('listitem', { name: 'Твой экран' })).toBeNull()
+    expect(screen.queryByRole('listitem', { name: 'Мой экран' })).toBeNull()
     expect(ctx.screen.stop).toHaveBeenCalled()
   })
 })

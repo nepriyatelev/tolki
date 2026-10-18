@@ -55,7 +55,7 @@ export function ParticipantTile(props: {
 
   const label = (): string =>
     props.person.name +
-    (props.person.me ? ' (ты)' : '') +
+    (props.person.me ? ' (я)' : '') +
     (props.speaking ? ', говорит' : '') +
     (props.muted ? ', микрофон выключен' : '') +
     (changed() ? `, громкость ${props.volume} %` : '')
@@ -73,7 +73,7 @@ export function ParticipantTile(props: {
       <span class="call-tile-name">
         <span class="call-tile-name-text">{props.person.name}</span>
         <Show when={props.person.me}>
-          <span class="call-tile-you">ты</span>
+          <span class="call-tile-you">я</span>
         </Show>
         <Show when={props.muted}>
           <span class="call-tile-muted" role="img" aria-label="Микрофон выключен">
@@ -113,7 +113,7 @@ export function ParticipantTile(props: {
         class="call-tile-menu"
         popover="auto"
         role="dialog"
-        aria-label={props.person.me ? 'Твой звук' : `Звук: ${props.person.name}`}
+        aria-label={props.person.me ? 'Мой звук' : `Звук: ${props.person.name}`}
         onToggle={onToggle}
       >
         <Show
@@ -132,7 +132,7 @@ export function ParticipantTile(props: {
           }
         >
           <div class="call-tile-menu-head">
-            <span>Громкость у тебя</span>
+            <span>Громкость</span>
             <span class="call-tile-menu-value">{props.volume}%</span>
           </div>
           <input
@@ -151,7 +151,9 @@ export function ParticipantTile(props: {
               props.onVolumeSave(e.currentTarget.valueAsNumber)
             }}
           />
-          <p class="call-tile-menu-note">Слышишь только ты. Запомним для этого имени.</p>
+          <p class="call-tile-menu-note">
+            Меняется только на этом компьютере и запоминается для этого имени.
+          </p>
           <Button
             variant="ghost"
             icon={<RotateCcw />}

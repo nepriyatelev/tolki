@@ -18,14 +18,14 @@ export interface StatusText {
 
 /** Status chip of a recent room: only the number of people, as PLAN #15 requires. */
 export function describeRecentStatus(status: RecentStatus | undefined): StatusText {
-  if (status === undefined) return { tone: 'neutral', dot: false, text: 'Проверяем…' }
+  if (status === undefined) return { tone: 'neutral', dot: false, text: 'Проверка…' }
   switch (status.status) {
     case 'live':
       return status.peerCount === 0
         ? { tone: 'accent', dot: true, text: 'Запущена · пока никого' }
         : { tone: 'accent', dot: true, text: `Идёт · ${people(status.peerCount)}` }
     case 'offline':
-      return { tone: 'neutral', dot: true, text: 'Хост не в сети' }
+      return { tone: 'neutral', dot: true, text: 'Организатор не в сети' }
     case 'certificate-changed':
       return { tone: 'danger', dot: false, text: 'Сертификат изменился' }
   }

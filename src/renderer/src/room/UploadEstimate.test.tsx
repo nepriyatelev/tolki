@@ -15,7 +15,7 @@ describe('UploadEstimate', () => {
     })
     render(() => <UploadEstimate />)
 
-    expect(screen.getByText('Измеряем отдачу…')).toBeTruthy()
+    expect(screen.getByText('Замер отдачи…')).toBeTruthy()
     resolve({ status: 'measured', mbps: 92, measuredAt: 0 })
 
     expect(

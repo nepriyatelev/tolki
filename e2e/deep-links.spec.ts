@@ -11,7 +11,7 @@ test('a link that starts the app opens "Вход по ссылке" with its dat
     // Nobody hosts 203.0.113.5 in tests: the screen says so and still shows the link's data.
     await expect(page.getByRole('heading', { name: 'Вход по ссылке' })).toBeVisible()
     await expect(page.getByText('203.0.113.5:47000')).toBeVisible()
-    await expect(page.getByText('Хост сейчас не в сети')).toBeVisible()
+    await expect(page.getByText('Организатор сейчас не в сети')).toBeVisible()
     await expect(page.getByText('Пароль вшит в ссылку')).toBeVisible()
   } finally {
     await app.close()
@@ -21,7 +21,7 @@ test('a link that starts the app opens "Вход по ссылке" with its dat
 test('a second launch with a link quits and hands the link to the running app', async () => {
   const { app, page, userDataDir } = await launchApp()
   try {
-    await expect(page.getByRole('heading', { name: 'С кем созвонимся?' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Ratatosk' })).toBeVisible()
 
     const exitCode = await launchSecondInstance(userDataDir, [
       link('%5B2a02%3A6b8%3A%3A1%5D', 'kino'),
@@ -39,10 +39,10 @@ test('a second launch with a link quits and hands the link to the running app', 
 test('a link from a newer version asks to update the app', async () => {
   const { app, page } = await launchApp({ args: ['ratatosk://join?v=9'] })
   try {
-    await expect(page.getByRole('heading', { name: 'Обнови приложение' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Нужна новая версия' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Скачать новую версию' })).toBeVisible()
     await page.getByRole('button', { name: 'На главный экран' }).click()
-    await expect(page.getByRole('heading', { name: 'С кем созвонимся?' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Ratatosk' })).toBeVisible()
   } finally {
     await app.close()
   }

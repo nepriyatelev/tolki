@@ -31,17 +31,17 @@ describe('RetryButton', () => {
 })
 
 describe('error screens in the app', () => {
-  it('shows «Обнови приложение» for a link from a newer version and opens the download page', async () => {
+  it('shows «Нужна новая версия» for a link from a newer version and opens the download page', async () => {
     const user = userEvent.setup()
     const api = installRatatoskMock({ pendingInvite: parseInvite('ratatosk://join?v=2') })
     render(() => <App />)
 
-    expect(await screen.findByRole('heading', { name: 'Обнови приложение' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Нужна новая версия' })).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Скачать новую версию' }))
     expect(api.app.openDownloadPage).toHaveBeenCalledOnce()
   })
 
-  it('shows «Хост не в сети» when joining fails, and retries the same link', async () => {
+  it('shows «Организатор не в сети» when joining fails, and retries the same link', async () => {
     const user = userEvent.setup()
     const api = installRatatoskMock({
       pendingInvite: parseInvite(LINK),
@@ -49,11 +49,11 @@ describe('error screens in the app', () => {
     })
     render(() => <App />)
 
-    await user.type(await screen.findByLabelText('Твоё имя'), 'Миша')
+    await user.type(await screen.findByLabelText('Имя'), 'Миша')
     await user.type(screen.getByLabelText('Пароль комнаты'), 'x')
     await user.click(screen.getByRole('button', { name: 'Войти в комнату' }))
 
-    expect(await screen.findByRole('heading', { name: 'Хост не в сети' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Организатор не в сети' })).toBeTruthy()
     expect(screen.getByText('Что можно сделать')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Попробовать снова' }))
     expect(await screen.findByRole('button', { name: 'Войти в комнату' })).toBeTruthy()
@@ -68,20 +68,20 @@ describe('error screens in the app', () => {
     })
     render(() => <App />)
 
-    await user.type(await screen.findByLabelText('Твоё имя'), 'Миша')
+    await user.type(await screen.findByLabelText('Имя'), 'Миша')
     await user.click(screen.getByRole('button', { name: 'Войти в комнату' }))
 
     expect(await screen.findByRole('heading', { name: 'Неверный пароль' })).toBeTruthy()
     expect(screen.getByRole('button', { name: /Попробовать снова через 60 с/ })).toBeTruthy()
   })
 
-  it('shows «Хост закрыл комнату» or «Связь потеряна» when the room ends', async () => {
+  it('shows «Организатор закрыл комнату» or «Связь потеряна» when the room ends', async () => {
     const api = installRatatoskMock()
     render(() => <App />)
-    await screen.findByRole('heading', { name: 'С кем созвонимся?' })
+    await screen.findByRole('heading', { name: 'Ratatosk' })
 
     api.room.emitClosed({ reason: 'host-closed', roomName: 'Кино' })
-    expect(await screen.findByRole('heading', { name: 'Хост закрыл комнату' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Организатор закрыл комнату' })).toBeTruthy()
 
     api.room.emitClosed({ reason: 'connection-lost', roomName: 'Кино' })
     expect(await screen.findByRole('heading', { name: 'Связь с комнатой потеряна' })).toBeTruthy()

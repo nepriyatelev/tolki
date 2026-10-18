@@ -67,7 +67,7 @@ export function NetworkCheckCard(props: {
       <h2 id="network-card-title">Проверка сети</h2>
       <Show
         when={!props.loading ? props.result : undefined}
-        fallback={<p class="network-card-muted">Проверяем сеть…</p>}
+        fallback={<p class="network-card-muted">Проверка сети…</p>}
       >
         {(result) => {
           const summary = () => describeHosting(result())
@@ -97,7 +97,7 @@ export function NetworkCheckCard(props: {
                     </>
                   }
                 >
-                  Друзья смогут подключиться к тебе напрямую.
+                  Участники смогут подключаться к этому компьютеру напрямую.
                 </Show>
               </div>
               <button

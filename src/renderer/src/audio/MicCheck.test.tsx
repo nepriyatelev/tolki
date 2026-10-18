@@ -53,7 +53,7 @@ describe('MicCheck', () => {
     const meter = screen.getByRole('meter', { name: 'Уровень микрофона' })
     expect(meter.getAttribute('aria-valuenow')).toBe('10')
     expect(meter.querySelectorAll('.mic-level__segment--on')).toHaveLength(10)
-    expect(screen.getByText('Скажи что-нибудь — полоска должна двигаться.')).toBeTruthy()
+    expect(screen.getByText('При разговоре полоска должна двигаться.')).toBeTruthy()
   })
 
   it('lists devices once access is granted, remembers the choice and reopens the meter', async () => {

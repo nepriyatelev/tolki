@@ -7,8 +7,10 @@ test('the home screen shows whether this computer can host', async () => {
     const footer = page.locator('footer.network-status')
 
     // With port mapping turned off (e2e), the honest answer is "cannot tell, check by hand".
-    await expect(footer).toContainText('Нельзя хостить: автоматический проброс порта выключен')
-    await expect(footer).toContainText('Проверь, что порт 47000 проброшен на роутере')
+    await expect(footer).toContainText(
+      'Этот компьютер не может быть организатором: автоматический проброс порта выключен',
+    )
+    await expect(footer).toContainText('Порт 47000 должен быть проброшен на роутере')
     await expect(footer.getByRole('button', { name: 'Проверить снова' })).toBeVisible()
   } finally {
     await app.close()

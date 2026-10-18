@@ -23,7 +23,7 @@ export function NetworkStatusBar(): JSX.Element {
         <Match when={result.loading}>
           <span class="network-status__item">
             <span class="network-status__dot network-status__dot--pending" aria-hidden="true" />
-            Проверяем сеть…
+            Проверка сети…
           </span>
         </Match>
         <Match when={result.error !== undefined}>

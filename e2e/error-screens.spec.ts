@@ -18,25 +18,25 @@ async function freePort(): Promise<number> {
 
 const FINGERPRINT = '2_SqXt3l45Ay59VWqBcvcLmeh7BmqvL0m-UwbNw3EiE'
 
-test('joining a room nobody hosts shows «Хост не в сети»', async () => {
+test('joining a room nobody hosts shows «Организатор не в сети»', async () => {
   const port = await freePort()
   const { app, page } = await launchApp({
     args: [`ratatosk://join?v=1&h=127.0.0.1&p=${port}&r=gone&fp=${FINGERPRINT}`],
   })
   try {
-    await page.getByLabel('Твоё имя').fill('Миша')
+    await page.getByLabel('Имя').fill('Миша')
     await page.getByRole('button', { name: 'Войти в комнату' }).click()
 
-    await expect(page.getByRole('heading', { name: 'Хост не в сети' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Организатор не в сети' })).toBeVisible()
     await expect(page.getByText('Что можно сделать')).toBeVisible()
     await page.getByRole('button', { name: 'На главный экран' }).click()
-    await expect(page.getByRole('heading', { name: 'С кем созвонимся?' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Ratatosk' })).toBeVisible()
   } finally {
     await app.close()
   }
 })
 
-test('when the host closes the room, the guest sees «Хост закрыл комнату»', async () => {
+test('when the host closes the room, the guest sees «Организатор закрыл комнату»', async () => {
   const host = await launchApp()
   try {
     const port = await freePort()
@@ -51,13 +51,13 @@ test('when the host closes the room, the guest sees «Хост закрыл ко
     })
     try {
       const page = client.page
-      await page.getByLabel('Твоё имя').fill('Катя')
+      await page.getByLabel('Имя').fill('Катя')
       await page.getByRole('button', { name: 'Войти в комнату' }).click()
       await expect(page.getByRole('heading', { name: 'Кино' })).toBeVisible()
 
       await host.page.evaluate(() => window.ratatosk.host.stop())
 
-      await expect(page.getByRole('heading', { name: 'Хост закрыл комнату' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Организатор закрыл комнату' })).toBeVisible()
       await expect(page.getByText('Комната «Кино» закрыта.', { exact: false })).toBeVisible()
     } finally {
       await client.app.close()

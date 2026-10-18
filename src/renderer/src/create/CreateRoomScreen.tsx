@@ -17,13 +17,13 @@ export type { ScreenMode }
 export function startFailureText(reason: HostStartFailure, port: number): string {
   switch (reason) {
     case 'port-in-use':
-      return `Порт ${port} занят другой программой. Выбери другой в «Дополнительно».`
+      return `Порт ${port} занят другой программой. Другой порт можно указать в «Дополнительно».`
     case 'port-forbidden':
-      return `Нет прав на порт ${port}. Выбери другой в «Дополнительно».`
+      return `Нет прав на порт ${port}. Другой порт можно указать в «Дополнительно».`
     case 'timeout':
     case 'crashed':
     case 'unknown':
-      return 'Не получилось открыть комнату. Попробуй ещё раз.'
+      return 'Открыть комнату не получилось. Можно попробовать ещё раз.'
   }
 }
 
@@ -105,11 +105,9 @@ export function CreateRoomScreen(props: {
     const port = parsePort()
     const who = props.profileName || name().trim()
     const nextErrors = {
-      ...(roomName().trim() === ''
-        ? { roomName: 'Назови комнату — это название увидят друзья' }
-        : {}),
+      ...(roomName().trim() === '' ? { roomName: 'Нужно название — его увидят участники' } : {}),
       ...(port === undefined ? { port: 'Порт — число от 1024 до 65535' } : {}),
-      ...(who === '' ? { name: 'Введи имя — его увидят остальные' } : {}),
+      ...(who === '' ? { name: 'Нужно имя — его увидят участники' } : {}),
     }
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0 || port === undefined) return
@@ -140,7 +138,10 @@ export function CreateRoomScreen(props: {
     })
     if (!joined.ok) {
       await window.ratatosk.host.stop()
-      setPhase({ kind: 'editing', error: 'Не получилось открыть комнату. Попробуй ещё раз.' })
+      setPhase({
+        kind: 'editing',
+        error: 'Открыть комнату не получилось. Можно попробовать ещё раз.',
+      })
       return
     }
     setPhase({ kind: 'open' })
@@ -214,7 +215,7 @@ export function CreateRoomScreen(props: {
               />
               <Show when={!props.profileName}>
                 <Input
-                  label="Твоё имя"
+                  label="Имя"
                   placeholder="Алексей"
                   maxLength={32}
                   value={name()}
@@ -245,7 +246,7 @@ export function CreateRoomScreen(props: {
               </div>
               <Checkbox
                 label="Вшить пароль в ссылку"
-                description="Удобнее: друзьям не нужно ничего вводить. Безопаснее — отправить пароль отдельно."
+                description="Удобнее: участникам не нужно ничего вводить. Безопаснее — отправить пароль отдельно."
                 checked={embedPassword()}
                 onChange={(e) => setEmbedPassword(e.currentTarget.checked)}
               />
@@ -269,7 +270,7 @@ export function CreateRoomScreen(props: {
                   value={portText()}
                   onInput={(e) => setPortText(e.currentTarget.value)}
                   onBlur={applyPort}
-                  hint="Один номер для TCP и UDP. Если пробрасываешь порт на роутере вручную — укажи его здесь."
+                  hint="Один номер для TCP и UDP. При ручном пробросе порта на роутере — тот же номер."
                   error={errors().port}
                 />
               </details>
@@ -295,7 +296,7 @@ export function CreateRoomScreen(props: {
                     <p class="link-card-muted">
                       {check.loading || fingerprint.loading
                         ? 'Ссылка появится после проверки сети.'
-                        : 'Ссылку не из чего собрать: друзья не смогут подключиться к этому компьютеру из интернета.'}
+                        : 'Ссылку не из чего собрать: из интернета к этому компьютеру не подключиться.'}
                     </p>
                     <Show when={!check.loading && cannotHost()}>
                       <Button
@@ -316,7 +317,9 @@ export function CreateRoomScreen(props: {
                     <Button icon={<Copy />} block onClick={() => void copy()}>
                       {copied() ? 'Ссылка скопирована' : 'Скопировать ссылку'}
                     </Button>
-                    <p class="link-card-muted">Ссылка работает, пока комната открыта у тебя.</p>
+                    <p class="link-card-muted">
+                      Ссылка работает, пока комната открыта на этом компьютере.
+                    </p>
                   </>
                 )}
               </Show>
@@ -343,14 +346,14 @@ export function CreateRoomScreen(props: {
                   disabled={phase().kind === 'opening'}
                   onClick={() => void open()}
                 >
-                  {phase().kind === 'opening' ? 'Открываем…' : 'Открыть комнату'}
+                  {phase().kind === 'opening' ? 'Открытие…' : 'Открыть комнату'}
                 </Button>
               }
             >
               <div class="create-open" role="status">
                 <p>
                   {link() !== undefined
-                    ? 'Комната открыта. Отправь ссылку друзьям.'
+                    ? 'Комната открыта, ссылку можно отправить участникам.'
                     : 'Комната открыта, но из интернета к ней пока не подключиться.'}
                 </p>
                 <Button variant="danger" block onClick={() => void close()}>

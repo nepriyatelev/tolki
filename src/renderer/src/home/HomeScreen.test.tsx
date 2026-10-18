@@ -32,10 +32,12 @@ function show(options: Parameters<typeof installRatatoskMock>[0] = {}, profileNa
 }
 
 describe('HomeScreen', () => {
-  it('greets the user by name when known', () => {
+  it('stays neutral: no greeting and no chatty question (#88)', () => {
     show({}, 'Алексей')
 
-    expect(screen.getByText('Привет, Алексей')).toBeTruthy()
+    expect(screen.queryByText(/Привет/)).toBeNull()
+    expect(screen.queryByText(/созвонимся/)).toBeNull()
+    expect(screen.getByRole('heading', { level: 1, name: 'Ratatosk' })).toBeTruthy()
   })
 
   it('goes to room creation', async () => {
@@ -63,7 +65,7 @@ describe('HomeScreen', () => {
     const { onOpenInvite, user } = show()
 
     await user.click(screen.getByRole('button', { name: 'Войти' }))
-    expect(screen.getByText('Вставь ссылку-приглашение от друга')).toBeTruthy()
+    expect(screen.getByText('Нужна ссылка-приглашение')).toBeTruthy()
 
     await user.type(screen.getByLabelText('Ссылка-приглашение'), 'https://example.com')
     await user.click(screen.getByRole('button', { name: 'Войти' }))
@@ -83,7 +85,7 @@ describe('HomeScreen', () => {
     expect(within(rows[0] as HTMLElement).getByText('Вечерний созвон')).toBeTruthy()
     expect(await within(rows[0] as HTMLElement).findByText('Идёт · 2 человека')).toBeTruthy()
     expect(within(rows[0] as HTMLElement).getByText(/пароль сохранён/)).toBeTruthy()
-    expect(within(rows[1] as HTMLElement).getByText('Хост не в сети')).toBeTruthy()
+    expect(within(rows[1] as HTMLElement).getByText('Организатор не в сети')).toBeTruthy()
 
     await user.click(within(rows[0] as HTMLElement).getByRole('button', { name: 'Подключиться' }))
     expect(onOpenRecent).toHaveBeenCalledWith(live)
@@ -97,7 +99,7 @@ describe('HomeScreen', () => {
     )
 
     expect(api.recent.remove).toHaveBeenCalledWith('a')
-    expect(await screen.findByText('Здесь появятся комнаты, в которые ты заходил.')).toBeTruthy()
+    expect(await screen.findByText('Здесь появятся комнаты после первого входа.')).toBeTruthy()
   })
 
   it('does not offer to connect when the certificate changed', async () => {

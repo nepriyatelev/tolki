@@ -15,7 +15,7 @@ export function UploadEstimate(props: { class?: string }): JSX.Element {
   return (
     <Switch>
       <Match when={measurement.loading}>
-        <p class={props.class}>Измеряем отдачу…</p>
+        <p class={props.class}>Замер отдачи…</p>
       </Match>
       <Match when={text()}>{(line) => <p class={props.class}>{line()}</p>}</Match>
     </Switch>
