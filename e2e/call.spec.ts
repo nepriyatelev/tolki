@@ -1,24 +1,10 @@
-import { createServer, type AddressInfo } from 'node:net'
 import { expect, test, type Page } from '@playwright/test'
+import { freePort } from './ports'
 import { launchApp } from './app'
 import { tapPeerConnections } from './media'
 
 // Chromium's fake capture device plays a beeping tone instead of using a real microphone.
 const FAKE_MEDIA = '--use-fake-device-for-media-stream'
-
-async function freePort(): Promise<number> {
-  const probe = createServer()
-  await new Promise<void>((resolve) => {
-    probe.listen(0, resolve)
-  })
-  const { port } = probe.address() as AddressInfo
-  await new Promise<void>((resolve) => {
-    probe.close(() => {
-      resolve()
-    })
-  })
-  return port
-}
 
 async function joinByUi(page: Page, name: string): Promise<void> {
   await page.getByLabel('Имя').fill(name)

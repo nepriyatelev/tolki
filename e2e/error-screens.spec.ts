@@ -1,20 +1,6 @@
-import { createServer, type AddressInfo } from 'node:net'
 import { expect, test } from '@playwright/test'
+import { freePort } from './ports'
 import { launchApp } from './app'
-
-async function freePort(): Promise<number> {
-  const probe = createServer()
-  await new Promise<void>((resolve) => {
-    probe.listen(0, resolve)
-  })
-  const { port } = probe.address() as AddressInfo
-  await new Promise<void>((resolve) => {
-    probe.close(() => {
-      resolve()
-    })
-  })
-  return port
-}
 
 const FINGERPRINT = '2_SqXt3l45Ay59VWqBcvcLmeh7BmqvL0m-UwbNw3EiE'
 

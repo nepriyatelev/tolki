@@ -1,20 +1,6 @@
-import { createServer, type AddressInfo } from 'node:net'
 import { expect, test, type Page } from '@playwright/test'
+import { freePort } from './ports'
 import { launchApp } from './app'
-
-async function freePort(): Promise<number> {
-  const probe = createServer()
-  await new Promise<void>((resolve) => {
-    probe.listen(0, resolve)
-  })
-  const { port } = probe.address() as AddressInfo
-  await new Promise<void>((resolve) => {
-    probe.close(() => {
-      resolve()
-    })
-  })
-  return port
-}
 
 /** Starts a room in a host app and returns an invite link for 127.0.0.1. */
 async function startRoom(host: Page, password: string): Promise<string> {

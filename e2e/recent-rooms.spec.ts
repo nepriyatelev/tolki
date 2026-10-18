@@ -1,22 +1,8 @@
 import { readFileSync } from 'node:fs'
-import { createServer, type AddressInfo } from 'node:net'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
+import { freePort } from './ports'
 import { launchApp } from './app'
-
-async function freePort(): Promise<number> {
-  const probe = createServer()
-  await new Promise<void>((resolve) => {
-    probe.listen(0, resolve)
-  })
-  const { port } = probe.address() as AddressInfo
-  await new Promise<void>((resolve) => {
-    probe.close(() => {
-      resolve()
-    })
-  })
-  return port
-}
 
 test('a joined room shows up in recent rooms with its live status and saved password', async () => {
   const host = await launchApp()

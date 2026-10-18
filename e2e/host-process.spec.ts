@@ -1,10 +1,11 @@
 import { createHash, X509Certificate } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { createServer, type AddressInfo, type Server } from 'node:net'
+import { createServer, type Server } from 'node:net'
 import { join } from 'node:path'
 import type { TLSSocket } from 'node:tls'
 import { expect, test, type ElectronApplication } from '@playwright/test'
 import { WebSocket } from 'ws'
+import { freePort } from './ports'
 import { launchApp } from './app'
 
 // Port mapping is off in e2e: it would touch the real router of whoever runs the tests.
@@ -16,20 +17,6 @@ function hostProcessCount(app: ElectronApplication): Promise<number> {
       electronApp.getAppMetrics().filter((m) => m.type === 'Utility' && m.name === 'Ratatosk Host')
         .length,
   )
-}
-
-async function freePort(): Promise<number> {
-  const probe = createServer()
-  await new Promise<void>((resolve) => {
-    probe.listen(0, resolve)
-  })
-  const { port } = probe.address() as AddressInfo
-  await new Promise<void>((resolve) => {
-    probe.close(() => {
-      resolve()
-    })
-  })
-  return port
 }
 
 async function occupy(port: number): Promise<Server> {
