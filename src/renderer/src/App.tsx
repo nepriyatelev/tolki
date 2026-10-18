@@ -7,6 +7,7 @@ import {
   onMount,
   Show,
   Switch,
+  untrack,
   type JSX,
 } from 'solid-js'
 import { APP_NAME } from '@shared/app'
@@ -72,12 +73,17 @@ export function App(): JSX.Element {
     // The room ended without the user leaving it.
     onCleanup(
       window.ratatosk.room.onClosed(({ reason, roomName }) => {
+        const current = untrack(route)
+        // A lost link (30 s of reconnecting, PLAN #31) can be retried with the same invite.
+        const retry =
+          reason === 'connection-lost' && current.screen === 'join' ? current : undefined
         setRoute({
           screen: 'error',
           error:
             reason === 'host-closed'
               ? { kind: 'host-closed', roomName }
               : { kind: 'connection-lost', roomName },
+          ...(retry ? { retry } : {}),
         })
       }),
     )

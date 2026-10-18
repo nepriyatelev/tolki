@@ -91,6 +91,10 @@ export interface EventContract {
   'room:closed': RoomClosedEvent
   /** Someone joined or left the room, started or stopped sending. */
   'room:event': RoomEvent
+  /** The link to the room dropped; main is trying to get back (PLAN #31). */
+  'room:reconnecting': null
+  /** Back in the room as a new participant: the call starts over with this state. */
+  'room:reconnected': Extract<JoinResult, { ok: true }>
 }
 
 export type InvokeChannel = keyof InvokeContract
@@ -183,6 +187,10 @@ export interface RatatoskApi {
     request(request: MediaRequest): Promise<MediaResponse>
     /** Returns an unsubscribe function. */
     onEvent(listener: (event: RoomEvent) => void): () => void
+    /** Returns an unsubscribe function. */
+    onReconnecting(listener: () => void): () => void
+    /** Returns an unsubscribe function. */
+    onReconnected(listener: (result: Extract<JoinResult, { ok: true }>) => void): () => void
   }
   recent: {
     list(): Promise<RecentRoom[]>

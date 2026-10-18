@@ -3,7 +3,7 @@ import type { InviteParseResult } from '@shared/invite'
 import type { RatatoskApi } from '@shared/ipc'
 import type { NetworkCheckResult } from '@shared/network'
 import type { RecentRoom, RecentStatus } from '@shared/recent'
-import type { RoomClosedEvent, RoomEvent, RoomPreview } from '@shared/room'
+import type { JoinResult, RoomClosedEvent, RoomEvent, RoomPreview } from '@shared/room'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 
 export const MOCK_FINGERPRINT = '2_SqXt3l45Ay59VWqBcvcLmeh7BmqvL0m-UwbNw3EiE'
@@ -61,6 +61,9 @@ export interface RatatoskMock {
     onEvent: Mock<RatatoskApi['room']['onEvent']>
     /** Simulates an event of the joined room. */
     emitEvent(event: RoomEvent): void
+    /** Simulates main reconnecting, then being back with a new join result. */
+    emitReconnecting(): void
+    emitReconnected(result: Extract<JoinResult, { ok: true }>): void
   }
   invite: {
     takePending: Mock<RatatoskApi['invite']['takePending']>
@@ -92,6 +95,8 @@ export function installRatatoskMock(options: RatatoskMockOptions = {}): Ratatosk
   const inviteListeners = new Set<(result: InviteParseResult) => void>()
   const closedListeners = new Set<(event: RoomClosedEvent) => void>()
   const eventListeners = new Set<(event: RoomEvent) => void>()
+  const reconnectingListeners = new Set<() => void>()
+  const reconnectedListeners = new Set<(result: Extract<JoinResult, { ok: true }>) => void>()
   let recent = options.recentRooms ?? []
   const api = {
     app: {
@@ -180,6 +185,20 @@ export function installRatatoskMock(options: RatatoskMockOptions = {}): Ratatosk
       }),
       emitEvent: (event: RoomEvent) => {
         for (const listener of eventListeners) listener(event)
+      },
+      onReconnecting: vi.fn<RatatoskApi['room']['onReconnecting']>((listener) => {
+        reconnectingListeners.add(listener)
+        return () => reconnectingListeners.delete(listener)
+      }),
+      onReconnected: vi.fn<RatatoskApi['room']['onReconnected']>((listener) => {
+        reconnectedListeners.add(listener)
+        return () => reconnectedListeners.delete(listener)
+      }),
+      emitReconnecting: () => {
+        for (const listener of reconnectingListeners) listener()
+      },
+      emitReconnected: (result: Extract<JoinResult, { ok: true }>) => {
+        for (const listener of reconnectedListeners) listener(result)
       },
     },
     invite: {

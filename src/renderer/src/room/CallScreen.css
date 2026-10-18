@@ -298,6 +298,21 @@
   animation: screen-in 160ms var(--ease-out);
 }
 
+.call-reconnecting {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--color-warning-soft, var(--color-raised));
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  animation: reconnect-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes reconnect-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
 .call-sound {
   color: var(--color-text-muted);
   font-size: var(--text-sm);

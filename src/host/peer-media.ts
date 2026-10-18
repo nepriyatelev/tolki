@@ -153,6 +153,11 @@ export class PeerMedia {
         await this.#setPaused(request.producerId, false)
         return {}
 
+      case 'restartIce': {
+        const iceParameters = await this.#transport(request.transportId).restartIce()
+        return { iceParameters: { ...iceParameters } }
+      }
+
       case 'requestScreen':
       case 'answerScreenRequest':
         // Room matters, not media; the Room answers these before they get here.

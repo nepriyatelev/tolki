@@ -1,6 +1,7 @@
 import { createServer as createHttpsServer } from 'node:https'
 import { connect, createServer, type Server, type Socket } from 'node:net'
 import { WebSocketServer, type WebSocket } from 'ws'
+import { keepAlive } from './heartbeat'
 
 export interface SignalingServerOptions {
   port: number
@@ -12,6 +13,8 @@ export interface SignalingServerOptions {
    * blocked) arrives on the same public port as signalling and is passed on to it.
    */
   mediaTcpPort?: () => number | undefined
+  /** Ping interval; a client silent for a whole interval is dropped (PLAN #31). */
+  heartbeatMs?: number
 }
 
 export interface SignalingServer {
@@ -96,6 +99,7 @@ export async function startSignalingServer(
     console.error('[host] websocket server error:', error)
   })
   wss.on('connection', (socket, request) => {
+    keepAlive(socket, options.heartbeatMs ?? 10_000)
     options.onConnection?.(socket, request.socket.remoteAddress)
   })
 

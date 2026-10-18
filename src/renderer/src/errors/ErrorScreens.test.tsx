@@ -86,4 +86,17 @@ describe('error screens in the app', () => {
     api.room.emitClosed({ reason: 'connection-lost', roomName: 'Кино' })
     expect(await screen.findByRole('heading', { name: 'Связь с комнатой потеряна' })).toBeTruthy()
   })
+
+  it('lets the user try the same room again after the link was lost for good (#31)', async () => {
+    const user = userEvent.setup()
+    const api = installRatatoskMock({ pendingInvite: parseInvite(LINK) })
+    render(() => <App />)
+    expect(await screen.findByRole('button', { name: 'Войти в комнату' })).toBeTruthy()
+
+    api.room.emitClosed({ reason: 'connection-lost', roomName: 'Кино' })
+    expect(await screen.findByRole('heading', { name: 'Связь с комнатой потеряна' })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Попробовать снова' }))
+
+    expect(await screen.findByRole('button', { name: 'Войти в комнату' })).toBeTruthy()
+  })
 })

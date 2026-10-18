@@ -210,12 +210,25 @@ test('others see the shared screen at a layer that fits, and nothing while hidde
         JSON.stringify(await receivedVideo(misha.page)),
       )
 
-      // A small window: the ≈360p layer is enough.
+      // A small window: the ≈360p layer is enough — unless the display is so dense (Retina)
+      // that even the smallest window shows the stage over 540 device pixels tall.
       await resize(960, 640)
-      await expect
-        .poll(async () => (await receivedVideo(misha.page))?.frameHeight ?? 0, { timeout: 20_000 })
-        .toBeLessThanOrEqual(360)
-      console.log('small window:', JSON.stringify(await receivedVideo(misha.page)))
+      await misha.page.waitForTimeout(500)
+      const shownPx = await misha.page.evaluate(() => {
+        const video = document.querySelector('.screen-stage-video')
+        return (video?.getBoundingClientRect().height ?? 0) * window.devicePixelRatio
+      })
+      if (shownPx < 540) {
+        await expect
+          .poll(async () => (await receivedVideo(misha.page))?.frameHeight ?? 0, {
+            timeout: 20_000,
+          })
+          .toBeLessThanOrEqual(360)
+      }
+      console.log(
+        `small window (${Math.round(shownPx)} device px tall):`,
+        JSON.stringify(await receivedVideo(misha.page)),
+      )
 
       // Hidden (minimized): nothing arrives; shown again: frames again. The OS signal itself
       // cannot be produced on a virtual display without a window manager, so the page is told
