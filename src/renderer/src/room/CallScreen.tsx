@@ -36,6 +36,7 @@ import {
   type RemoteScreen,
   type RoomEventSource,
 } from './call'
+import { formatCallTime } from './call-timer'
 import { ConnectionIndicator } from './ConnectionIndicator'
 import { ParticipantTile } from './ParticipantTile'
 import { ScreenStage } from './ScreenStage'
@@ -78,7 +79,10 @@ export function CallScreen(props: {
   playTestSound?: (outputDeviceId: string) => Promise<void>
   /** Tests replace screen capture. */
   screen?: ScreenAccess
-  /** The organizer's invite link, for «Пригласить» (#100); guests get theirs with #80. */
+  /**
+   * For «Пригласить»: the organizer's link (#100), or the one a participant came by (#80) —
+   * with the password only if the organizer put it into the link.
+   */
   inviteLink?: string | undefined
   /** The organizer's own app: the room is on this computer, so there is no link to show. */
   organizer?: boolean
@@ -104,6 +108,13 @@ export function CallScreen(props: {
   const [sharerId, setSharerId] = createSignal<string | null>(initial.sharerId)
   const [askingToShare, setAskingToShare] = createSignal(false)
   const [linkCopied, setLinkCopied] = createSignal(false)
+  // Since entering the room; a reconnect (PLAN #31) does not start it over.
+  const joinedAt = Date.now()
+  const [now, setNow] = createSignal(joinedAt)
+  const clock = setInterval(() => setNow(Date.now()), 1000)
+  onCleanup(() => {
+    clearInterval(clock)
+  })
   const copyInvite = async (link: string): Promise<void> => {
     await window.tolki.app.copyText(link)
     setLinkCopied(true)
@@ -487,6 +498,9 @@ export function CallScreen(props: {
       <header class="call-header">
         <h1>{joined().room.name}</h1>
         <span class="call-count">{peopleCount(everyone().length)}</span>
+        <time class="call-timer" aria-label="Время в звонке">
+          {formatCallTime(now() - joinedAt)}
+        </time>
         <Show when={!props.organizer}>
           <ConnectionIndicator
             sample={() => call?.connectionSample() ?? Promise.resolve(null)}

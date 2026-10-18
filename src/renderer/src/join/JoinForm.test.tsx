@@ -91,6 +91,32 @@ describe('join form', () => {
     expect(api.room.join.mock.calls[0]?.[0]).not.toHaveProperty('password')
   })
 
+  it('«Пригласить» in the call copies the link the participant came by, without the typed password (#80)', async () => {
+    const { api, user } = setup(INVITE, ok)
+    await user.type(screen.getByLabelText('Имя'), 'Алексей')
+    await user.type(screen.getByLabelText('Пароль комнаты'), 'лиса-маяк-42')
+    await user.click(screen.getByRole('button', { name: 'Войти в комнату' }))
+    await screen.findByRole('heading', { name: 'Вечерний созвон' })
+
+    await user.click(screen.getByRole('button', { name: 'Пригласить' }))
+
+    expect(api.app.copyText).toHaveBeenCalledWith(buildInvite(INVITE))
+    expect(api.app.copyText.mock.calls[0]?.[0]).not.toContain('k=')
+    expect(screen.getByRole('button', { name: 'Ссылка скопирована' })).toBeTruthy()
+  })
+
+  it('keeps the password in the copied link when the organizer put it there (#80)', async () => {
+    const withPassword = { ...INVITE, password: 'secret' }
+    const { api, user } = setup(withPassword, ok)
+    await user.type(screen.getByLabelText('Имя'), 'Катя')
+    await user.click(screen.getByRole('button', { name: 'Войти в комнату' }))
+    await screen.findByRole('heading', { name: 'Вечерний созвон' })
+
+    await user.click(screen.getByRole('button', { name: 'Пригласить' }))
+
+    expect(api.app.copyText).toHaveBeenCalledWith(buildInvite(withPassword))
+  })
+
   it('requires a name', async () => {
     const { api, user } = setup(INVITE, ok)
 

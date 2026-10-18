@@ -5,7 +5,7 @@ import { launchApp } from './app'
 // Chromium's fake capture device plays a beeping tone instead of using a real microphone.
 const FAKE_MEDIA = '--use-fake-device-for-media-stream'
 
-test('the organizer opens a room from the UI and is in its call; leaving closes it (#100)', async () => {
+test('the organizer opens a room from the UI and is in its call; a participant invites; leaving closes it (#80, #100)', async () => {
   test.setTimeout(90_000)
   const host = await launchApp({ args: [FAKE_MEDIA] })
   const port = await freePort()
@@ -53,6 +53,24 @@ test('the organizer opens a room from the UI and is in its call; leaving closes 
       await expect(
         friend.page.getByRole('list', { name: 'Участники' }).getByRole('listitem'),
       ).toHaveCount(2)
+      // The call's timer, and «Пригласить» giving the link the participant came by (#80). The
+      // copy is caught in main instead of the system clipboard, which is the user's.
+      await expect(friend.page.getByLabel('Время в звонке')).toHaveText(/^\d{2}:\d{2}$/)
+      await friend.app.evaluate(({ ipcMain }) => {
+        ipcMain.removeHandler('app:copy-text')
+        ipcMain.handle('app:copy-text', (_event, text: string) => {
+          Object.assign(globalThis, { copiedText: text })
+          return null
+        })
+      })
+      await friend.page.getByRole('button', { name: 'Пригласить' }).click()
+      await expect(friend.page.getByRole('button', { name: 'Ссылка скопирована' })).toBeVisible()
+      // For review (uploaded with test-results on CI).
+      await friend.page.screenshot({ path: 'test-results/call-header.png' })
+      expect(
+        await friend.app.evaluate(() => (globalThis as { copiedText?: string }).copiedText),
+      ).toBe(`tolki://join?v=1&h=127.0.0.1&p=${port}&r=room&fp=${fingerprint}`)
+
       // They hear each other: each plays the other's voice.
       await expect(friend.page.locator('audio[data-peer-id]')).toHaveCount(1, { timeout: 15_000 })
       await expect(page.locator('audio[data-peer-id]')).toHaveCount(1, { timeout: 15_000 })
