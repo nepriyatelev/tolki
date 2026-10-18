@@ -74,7 +74,13 @@ export function screenStreams(
 
 /**
  * Whether the computer's sound can go along with a shared screen (PLAN #41): Windows (WASAPI
- * loopback), macOS from 14.2 (Darwin 23.2, CoreAudio taps). Linux: not yet.
+ * loopback), macOS from 14.2 (Darwin 23.2, CoreAudio taps).
+ *
+ * Linux: no (#112). Electron's `loopback` there (Chromium's PulseaudioLoopbackForScreenShare)
+ * records the whole speaker monitor, the call's voices too, and `restrictOwnAudio` /
+ * `loopbackWithoutChrome` exist only on Windows and macOS: everyone would hear themselves with
+ * a delay. What it would take: Chromium excluding its own streams on Linux (PipeWire, as
+ * Vesktop does by hand with the native @vencord/venmic, which the owner chose not to add).
  */
 export function systemAudioSupported(platform: string, osRelease: string): boolean {
   if (platform === 'win32') return true
