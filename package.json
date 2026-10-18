@@ -23,7 +23,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.e2e.json",
     "test": "vitest run --coverage",
     "test:e2e": "electron-vite build && playwright test",
-    "perf:load": "electron-vite build && vite build -c perf/vite.client.config.ts && playwright test -c perf/playwright.config.ts"
+    "perf:load": "electron-vite build && vite build -c perf/vite.client.config.ts && playwright test -c perf/playwright.config.ts load.spec.ts",
+    "perf:share": "electron-vite build && vite build -c perf/vite.client.config.ts && playwright test -c perf/playwright.config.ts share.spec.ts",
+    "perf:budgets": "electron-vite build && vite build -c perf/vite.client.config.ts && playwright test -c perf/playwright.config.ts budgets.spec.ts"
   },
   "dependencies": {
     "mediasoup": "3.27.1",

@@ -28,6 +28,10 @@ export interface ClientStats {
   videoBytesReceived: number
   videoBytesSent: number
   videoFramesEncoded: number
+  /** Encoders of the sent layers, e.g. «VideoToolbox» or «SimulcastEncoderAdapter (OpenH264…)». */
+  encoders: string[]
+  /** Every video stream is encoded in hardware (`powerEfficientEncoder`). */
+  hardwareEncoder: boolean
   protocol: string
   error?: string
 }
@@ -46,6 +50,38 @@ const url = params.get('url') ?? ''
 const mediaHost = params.get('mediaHost') ?? '127.0.0.1'
 const name = params.get('name') ?? 'Участник'
 const shares = params.get('share') === '1'
+/** What to share (#34): a fake camera, or a canvas with heavy 1080p60 motion; «none» only draws it. */
+const source = params.get('source') ?? 'camera'
+const variant = params.get('variant') ?? 'app'
+
+/** Constant 1080p60 motion — the «Плавно» case: moving shapes over noise. */
+function motionTrack(): MediaStreamTrack {
+  const canvas = document.createElement('canvas')
+  canvas.width = 1920
+  canvas.height = SCREEN_LAYERS.high
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('no 2d canvas')
+  let frame = 0
+  const draw = (): void => {
+    frame++
+    ctx.fillStyle = `hsl(${frame % 360} 40% 12%)`
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    for (let i = 0; i < 40; i++) {
+      const x = (Math.sin(frame / 30 + i) * 0.5 + 0.5) * canvas.width
+      const y = (Math.cos(frame / 23 + i * 1.7) * 0.5 + 0.5) * canvas.height
+      ctx.fillStyle = `hsl(${(i * 37 + frame * 3) % 360} 70% 55%)`
+      ctx.fillRect(x - 60, y - 40, 120, 80)
+    }
+    ctx.fillStyle = '#fff'
+    ctx.font = '48px sans-serif'
+    ctx.fillText(`кадр ${frame}`, 40, 80)
+    requestAnimationFrame(draw)
+  }
+  draw()
+  const track = canvas.captureStream(60).getVideoTracks()[0]
+  if (!track) throw new Error('no canvas track')
+  return track
+}
 
 /** Media goes where the organizer listens; the host only knows its own address. */
 function pointAt(data: unknown): unknown {
@@ -143,7 +179,11 @@ async function run(): Promise<void> {
       }
     },
   })
-  if (shares) {
+  if (source === 'motion' && (shares || variant === 'none')) {
+    // The canvas draws even when nothing is sent: the baseline for the share CPU variants.
+    const track = motionTrack()
+    if (shares && variant !== 'none') await call.startScreen(track, 'motion')
+  } else if (shares) {
     const screen = await navigator.mediaDevices.getUserMedia({
       video: { width: 1920, height: SCREEN_LAYERS.high, frameRate: 30 },
     })
@@ -166,6 +206,8 @@ async function run(): Promise<void> {
         videoBytesReceived: 0,
         videoBytesSent: 0,
         videoFramesEncoded: 0,
+        encoders: [],
+        hardwareEncoder: false,
         protocol: '',
       }
       for (const pc of connections) {
@@ -193,6 +235,15 @@ async function run(): Promise<void> {
             if (s['kind'] === 'video') {
               result.videoBytesSent += Number(s['bytesSent'] ?? 0)
               result.videoFramesEncoded += Number(s['framesEncoded'] ?? 0)
+              const limit = String(s['qualityLimitationReason'] ?? 'none')
+              result.encoders.push(
+                `${String(s['frameHeight'] ?? '?')}p ${String(s['framesPerSecond'] ?? '?')} к/с ` +
+                  String(s['encoderImplementation'] ?? '?') +
+                  `, ${fmtKbps(Number(s['targetBitrate'] ?? 0))}` +
+                  (limit === 'none' ? '' : ` (ограничение: ${limit})`),
+              )
+              // Only the ≈1080p stream can be in hardware (#34).
+              if (s['powerEfficientEncoder'] === true) result.hardwareEncoder = true
             }
           }
           if (s['type'] === 'transport' && s['selectedCandidatePairId']) {
@@ -220,3 +271,8 @@ declare global {
 run().catch((error: unknown) => {
   window.loadError = String(error)
 })
+
+/** «2,8 Мбит/с» for a bitrate in bit/s. */
+function fmtKbps(bps: number): string {
+  return `${(bps / 1e6).toLocaleString('ru-RU', { maximumFractionDigits: 1 })} Мбит/с`
+}
