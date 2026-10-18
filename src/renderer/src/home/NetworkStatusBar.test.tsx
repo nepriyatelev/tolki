@@ -16,10 +16,12 @@ describe('NetworkStatusBar', () => {
     })
     render(() => <NetworkStatusBar />)
 
-    expect(screen.getByText('Проверяем сеть…')).toBeTruthy()
+    expect(screen.getByText('Проверка сети…')).toBeTruthy()
     resolve(PUBLIC_IPV4_CHECK)
 
-    expect(await screen.findByText('Можно хостить: порт открыт через UPnP')).toBeTruthy()
+    expect(
+      await screen.findByText('Этот компьютер может быть организатором: порт открыт через UPnP'),
+    ).toBeTruthy()
     expect(screen.getByText('Внешний адрес 93.184.216.34')).toBeTruthy()
   })
 

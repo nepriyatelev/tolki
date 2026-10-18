@@ -1,7 +1,7 @@
 import ArrowRight from 'lucide-solid/icons/arrow-right'
 import Link from 'lucide-solid/icons/link'
 import Plus from 'lucide-solid/icons/plus'
-import { createSignal, Show, type JSX } from 'solid-js'
+import { createSignal, type JSX } from 'solid-js'
 import { inviteErrorMessage, parseInvite, type InviteParseResult } from '@shared/invite'
 import type { RecentRoom } from '@shared/recent'
 import { Button, Card, Input } from '../ui'
@@ -23,7 +23,7 @@ export function HomeScreen(props: HomeScreenProps): JSX.Element {
   const join = (event: SubmitEvent): void => {
     event.preventDefault()
     if (link().trim() === '') {
-      setLinkError('Вставь ссылку-приглашение от друга')
+      setLinkError('Нужна ссылка-приглашение')
       return
     }
     const result = parseInvite(link())
@@ -38,10 +38,7 @@ export function HomeScreen(props: HomeScreenProps): JSX.Element {
   return (
     <>
       <main class="home">
-        <Show when={props.profileName}>
-          {(name) => <p class="home-greeting">Привет, {name()}</p>}
-        </Show>
-        <h1>С кем созвонимся?</h1>
+        <h1 class="visually-hidden">Ratatosk</h1>
         <div class="home-cards">
           <Card as="section" aria-labelledby="create-title">
             <span class="home-card-icon home-card-icon--accent">
@@ -49,8 +46,7 @@ export function HomeScreen(props: HomeScreenProps): JSX.Element {
             </span>
             <h2 id="create-title">Создать комнату</h2>
             <p>
-              Твой компьютер станет хостом. Получишь ссылку — отправь её друзьям, и они подключатся
-              напрямую к тебе.
+              Этот компьютер станет организатором. Участники подключаются по ссылке напрямую к нему.
             </p>
             <Button
               variant="primary"
@@ -67,9 +63,7 @@ export function HomeScreen(props: HomeScreenProps): JSX.Element {
               <Link />
             </span>
             <h2 id="join-link-title">Войти по ссылке</h2>
-            <p>
-              Вставь приглашение от друга. Или просто открой ссылку — приложение подхватит её само.
-            </p>
+            <p>Ссылку можно вставить сюда или просто открыть — приложение подхватит её само.</p>
             <form class="home-link-form" onSubmit={join} novalidate>
               <Input
                 label="Ссылка-приглашение"

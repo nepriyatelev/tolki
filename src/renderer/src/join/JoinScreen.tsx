@@ -47,15 +47,15 @@ const plural = new Intl.PluralRules('ru-RU')
 
 /** Only the number of people, never names (PLAN #17, owner's decision). */
 export function peopleText(preview: RoomPreview | undefined): string {
-  if (preview === undefined) return 'Проверяем комнату…'
+  if (preview === undefined) return 'Проверка комнаты…'
   switch (preview.status) {
     case 'live': {
       const n = preview.room.peerCount
-      if (n === 0) return 'Пока никого нет — ты будешь первым'
+      if (n === 0) return 'Пока никого нет'
       return `В комнате ${n} ${plural.select(n) === 'few' ? 'человека' : 'человек'}`
     }
     case 'offline':
-      return 'Хост сейчас не в сети'
+      return 'Организатор сейчас не в сети'
     case 'certificate-changed':
       return 'Не удалось проверить комнату'
   }
@@ -151,7 +151,7 @@ function TrustNote(props: { preview: RoomPreview | undefined }): JSX.Element {
       <Match when={props.preview?.status === 'live'}>
         <p class="join-note join-note--ok">
           <ShieldCheck aria-hidden="true" />
-          Подключение напрямую к хосту · сертификат совпадает со ссылкой
+          Подключение напрямую к организатору · сертификат совпадает со ссылкой
         </p>
       </Match>
       <Match when={props.preview?.status === 'certificate-changed'}>
@@ -163,7 +163,7 @@ function TrustNote(props: { preview: RoomPreview | undefined }): JSX.Element {
       <Match when={props.preview?.status === 'offline'}>
         <p class="join-note">
           <Info aria-hidden="true" />
-          Возможно, комната ещё не открыта. Попробуй войти чуть позже.
+          Возможно, комната ещё не открыта. Войти можно чуть позже.
         </p>
       </Match>
     </Switch>
@@ -209,7 +209,7 @@ function JoinForm(props: {
   const submit = async (event: SubmitEvent): Promise<void> => {
     event.preventDefault()
     if (name().trim() === '') {
-      setNameError('Введи имя — его увидят остальные')
+      setNameError('Нужно имя — его увидят участники')
       return
     }
     setNameError(undefined)
@@ -241,7 +241,7 @@ function JoinForm(props: {
   return (
     <form class="join-form" onSubmit={(event) => void submit(event)} novalidate>
       <Input
-        label="Твоё имя"
+        label="Имя"
         placeholder="Алексей"
         maxLength={32}
         autocomplete="off"
@@ -253,7 +253,7 @@ function JoinForm(props: {
         <Input
           label="Пароль комнаты"
           type="password"
-          placeholder="Спроси у хоста"
+          placeholder="Пароль — у организатора"
           maxLength={128}
           value={password()}
           onInput={(e) => setPassword(e.currentTarget.value)}
@@ -298,7 +298,7 @@ function JoinForm(props: {
           size="lg"
           disabled={status().kind === 'joining' || props.preview?.status === 'certificate-changed'}
         >
-          {status().kind === 'joining' ? 'Подключаемся…' : 'Войти в комнату'}
+          {status().kind === 'joining' ? 'Подключение…' : 'Войти в комнату'}
         </Button>
       </div>
     </form>

@@ -211,7 +211,7 @@ describe('parseInvite', () => {
 
 describe('inviteErrorMessage', () => {
   it('tells the user to update the app for newer links', () => {
-    expect(inviteErrorMessage({ code: 'unsupported-version' })).toContain('Обнови приложение')
+    expect(inviteErrorMessage({ code: 'unsupported-version' })).toContain('Нужна последняя версия')
   })
 
   it('explains links that are not invites', () => {

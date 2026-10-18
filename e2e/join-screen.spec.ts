@@ -55,7 +55,7 @@ test('the join screen previews the room, checks the microphone and joins muted',
     await expect(page.getByText('В комнате 1 человек')).toBeVisible()
     await expect(page.getByText('Дима')).toHaveCount(0)
     await expect(
-      page.getByText('Подключение напрямую к хосту · сертификат совпадает со ссылкой'),
+      page.getByText('Подключение напрямую к организатору · сертификат совпадает со ссылкой'),
     ).toBeVisible()
 
     // The microphone meter moves with the fake device's tone.
@@ -73,7 +73,7 @@ test('the join screen previews the room, checks the microphone and joins muted',
       )
       .toBe(device)
 
-    await page.getByLabel('Твоё имя').fill('Катя')
+    await page.getByLabel('Имя').fill('Катя')
     await page.getByLabel('Пароль комнаты').fill('secret')
     await page.getByRole('checkbox', { name: 'Войти с выключенным микрофоном' }).check()
     await page.getByRole('button', { name: 'Войти в комнату' }).click()

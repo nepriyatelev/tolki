@@ -2,7 +2,7 @@
   "name": "ratatosk",
   "version": "0.0.0",
   "private": true,
-  "description": "P2P voice & screen sharing for friends",
+  "description": "P2P voice & screen sharing",
   "author": "nepriyatelev",
   "homepage": "https://github.com/nepriyatelev/ratatosk-releases",
   "main": "./out/main/index.js",

@@ -70,7 +70,7 @@ linux:
   category: Network
   # Window ↔ .desktop association (app_id / WM_CLASS), also needed for deep links.
   syncDesktopName: true
-  synopsis: Голосовые звонки и демонстрация экрана для друзей
+  synopsis: Голосовые звонки и демонстрация экрана
   maintainer: Ratatosk contributors
 
 deb:

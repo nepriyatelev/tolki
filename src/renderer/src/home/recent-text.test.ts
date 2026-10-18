@@ -7,9 +7,9 @@ describe('describeRecentStatus', () => {
     [{ status: 'live', peerCount: 2 } as const, 'Идёт · 2 человека'],
     [{ status: 'live', peerCount: 5 } as const, 'Идёт · 5 человек'],
     [{ status: 'live', peerCount: 0 } as const, 'Запущена · пока никого'],
-    [{ status: 'offline' } as const, 'Хост не в сети'],
+    [{ status: 'offline' } as const, 'Организатор не в сети'],
     [{ status: 'certificate-changed' } as const, 'Сертификат изменился'],
-    [undefined, 'Проверяем…'],
+    [undefined, 'Проверка…'],
   ])('%j → %s', (status, text) => {
     expect(describeRecentStatus(status).text).toBe(text)
   })

@@ -41,7 +41,7 @@ test('a wrong password is reported, the right one lets the user in', async () =>
     const client = await launchApp({ args: [link] })
     try {
       const page = client.page
-      await page.getByLabel('Твоё имя').fill('Алексей')
+      await page.getByLabel('Имя').fill('Алексей')
 
       await tryJoin(page, 'не тот')
       await expect(page.getByText('Неверный пароль')).toBeVisible()
@@ -67,7 +67,7 @@ test('after 5 wrong passwords the user gets the «Неверный пароль�
     const client = await launchApp({ args: [link] })
     try {
       const page = client.page
-      await page.getByLabel('Твоё имя').fill('Миша')
+      await page.getByLabel('Имя').fill('Миша')
       for (let i = 0; i < 5; i++) {
         await tryJoin(page, `guess-${i}`)
         await expect(page.getByText('Неверный пароль')).toBeVisible()

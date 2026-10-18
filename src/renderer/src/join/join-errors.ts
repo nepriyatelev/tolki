@@ -13,25 +13,27 @@ export function describeJoinError(error: JoinError): JoinErrorText {
     case 'WRONG_PASSWORD':
       return { field: 'password', text: 'Неверный пароль' }
     case 'password-required':
-      return { field: 'password', text: 'В комнате есть пароль — спроси его у хоста' }
+      return { field: 'password', text: 'В комнате есть пароль — он у организатора' }
     case 'TOO_MANY_ATTEMPTS':
-      return { text: 'Слишком много неверных попыток. Подожди минуту и попробуй снова.' }
+      return { text: 'Слишком много неверных попыток. Через минуту можно попробовать снова.' }
     case 'ROOM_FULL':
       return { text: 'Комната заполнена: в ней уже 15 человек.' }
     case 'VERSION_MISMATCH':
-      return { text: 'У тебя и у хоста разные версии Ratatosk. Обнови приложение.' }
+      return {
+        text: 'У этого приложения и у организатора разные версии Ratatosk. Нужна последняя версия.',
+      }
     case 'certificate-mismatch':
       return {
-        text: 'Сертификат хоста не совпадает со ссылкой. Не подключайся — попроси у хоста новую ссылку.',
+        text: 'Сертификат организатора не совпадает со ссылкой. Подключаться не стоит — нужна новая ссылка от организатора.',
       }
     case 'unreachable':
-      return { text: 'Хост не в сети или недоступен.' }
+      return { text: 'Организатор не в сети или недоступен.' }
     case 'timeout':
-      return { text: 'Хост не ответил. Попробуй ещё раз.' }
+      return { text: 'Организатор не ответил. Можно попробовать ещё раз.' }
     case 'SCREEN_BUSY':
     case 'BAD_REQUEST':
     case 'protocol':
-      return { text: 'Не получилось подключиться. Попробуй ещё раз.' }
+      return { text: 'Подключиться не получилось. Можно попробовать ещё раз.' }
   }
 }
 

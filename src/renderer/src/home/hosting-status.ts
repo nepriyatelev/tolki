@@ -17,7 +17,7 @@ const PROBLEMS: Record<HostingProblem, string> = {
   cgnat: 'провайдер выдаёт общий адрес (CGNAT)',
   'double-nat': 'роутер подключён через другой роутер (двойной NAT)',
   'no-gateway': 'не найден роутер',
-  vpn: 'включён VPN — через него друзья не подключатся',
+  vpn: 'включён VPN — через него участники не подключатся',
   unsupported: 'роутер не открывает порты автоматически',
   refused: 'роутер отказался открыть порт',
   'bad-address': 'роутер сообщил непонятный внешний адрес',
@@ -27,20 +27,20 @@ const PROBLEMS: Record<HostingProblem, string> = {
 function advice(problem: HostingProblem, port: number): string {
   switch (problem) {
     case 'cgnat':
-      return 'Попроси у провайдера белый IP или пусть хостит другой'
+      return 'Поможет белый IP у провайдера или другой организатор'
     case 'double-nat':
-      return 'Включи режим моста на модеме провайдера или пусть хостит другой'
+      return 'Поможет режим моста на модеме провайдера или другой организатор'
     case 'no-gateway':
-      return 'Если включён VPN — выключи его на время созвона'
+      return 'Если включён VPN, его стоит выключить на время созвона'
     case 'vpn':
-      return 'Выключи VPN на время созвона или добавь Ratatosk в исключения VPN (split tunneling)'
+      return 'Выключить VPN на время созвона или добавить Ratatosk в исключения VPN (split tunneling)'
     case 'unsupported':
-      return `Включи UPnP в настройках роутера или пробрось порт ${port} вручную`
+      return `Поможет UPnP в настройках роутера или проброс порта ${port} вручную`
     case 'refused':
-      return `Пробрось порт ${port} вручную или пусть хостит другой`
+      return `Поможет проброс порта ${port} вручную или другой организатор`
     case 'bad-address':
     case 'mapping-disabled':
-      return `Проверь, что порт ${port} проброшен на роутере`
+      return `Порт ${port} должен быть проброшен на роутере`
   }
 }
 
@@ -56,20 +56,20 @@ export function describeHosting(result: NetworkCheckResult): HostingStatusText {
         : `${verdict.externalAddress}:${verdict.externalPort}`
     return {
       tone: 'ok',
-      title: `Можно хостить: порт открыт через ${METHOD_NAMES[verdict.method]}`,
+      title: `Этот компьютер может быть организатором: порт открыт через ${METHOD_NAMES[verdict.method]}`,
       details: [`Внешний адрес ${address}`, ...ipv6],
     }
   }
   if (verdict.canHost) {
     return {
       tone: 'ok',
-      title: 'Можно хостить через IPv6',
+      title: 'Этот компьютер может быть организатором через IPv6',
       details: [`По IPv4 нельзя: ${PROBLEMS[verdict.ipv4Problem]}`],
     }
   }
   return {
     tone: 'bad',
-    title: `Нельзя хостить: ${PROBLEMS[verdict.problem]}`,
+    title: `Этот компьютер не может быть организатором: ${PROBLEMS[verdict.problem]}`,
     details: [advice(verdict.problem, port), ...ipv6],
   }
 }

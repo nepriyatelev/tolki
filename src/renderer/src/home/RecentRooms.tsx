@@ -30,7 +30,7 @@ export function RecentRooms(props: RecentRoomsProps): JSX.Element {
         when={(rooms()?.length ?? 0) > 0}
         fallback={
           <Show when={rooms() !== undefined}>
-            <p class="recent-empty">Здесь появятся комнаты, в которые ты заходил.</p>
+            <p class="recent-empty">Здесь появятся комнаты после первого входа.</p>
           </Show>
         }
       >

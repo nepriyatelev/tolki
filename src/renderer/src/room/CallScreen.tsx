@@ -331,7 +331,7 @@ export function CallScreen(props: {
 
   const screenButton = (): { label: string; text: string } => {
     if (myScreen()) return { label: 'Остановить показ экрана', text: 'Остановить' }
-    if (askingToShare()) return { label: 'Ждём ответа на запрос показа', text: 'Ждём ответа…' }
+    if (askingToShare()) return { label: 'Ожидание ответа на запрос показа', text: 'Ожидание…' }
     if (someoneElseShares())
       return { label: 'Попросить показать свой экран', text: 'Показать свой' }
     return { label: 'Показать экран', text: 'Экран' }
@@ -390,7 +390,7 @@ export function CallScreen(props: {
       <ul class="call-tiles" aria-label="Участники">
         <Show when={myScreen()}>
           {(stream) => (
-            <li class="call-tile call-tile--screen" aria-label="Твой экран">
+            <li class="call-tile call-tile--screen" aria-label="Мой экран">
               <video
                 class="call-screen-video"
                 autoplay
@@ -401,7 +401,7 @@ export function CallScreen(props: {
                 }}
               />
               <span class="call-tile-name">
-                <span class="call-tile-name-text">Твой экран</span>
+                <span class="call-tile-name-text">Мой экран</span>
               </span>
             </li>
           )}
@@ -445,11 +445,13 @@ export function CallScreen(props: {
           classList={{ 'call-sound--failed': sound() === 'failed' }}
         >
           <Switch>
-            <Match when={sound() === 'connecting'}>Подключаем звук…</Match>
+            <Match when={sound() === 'connecting'}>Подключение звука…</Match>
             <Match when={sound() === 'on'}>Звук подключён</Match>
-            <Match when={sound() === 'listen-only'}>Микрофон недоступен — ты только слушаешь</Match>
+            <Match when={sound() === 'listen-only'}>
+              Микрофон недоступен — только прослушивание
+            </Match>
             <Match when={sound() === 'failed'}>
-              Не получилось подключить звук. Выйди и зайди снова.
+              Звук не подключился. Поможет повторный вход в комнату.
             </Match>
           </Switch>
         </p>
@@ -475,7 +477,7 @@ export function CallScreen(props: {
         </Show>
         <Show when={screenError()}>
           <p class="call-sound call-sound--failed" role="alert">
-            Не получилось начать показ экрана. Попробуй ещё раз или выбери другое окно.
+            Показ экрана не начался. Можно попробовать ещё раз или выбрать другое окно.
           </p>
         </Show>
         <div class="call-controls" role="toolbar" aria-label="Управление звонком">

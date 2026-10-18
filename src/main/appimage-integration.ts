@@ -19,7 +19,7 @@ export function desktopEntry(appImagePath: string): string {
     '[Desktop Entry]',
     'Type=Application',
     'Name=Ratatosk',
-    'Comment=Голосовые звонки и демонстрация экрана для друзей',
+    'Comment=Голосовые звонки и демонстрация экрана',
     `Exec=${quoteExec(appImagePath)} %u`,
     `Icon=${ICON_NAME}`,
     'Terminal=false',

@@ -69,7 +69,7 @@ test('the user picks a screen and sees what they are showing', async () => {
       test.skip(!hasScreen, 'no screen to capture (no «Запись экрана» permission?)')
 
       await tapPeerConnections(page)
-      await page.getByLabel('Твоё имя').fill('Катя')
+      await page.getByLabel('Имя').fill('Катя')
       await page.getByRole('button', { name: 'Войти в комнату' }).click()
       await page.getByRole('button', { name: 'Показать экран' }).click()
       const dialog = page.getByRole('dialog', { name: 'Что показать' })
@@ -86,7 +86,7 @@ test('the user picks a screen and sees what they are showing', async () => {
       await firstSource.click()
       await dialog.getByRole('button', { name: 'Показать' }).click()
 
-      const preview = page.getByRole('listitem', { name: 'Твой экран' }).locator('video')
+      const preview = page.getByRole('listitem', { name: 'Мой экран' }).locator('video')
       await expect(preview).toBeVisible()
       await expect
         .poll(() => preview.evaluate((v: HTMLVideoElement) => v.videoWidth), { timeout: 15_000 })
@@ -118,7 +118,7 @@ test('the user picks a screen and sees what they are showing', async () => {
 
       await page.getByRole('button', { name: 'Остановить показ экрана' }).click()
       await expect.poll(async () => (await sentVideo(page))?.layers.length ?? 0).toBe(0)
-      await expect(page.getByRole('listitem', { name: 'Твой экран' })).toHaveCount(0)
+      await expect(page.getByRole('listitem', { name: 'Мой экран' })).toHaveCount(0)
     } finally {
       await client.app.close()
     }
@@ -165,7 +165,7 @@ test('others see the shared screen at a layer that fits, and nothing while hidde
         [katya, 'Катя'],
         [misha, 'Миша'],
       ] as const) {
-        await app.page.getByLabel('Твоё имя').fill(name)
+        await app.page.getByLabel('Имя').fill(name)
         await app.page.getByRole('button', { name: 'Войти в комнату' }).click()
         await expect(app.page.getByRole('heading', { name: 'Кино' })).toBeVisible()
       }
@@ -267,7 +267,7 @@ test('one screen at a time: «Показать свой» goes to the sharer, wh
         [katya, 'Катя'],
         [misha, 'Миша'],
       ] as const) {
-        await app.page.getByLabel('Твоё имя').fill(name)
+        await app.page.getByLabel('Имя').fill(name)
         await app.page.getByRole('button', { name: 'Войти в комнату' }).click()
         await expect(app.page.getByRole('heading', { name: 'Кино' })).toBeVisible()
       }
@@ -284,11 +284,11 @@ test('one screen at a time: «Показать свой» goes to the sharer, wh
       // Misha asks; Katya gives way; Misha picks his screen and everyone sees it.
       await misha.page.getByRole('button', { name: 'Попросить показать свой экран' }).click()
       await expect(
-        misha.page.getByRole('button', { name: 'Ждём ответа на запрос показа' }),
+        misha.page.getByRole('button', { name: 'Ожидание ответа на запрос показа' }),
       ).toBeDisabled()
       await expect(katya.page.getByText('Миша просит показать свой экран')).toBeVisible()
       await katya.page.getByRole('button', { name: 'Уступить' }).click()
-      await expect(katya.page.getByRole('listitem', { name: 'Твой экран' })).toHaveCount(0)
+      await expect(katya.page.getByRole('listitem', { name: 'Мой экран' })).toHaveCount(0)
       await share(misha.page)
       await expect(katya.page.getByRole('listitem', { name: 'Экран: Миша' })).toBeVisible()
       await expect(misha.page.getByRole('listitem', { name: 'Экран: Катя' })).toHaveCount(0)

@@ -13,7 +13,7 @@ describe('App', () => {
     installRatatoskMock()
     render(() => <App />)
 
-    expect(screen.getByRole('heading', { level: 1, name: 'С кем созвонимся?' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 1, name: 'Ratatosk' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Создать комнату' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Войти по ссылке' })).toBeTruthy()
   })
@@ -36,6 +36,6 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Вечерний созвон' })).toBeTruthy()
 
     await user.click(screen.getByRole('button', { name: 'Отмена' }))
-    expect(screen.getByRole('heading', { name: 'С кем созвонимся?' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Ratatosk' })).toBeTruthy()
   })
 })

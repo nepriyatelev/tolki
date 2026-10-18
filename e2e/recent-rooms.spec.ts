@@ -38,15 +38,15 @@ test('a joined room shows up in recent rooms with its live status and saved pass
   const page = client.page
   try {
     // Join once with the password typed by hand.
-    await page.getByLabel('Твоё имя').fill('Алексей')
+    await page.getByLabel('Имя').fill('Алексей')
     await page.getByLabel('Пароль комнаты').fill('лиса-маяк-42')
     await page.getByRole('button', { name: 'Войти в комнату' }).click()
     await expect(page.getByRole('heading', { name: 'Вечерний созвон' })).toBeVisible()
     await page.getByRole('button', { name: 'Выйти' }).click()
     await page.getByRole('button', { name: 'Отмена' }).click()
 
-    // Home: greeting, header name, recent room with only the number of people.
-    await expect(page.getByText('Привет, Алексей')).toBeVisible()
+    // Home: the name in the header (no greeting, #88), recent room with only the number of people.
+    await expect(page.locator('.app-user')).toContainText('Алексей')
     const row = page.getByRole('listitem').filter({ hasText: 'Вечерний созвон' })
     await expect(row).toBeVisible()
     await expect(row.getByText('Запущена · пока никого')).toBeVisible()
@@ -59,7 +59,7 @@ test('a joined room shows up in recent rooms with its live status and saved pass
 
     // Rejoin from the list: no password field when it was saved.
     await row.getByRole('button', { name: 'Подключиться' }).click()
-    await expect(page.getByLabel('Твоё имя')).toHaveValue('Алексей')
+    await expect(page.getByLabel('Имя')).toHaveValue('Алексей')
     if (saved) {
       await expect(page.getByLabel('Пароль комнаты')).toHaveCount(0)
     } else {
@@ -96,7 +96,10 @@ test('a joined room shows up in recent rooms with its live status and saved pass
     await host.page.evaluate(() => window.ratatosk.host.stop())
     await page.reload()
     await expect(
-      page.getByRole('listitem').filter({ hasText: 'Вечерний созвон' }).getByText('Хост не в сети'),
+      page
+        .getByRole('listitem')
+        .filter({ hasText: 'Вечерний созвон' })
+        .getByText('Организатор не в сети'),
     ).toBeVisible()
   } finally {
     await client.app.close()

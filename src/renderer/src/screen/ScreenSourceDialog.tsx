@@ -86,20 +86,21 @@ export function ScreenSourceDialog(props: {
         <Switch>
           <Match when={sources.loading && !sources.latest}>
             <p class="screen-picker-note" role="status">
-              Ищем экраны и окна…
+              Поиск экранов и окон…
             </p>
           </Match>
           <Match when={sources.error !== undefined}>
             <p class="screen-picker-note screen-picker-note--problem" role="alert">
-              Не получилось получить список экранов.
+              Список экранов получить не удалось.
             </p>
             <Button onClick={() => void refetch()}>Попробовать снова</Button>
           </Match>
           <Match when={sources.latest?.picker === 'denied'}>
             <div class="screen-picker-denied" role="alert">
               <p>
-                Нет разрешения на запись экрана. Открой «Системные настройки → Конфиденциальность и
-                безопасность → Запись экрана», включи Ratatosk и перезапусти приложение.
+                Нет разрешения на запись экрана. Его можно включить для Ratatosk в «Системные
+                настройки → Конфиденциальность и безопасность → Запись экрана»; после этого нужен
+                перезапуск приложения.
               </p>
               <Button onClick={() => void access().openPermissionSettings()}>
                 Открыть настройки

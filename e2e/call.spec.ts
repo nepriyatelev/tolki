@@ -21,7 +21,7 @@ async function freePort(): Promise<number> {
 }
 
 async function joinByUi(page: Page, name: string): Promise<void> {
-  await page.getByLabel('Твоё имя').fill(name)
+  await page.getByLabel('Имя').fill(name)
   await page.getByRole('button', { name: 'Войти в комнату' }).click()
   await expect(page.getByText('Звук подключён')).toBeVisible()
 }
