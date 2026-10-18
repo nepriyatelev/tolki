@@ -35,6 +35,7 @@ export interface TolkiMock {
   app: {
     copyText: Mock<TolkiApi['app']['copyText']>
     openDownloadPage: Mock<TolkiApi['app']['openDownloadPage']>
+    openLink: Mock<TolkiApi['app']['openLink']>
     checkUpdate: Mock<TolkiApi['app']['checkUpdate']>
   }
   host: {
@@ -138,6 +139,7 @@ export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
       getInfo: vi.fn(() => Promise.resolve({ name: 'Tolki', version: '0.0.0', platform: 'test' })),
       copyText: vi.fn<TolkiApi['app']['copyText']>(() => Promise.resolve(null)),
       openDownloadPage: vi.fn<TolkiApi['app']['openDownloadPage']>(() => Promise.resolve(null)),
+      openLink: vi.fn<TolkiApi['app']['openLink']>(() => Promise.resolve(null)),
       checkUpdate: vi.fn<TolkiApi['app']['checkUpdate']>(() =>
         Promise.resolve(options.update ?? null),
       ),

@@ -186,6 +186,7 @@ export class PeerMedia {
       case 'removePeer':
       case 'answerJoin':
       case 'setApproval':
+      case 'sendChat':
         // Room matters, not media; the Room answers these before they get here.
         throw new MediaRequestError('not a media request')
 

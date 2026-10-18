@@ -34,6 +34,7 @@ const api: TolkiApi = {
     getInfo: () => invoke('app:get-info'),
     copyText: (text) => invoke('app:copy-text', text),
     openDownloadPage: () => invoke('app:open-download-page'),
+    openLink: (url) => invoke('app:open-link', url),
     checkUpdate: () => invoke('app:check-update'),
   },
   host: {

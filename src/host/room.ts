@@ -58,10 +58,16 @@ interface Member {
   rejoinToken: string
   /** The organizer removed them: no coming back by the token. */
   removed: boolean
+  /** When their last chat messages went out (#45), for the rate limit. */
+  chatTimes: number[]
 }
 
 /** How long after a dropped link the rejoin token still lets someone straight back in (#42). */
 export const REJOIN_TOKEN_MS = 60_000
+
+/** The chat (#45): at most this many messages per participant in the window below. */
+export const CHAT_BURST = 5
+export const CHAT_WINDOW_MS = 3_000
 
 /**
  * The room on the host: admits connections through the hello → challenge → auth handshake,
@@ -286,6 +292,7 @@ export class Room {
       organizer,
       rejoinToken,
       removed: false,
+      chatTimes: [],
     })
     send({
       type: 'welcome',
@@ -320,6 +327,10 @@ export class Room {
       request.method === 'setApproval'
     ) {
       const error = this.#organizerRequest(member, request)
+      return error === null ? { type: 'response', id, data: {} } : { type: 'response', id, error }
+    }
+    if (request.method === 'sendChat') {
+      const error = this.#chat(member, request.text)
       return error === null ? { type: 'response', id, data: {} } : { type: 'response', id, error }
     }
     if (request.method === 'requestScreen' || request.method === 'answerScreenRequest') {
@@ -378,6 +389,19 @@ export class Room {
     if (sharer.peerId !== member.peer.id) return 'you are not sharing'
     if (!this.#screenRequests.delete(request.fromPeerId)) return 'no such request'
     this.#sendTo(request.fromPeerId, { type: 'screen-request-answer', accepted: request.accept })
+    return null
+  }
+
+  /**
+   * The chat (#45): passed on to everyone, the sender too, so all see the same order. Nothing
+   * is kept and nothing goes to the logs, the text least of all.
+   */
+  #chat(member: Member, text: string): string | null {
+    const now = Date.now()
+    member.chatTimes = member.chatTimes.filter((t) => now - t < CHAT_WINDOW_MS)
+    if (member.chatTimes.length >= CHAT_BURST) return 'too many messages'
+    member.chatTimes.push(now)
+    this.#broadcast({ type: 'chat', peerId: member.peer.id, text })
     return null
   }
 

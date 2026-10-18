@@ -32,6 +32,8 @@ export interface InvokeContract {
   'app:copy-text': { args: [text: string]; result: null }
   /** Opens the installers page in the browser (fixed URL; the renderer cannot pass one). */
   'app:open-download-page': { args: []; result: null }
+  /** A link from the chat (#45) in the browser; main opens http(s) only, ignores anything else. */
+  'app:open-link': { args: [url: string]; result: null }
   /** A newer release in tolki-releases, if any (PLAN #36); asked once per run. */
   'app:check-update': { args: []; result: { version: string } | null }
   /** Never throws for expected failures: returns `stopped` with `lastError` instead. */
@@ -156,6 +158,7 @@ export const invokeArgsSchemas: {
   'app:get-info': z.tuple([]),
   'app:copy-text': z.tuple([z.string().max(4096)]),
   'app:open-download-page': z.tuple([]),
+  'app:open-link': z.tuple([z.string().max(4096)]),
   'app:check-update': z.tuple([]),
   'host:start': z.tuple([
     z.strictObject({
@@ -225,6 +228,7 @@ export interface TolkiApi {
     getInfo(): Promise<AppInfo>
     copyText(text: string): Promise<null>
     openDownloadPage(): Promise<null>
+    openLink(url: string): Promise<null>
     checkUpdate(): Promise<{ version: string } | null>
   }
   host: {
