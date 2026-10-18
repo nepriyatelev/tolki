@@ -31,7 +31,10 @@ function tapOutput(page: Page): Promise<void> {
 /** Loudest level at the app's output (after the volume and the deafen gain). */
 function outputLevel(page: Page): Promise<number> {
   return page.evaluate(async () => {
-    const master = (window as unknown as { gains: GainNode[] }).gains[0]
+    // The call's own output: cues (#43) make gains of their own, in contexts closed by now.
+    const master = (window as unknown as { gains: GainNode[] }).gains.find(
+      (gain) => gain.context.state !== 'closed',
+    )
     if (!master) return 0
     const analyser = master.context.createAnalyser()
     master.connect(analyser)

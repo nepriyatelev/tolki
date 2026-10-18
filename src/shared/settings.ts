@@ -54,6 +54,8 @@ export const settingsSchema = z.object({
       key: z.string().max(32),
     })
     .default({ enabled: false, key: DEFAULT_PUSH_TO_TALK_KEY }),
+  /** Cues when someone comes, leaves or asks to be let in (PLAN #43); on by default. */
+  sounds: z.object({ enabled: z.boolean() }).default({ enabled: true }),
   /** Hotkeys that work in any window during a call (PLAN #40); empty: not set (the default). */
   globalHotkeys: z
     .object({
@@ -69,6 +71,7 @@ export const DEFAULT_SETTINGS: Settings = {
   profile: { name: '' },
   audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: {} },
   pushToTalk: { enabled: false, key: DEFAULT_PUSH_TO_TALK_KEY },
+  sounds: { enabled: true },
   globalHotkeys: { mute: '', deafen: '' },
 }
 
@@ -90,6 +93,7 @@ export const settingsPatchSchema = z.strictObject({
       key: z.string().refine(isPushToTalkKey, 'not a push-to-talk key').optional(),
     })
     .optional(),
+  sounds: z.strictObject({ enabled: z.boolean() }).optional(),
   globalHotkeys: z
     .strictObject({
       mute: hotkeySchema.optional(),
