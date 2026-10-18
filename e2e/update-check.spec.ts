@@ -5,6 +5,7 @@ import { launchApp } from './app'
 
 // PLAN #36: on launch the app asks for the latest release and offers a newer one. GitHub is
 // replaced by a local stub; the request itself is checked to carry nothing about the user.
+// A release asks for /releases/latest, an alpha (a packaged alpha build, #46) for the list.
 
 async function stub(
   tag: string,
@@ -13,13 +14,14 @@ async function stub(
   const server = createServer((request, response) => {
     requests.push(request)
     response.setHeader('Content-Type', 'application/json')
-    response.end(JSON.stringify({ tag_name: tag, html_url: 'https://example.invalid' }))
+    const release = { tag_name: tag, draft: false, html_url: 'https://example.invalid' }
+    response.end(JSON.stringify(request.url === '/releases/latest' ? release : [release]))
   })
   await new Promise<void>((resolve) => {
     server.listen(0, '127.0.0.1', resolve)
   })
   const { port } = server.address() as AddressInfo
-  return { server, url: `http://127.0.0.1:${port}/releases/latest`, requests }
+  return { server, url: `http://127.0.0.1:${port}`, requests }
 }
 
 test('a newer release shows «Доступна версия X» on the home screen', async () => {
@@ -33,7 +35,7 @@ test('a newer release shows «Доступна версия X» on the home scre
     // One plain GET: no query, no cookies, nothing that identifies the user.
     expect(github.requests).toHaveLength(1)
     expect(github.requests[0]?.method).toBe('GET')
-    expect(github.requests[0]?.url).toBe('/releases/latest')
+    expect(github.requests[0]?.url).toMatch(/^\/releases(\/latest|\?per_page=10)$/)
     expect(github.requests[0]?.headers.cookie).toBeUndefined()
     // For review (uploaded with test-results on CI).
     await page.screenshot({ path: 'test-results/update-banner.png' })

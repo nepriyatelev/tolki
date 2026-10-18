@@ -114,13 +114,16 @@ const portMappingEnabled = process.env['TOLKI_PORT_MAPPING'] !== 'off'
 const speedTestAllowed = process.env['TOLKI_SPEED_TEST'] !== 'off'
 
 // Packaged builds only: a development build is always «older». TOLKI_UPDATE_CHECK=off never
-// contacts GitHub (e2e tests); TOLKI_UPDATE_API points the check elsewhere (an e2e stub).
+// contacts GitHub (e2e tests); TOLKI_UPDATE_API is another base for both requests, the latest
+// release and the list an alpha reads (an e2e stub).
 const updateApi = process.env['TOLKI_UPDATE_API']
 const updates = new UpdateCheck({
   enabled: process.env['TOLKI_UPDATE_CHECK'] !== 'off' && (app.isPackaged || !!updateApi),
   currentVersion: app.getVersion(),
   fetch: (url, init) => net.fetch(url, init),
-  ...(updateApi ? { url: updateApi } : {}),
+  ...(updateApi
+    ? { url: `${updateApi}/releases/latest`, releasesUrl: `${updateApi}/releases?per_page=10` }
+    : {}),
 })
 
 // Auto-update (#46): Windows (NSIS) and Linux AppImage download the new version in the
