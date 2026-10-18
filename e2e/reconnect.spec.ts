@@ -50,6 +50,11 @@ test('a dropped link comes back by itself: «Переподключение…»
       await join(katya.page, 'Катя')
       await join(misha.page, 'Миша')
       await expect(misha.page.locator('audio[data-peer-id]')).toHaveCount(1)
+      // The header tells how the link is (PLAN #32). On one machine Chromium has no loopback UDP
+      // candidate, so media takes the ICE-TCP fallback; over a network it is UDP.
+      await expect(misha.page.getByText(/^\d+ мс · через организатора \((UDP|TCP)\)$/)).toBeVisible(
+        { timeout: 10_000 },
+      )
 
       // The organizer's room server dies without a word (crash, sleep, network gone)…
       const pid = await host.app.evaluate(
@@ -60,6 +65,7 @@ test('a dropped link comes back by itself: «Переподключение…»
       process.kill(pid, 'SIGKILL')
       for (const app of [katya, misha]) {
         await expect(app.page.getByText('Переподключение…')).toBeVisible({ timeout: 15_000 })
+        await expect(app.page.getByText('Нет связи', { exact: true })).toBeVisible()
       }
 
       // …and is back a few seconds later on the same port, with the same certificate.

@@ -39,6 +39,7 @@ function setup(invite: Invite, result: JoinResult, startCall?: StartCall) {
             requestScreen: () => Promise.resolve(),
             answerScreenRequest: () => Promise.resolve(),
             screenSample: () => Promise.resolve(null),
+            connectionSample: () => Promise.resolve(null),
             close: () => undefined,
           }))
       }
@@ -193,6 +194,7 @@ describe('the call after joining', () => {
         requestScreen: () => Promise.resolve(),
         answerScreenRequest: () => Promise.resolve(),
         screenSample: () => Promise.resolve(null),
+        connectionSample: () => Promise.resolve(null),
         close,
       }),
     )
@@ -223,6 +225,7 @@ describe('the call after joining', () => {
         requestScreen: () => Promise.resolve(),
         answerScreenRequest: () => Promise.resolve(),
         screenSample: () => Promise.resolve(null),
+        connectionSample: () => Promise.resolve(null),
         close: () => undefined,
       }),
     )
