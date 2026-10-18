@@ -32,10 +32,13 @@ import { browserScreen, type ScreenAccess } from '../screen/screen-share'
 import { Avatar, Button } from '../ui'
 import {
   createEventBuffer,
+  type ConnectionSample,
   type RemoteAudio as Voice,
   type RemoteScreen,
   type RoomEventSource,
+  type ScreenSample,
 } from './call'
+import { CALL_LOG_INTERVAL_MS, callLogLine } from './call-log'
 import { formatCallTime } from './call-timer'
 import { ConnectionIndicator } from './ConnectionIndicator'
 import { ParticipantTile } from './ParticipantTile'
@@ -108,6 +111,29 @@ export function CallScreen(props: {
   const [sharerId, setSharerId] = createSignal<string | null>(initial.sharerId)
   const [askingToShare, setAskingToShare] = createSignal(false)
   const [linkCopied, setLinkCopied] = createSignal(false)
+  // The call's numbers in the logs every half a minute (#106): the link, and the screen if any.
+  let lastLink: ConnectionSample | null = null
+  let lastScreen: { key: string; sample: ScreenSample } | null = null
+  const statsLog = setInterval(() => {
+    const handle = call
+    if (!handle) return
+    const own = myScreen() !== null
+    const key = own ? 'own' : (screens()[0]?.consumerId ?? null)
+    void Promise.all([
+      handle.connectionSample(),
+      key === null ? Promise.resolve(null) : handle.screenSample(own ? null : key),
+    ]).then(([link, screen]) => {
+      const before = lastScreen?.key === key ? lastScreen.sample : null
+      console.info(
+        callLogLine({ now: link, before: lastLink }, screen ? { now: screen, before, own } : null),
+      )
+      lastLink = link
+      lastScreen = screen && key !== null ? { key, sample: screen } : null
+    })
+  }, CALL_LOG_INTERVAL_MS)
+  onCleanup(() => {
+    clearInterval(statsLog)
+  })
   // Since entering the room; a reconnect (PLAN #31) does not start it over.
   const joinedAt = Date.now()
   const [now, setNow] = createSignal(joinedAt)
@@ -259,6 +285,8 @@ export function CallScreen(props: {
         }
         call = handle
         setSound(handle.sending ? 'on' : 'listen-only')
+        // main writes the window's console.info to renderer.log (#106).
+        console.info(`[call] started: ${handle.sending ? 'microphone on' : 'listening only'}`)
         // Still sharing from before the reconnect: send the same capture again.
         const track = myScreen()?.getVideoTracks()[0]
         if (track) {
@@ -366,6 +394,7 @@ export function CallScreen(props: {
   }
 
   const stopScreen = (): void => {
+    if (myScreen()) console.info('[screen] sharing stopped')
     for (const track of myScreen()?.getTracks() ?? []) track.stop()
     setMyScreen(null)
     void call?.stopScreen().catch((error: unknown) => {
@@ -385,7 +414,10 @@ export function CallScreen(props: {
       })
       setMyScreen(stream)
       // Everyone else gets it in the room's mode (sharp text, smooth motion or auto).
-      if (track && call) await call.startScreen(track, joined().screenMode)
+      if (track && call) {
+        await call.startScreen(track, joined().screenMode)
+        console.info(`[screen] sharing started: ${captureText(track)}, mode ${joined().screenMode}`)
+      }
     } catch (error) {
       // Someone else started first: the room shows one screen at a time.
       if (error instanceof Error && error.message.includes('SCREEN_BUSY')) {
@@ -751,4 +783,14 @@ function isTyping(target: EventTarget | null): boolean {
     target instanceof HTMLInputElement &&
     !['range', 'checkbox', 'radio', 'button', 'submit', 'reset'].includes(target.type)
   )
+}
+
+/** «1080p up to 60 fps» for the logs; logging must never break sharing (#106). */
+function captureText(track: MediaStreamTrack): string {
+  try {
+    const { height, frameRate } = track.getSettings()
+    return `${height ?? '?'}p up to ${frameRate ?? '?'} fps`
+  } catch {
+    return 'size unknown'
+  }
 }

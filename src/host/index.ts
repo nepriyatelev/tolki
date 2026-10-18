@@ -41,6 +41,7 @@ async function start(message: Extract<MainToHostMessage, { type: 'start' }>): Pr
     media = await MediaServer.start({
       port: message.port,
       onDied: (error) => {
+        console.error(`mediasoup worker died: ${error.message}`)
         send({ type: 'fatal', message: `mediasoup worker died: ${error.message}` })
         process.exit(1)
       },
@@ -61,8 +62,14 @@ async function start(message: Extract<MainToHostMessage, { type: 'start' }>): Pr
         send({ type: 'call-upload', capacity })
       },
     )
+    // stdout goes to host.log in main (#106).
+    console.log(
+      `room open on port ${server.port}, screen mode ${message.screenMode}, ` +
+        `password ${message.password ? 'yes' : 'no'}`,
+    )
     send({ type: 'ready', port: server.port, fingerprint: certificate.fingerprint })
   } catch (error) {
+    console.error(`room did not start: ${String(error)}`)
     if (error instanceof SignalingServerStartError || error instanceof MediaServerStartError) {
       send({ type: 'start-failed', reason: error.reason, message: error.message })
     } else {
@@ -77,6 +84,7 @@ async function start(message: Extract<MainToHostMessage, { type: 'start' }>): Pr
     if (session.state.status === 'mapped') {
       media.publicUdpPort = session.state.externalUdpPort
     }
+    console.log(`port mapping: ${JSON.stringify(session.state)}`)
     if (!stopping) send({ type: 'port-mapping', state: session.state })
   }
 }
@@ -94,6 +102,7 @@ async function check(message: Extract<MainToHostMessage, { type: 'check' }>): Pr
 async function shutdown(): Promise<void> {
   if (stopping) return
   stopping = true
+  console.log('room closing')
   // Participants learn the room was closed on purpose before the connection drops.
   room?.close()
   stopMonitor?.()
@@ -105,6 +114,7 @@ async function shutdown(): Promise<void> {
 }
 
 process.on('uncaughtException', (error) => {
+  console.error(`uncaught: ${error.stack ?? error.message}`)
   send({ type: 'fatal', message: error.stack ?? error.message })
   process.exit(1)
 })

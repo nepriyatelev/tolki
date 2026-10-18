@@ -12,7 +12,7 @@ export interface LaunchedApp {
   userDataDir: string
 }
 
-/** e2e must never change the router, upload to speed.cloudflare.com or ask GitHub for updates. */
+/** e2e must never change the router, upload to speed.cloudflare.com, ask GitHub for updates or open folders. */
 function appEnv(userDataDir: string): Record<string, string> {
   return {
     ...process.env,
@@ -20,6 +20,8 @@ function appEnv(userDataDir: string): Record<string, string> {
     TOLKI_PORT_MAPPING: 'off',
     TOLKI_SPEED_TEST: 'off',
     TOLKI_UPDATE_CHECK: 'off',
+    // «Сохранить логи…» must not open Finder / Explorer windows (#106).
+    TOLKI_SHOW_IN_FOLDER: 'off',
   }
 }
 

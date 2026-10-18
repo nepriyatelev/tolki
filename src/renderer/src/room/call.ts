@@ -33,6 +33,8 @@ export interface ScreenSample {
   fps: number
   /** Total bytes so far; the bitrate comes from two samples. */
   bytes: number
+  /** The encoder of the user's own screen, e.g. «VideoToolbox» (for the logs, #106). */
+  encoder?: string
   /** Milliseconds. */
   timestamp: number
 }
@@ -410,6 +412,8 @@ export class Call {
         })
     }
     transport.on('connectionstatechange', (state) => {
+      // main writes the window's console.info to renderer.log (#106).
+      console.info(`[call] ${transport.direction} transport ${state}`)
       clearTimeout(timer)
       if (state === 'failed') restart()
       else if (state === 'disconnected') timer = setTimeout(restart, ICE_RESTART_GRACE_MS)
@@ -598,6 +602,7 @@ interface RtpStat {
   mid?: string
   frameHeight?: number
   framesPerSecond?: number
+  encoderImplementation?: string
   bytesSent?: number
   bytesReceived?: number
   timestamp: number
@@ -620,6 +625,7 @@ export function sampleOf(
     fps: Math.round(top.framesPerSecond ?? 0),
     bytes: streams.reduce((sum, s) => sum + (s.bytesSent ?? s.bytesReceived ?? 0), 0),
     timestamp: top.timestamp,
+    ...(top.encoderImplementation ? { encoder: top.encoderImplementation } : {}),
   }
 }
 

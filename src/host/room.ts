@@ -13,6 +13,7 @@ import {
   type Peer,
   type SignalingErrorCode,
 } from '@shared/signaling'
+import { peerAlias } from '@shared/log-alias'
 import { AttemptLimiter } from './attempt-limiter'
 import type { MediaServer, MediaTransport } from './media-server'
 import { MediaRequestError, PeerMedia, screenLayerOf } from './peer-media'
@@ -173,6 +174,8 @@ export class Room {
             clearTimeout(timer)
             this.#admit(socket, message.name)
           } else {
+            // stdout goes to host.log in main, which masks the address (#106).
+            console.log(`join refused: ${ok} (from ${address})`)
             reject(ok)
           }
         })
@@ -187,6 +190,7 @@ export class Room {
       const member = this.#peers.get(socket)
       if (!member) return
       this.#peers.delete(socket)
+      console.log(`${peerAlias(member.peer.id)} left, ${this.#peers.size} in the room`)
       member.media?.close()
       this.#broadcast({ type: 'peer-left', peerId: member.peer.id })
     })
@@ -205,6 +209,12 @@ export class Room {
             }
           },
           onProducer: (producer) => {
+            console.log(
+              `${peerAlias(peer.id)} sends ${producer.kind}` +
+                (producer.kind === 'video'
+                  ? ` (${screenLayerOf(producer) === 1 ? '≈1080p' : '≈360p'})`
+                  : ''),
+            )
             if (producer.kind === 'audio') this.#addVoice(producer, peer.id)
             else this.#startSharing(producer, peer.id)
             this.#broadcast(newProducer(peer.id, producer), socket)
@@ -215,6 +225,7 @@ export class Room {
           },
           isForwarded: (producerId) => this.#speakers.forwarded.has(producerId),
           onScreenLayer: (layer) => {
+            console.log(`${peerAlias(peer.id)} gets the ${layer === 1 ? '≈1080p' : '≈360p'} screen`)
             send({ type: 'screen-layer', layer })
           },
           onProducerPaused: (producer, paused) => {
@@ -227,6 +238,7 @@ export class Room {
       : null
     const others = [...this.#peers.values()]
     this.#broadcast({ type: 'peer-joined', peer })
+    console.log(`${peerAlias(peer.id)} joined, ${this.#peers.size + 1} in the room`)
     this.#peers.set(socket, { peer, media, muted: false, pending: 0 })
     send({
       type: 'welcome',
@@ -280,6 +292,7 @@ export class Room {
       this.#sharer = null
       // Whoever was waiting can show theirs now.
       this.#screenRequests.clear()
+      console.log(`${peerAlias(peerId)} stopped sharing`)
       this.#broadcast({ type: 'screen-share-stopped', peerId })
     })
   }
