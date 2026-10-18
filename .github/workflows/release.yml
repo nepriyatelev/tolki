@@ -119,3 +119,15 @@ jobs:
             --repo "$RELEASES_REPO" \
             --title "Ratatosk ${GITHUB_REF_NAME#v}" \
             --notes-file notes.md
+
+      # The install guide (docs/INSTALL.md) is the releases repository's README, kept in step
+      # with every release.
+      - name: Update README
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          sha="$(gh api "repos/$RELEASES_REPO/contents/README.md" --jq .sha 2>/dev/null || true)"
+          gh api --method PUT "repos/$RELEASES_REPO/contents/README.md" \
+            -f message="docs: install guide for $GITHUB_REF_NAME" \
+            -f content="$(base64 -w0 docs/INSTALL.md)" \
+            ${sha:+-f sha="$sha"} > /dev/null

@@ -15,6 +15,8 @@
    - на каждой ОС запускает e2e-набор на собранном приложении;
    - публикует релиз в [ratatosk-releases](https://github.com/nepriyatelev/ratatosk-releases/releases):
      5 установщиков, `SHA256SUMS.txt` и release notes на русском.
+   - обновляет README `ratatosk-releases` из [`docs/INSTALL.md`](INSTALL.md) — инструкцию по
+     установке; правки инструкции попадают туда со следующим релизом.
 4. Release notes собираются скриптом `.github/release-notes.sh`: таблица файлов, подсказки
    по первому запуску и список коммитов с прошлого тега (без `chore`, `ci`, `test`, `docs`,
    `style`). Текст можно поправить после публикации на странице релиза.
