@@ -6,6 +6,7 @@ import MicOff from 'lucide-solid/icons/mic-off'
 import ScreenShare from 'lucide-solid/icons/screen-share'
 import ScreenShareOff from 'lucide-solid/icons/screen-share-off'
 import Settings from 'lucide-solid/icons/settings'
+import UserPlus from 'lucide-solid/icons/user-plus'
 import Users from 'lucide-solid/icons/users'
 import {
   createEffect,
@@ -77,6 +78,10 @@ export function CallScreen(props: {
   playTestSound?: (outputDeviceId: string) => Promise<void>
   /** Tests replace screen capture. */
   screen?: ScreenAccess
+  /** The organizer's invite link, for «Пригласить» (#100); guests get theirs with #80. */
+  inviteLink?: string | undefined
+  /** The organizer's own app: the room is on this computer, so there is no link to show. */
+  organizer?: boolean
 }): JSX.Element {
   // eslint-disable-next-line solid/reactivity -- a session never changes while the screen lives
   const { events, name, result: initial } = props.session
@@ -98,6 +103,12 @@ export function CallScreen(props: {
   /** One screen at a time (PLAN #29): who shares now, and «Показать свой» in progress. */
   const [sharerId, setSharerId] = createSignal<string | null>(initial.sharerId)
   const [askingToShare, setAskingToShare] = createSignal(false)
+  const [linkCopied, setLinkCopied] = createSignal(false)
+  const copyInvite = async (link: string): Promise<void> => {
+    await window.ratatosk.app.copyText(link)
+    setLinkCopied(true)
+    setTimeout(() => setLinkCopied(false), 2000)
+  }
   const [screenNote, setScreenNote] = createSignal<string | null>(null)
   /** Who asked the user (the sharer) to give way, oldest first. */
   const [screenRequests, setScreenRequests] = createSignal<string[]>([])
@@ -476,10 +487,19 @@ export function CallScreen(props: {
       <header class="call-header">
         <h1>{joined().room.name}</h1>
         <span class="call-count">{peopleCount(everyone().length)}</span>
-        <ConnectionIndicator
-          sample={() => call?.connectionSample() ?? Promise.resolve(null)}
-          offline={reconnecting()}
-        />
+        <Show when={!props.organizer}>
+          <ConnectionIndicator
+            sample={() => call?.connectionSample() ?? Promise.resolve(null)}
+            offline={reconnecting()}
+          />
+        </Show>
+        <Show when={props.inviteLink}>
+          {(link) => (
+            <Button icon={<UserPlus />} onClick={() => void copyInvite(link())}>
+              {linkCopied() ? 'Ссылка скопирована' : 'Пригласить'}
+            </Button>
+          )}
+        </Show>
         <Show when={stage()}>
           <Button
             class="call-header-switch"
