@@ -60,6 +60,34 @@
   font-size: var(--text-md);
 }
 
+.audio-settings-subtitle {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+/* Global hotkeys (#40): «Микрофон [Ctrl+Shift+M] [×]», a note under it if taken. */
+.audio-settings-hotkey {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-md);
+}
+
+.audio-settings-hotkey .audio-settings-note {
+  grid-column: 1 / -1;
+}
+
+.audio-settings-hotkey-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.audio-settings-note--bad {
+  color: var(--color-danger-text);
+}
+
 .audio-settings-note {
   color: var(--color-text-muted);
   font-size: var(--text-sm);

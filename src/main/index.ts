@@ -6,6 +6,7 @@ import {
   app,
   BrowserWindow,
   clipboard,
+  globalShortcut,
   Menu,
   net,
   safeStorage,
@@ -24,6 +25,7 @@ import { buildInvite, parseInvite } from '@shared/invite'
 import { loadOrCreateCertificate } from '../host/certificate'
 import { appMenuTemplate } from './app-menu'
 import { PushToTalk, type KeyHook } from './push-to-talk'
+import { GlobalHotkeys } from './global-hotkeys'
 import { integrateAppImage } from './appimage-integration'
 import { HostProcess, HostStartError } from './host-process'
 import { findInviteLink, InviteLinks } from './invite-links'
@@ -153,7 +155,8 @@ const screenCapture = new ScreenCapture({
 })
 // Wayland: screen capture goes through the desktop portal (PipeWire).
 if (process.platform === 'linux')
-  app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer')
+  // Wayland: screen capture through the portal (PipeWire), global hotkeys (#40) too.
+  app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer,GlobalShortcutsPortal')
 
 // Push-to-talk (PLAN #39). TOLKI_GLOBAL_KEYS=off keeps the key to the focused window (e2e: no
 // real keyboard hook on the developer's machine, no macOS permission request).
@@ -181,6 +184,20 @@ const pushToTalk = new PushToTalk({
     BrowserWindow.getAllWindows()[0]?.webContents.send('ptt:key', { pressed })
   },
 })
+
+// The user's global hotkeys for the microphone and the sound (PLAN #40), only during a call.
+// globalShortcut is used only after the app is ready.
+const hotkeys = new GlobalHotkeys(
+  {
+    register: (accelerator, callback) => globalShortcut.register(accelerator, callback),
+    unregister: (accelerator) => {
+      globalShortcut.unregister(accelerator)
+    },
+  },
+  (action) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send('hotkeys:pressed', { action })
+  },
+)
 
 /** macOS privacy pane for «Универсальный доступ» (push-to-talk over other apps). */
 const ACCESSIBILITY_SETTINGS =
@@ -550,6 +567,11 @@ registerIpcHandlers(
       logs.main.info(`push-to-talk: ${mode}`)
       return mode
     },
+    'hotkeys:configure': (request) => {
+      const status = hotkeys.configure(request)
+      logs.main.info(`global hotkeys: mute ${status.mute}, deafen ${status.deafen}`)
+      return status
+    },
     'ptt:open-permission-settings': async () => {
       if (process.platform === 'darwin') await shell.openExternal(ACCESSIBILITY_SETTINGS)
       return null
@@ -619,6 +641,7 @@ app.on('window-all-closed', () => {
 // Stop the host process before quitting so it can release ports and mappings.
 app.on('before-quit', (event) => {
   pushToTalk.close()
+  hotkeys.close()
   if (host.state.status === 'stopped') logs.main.info('quit')
   leaveRoom()
   if (host.state.status === 'stopped') return

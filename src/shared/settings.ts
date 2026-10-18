@@ -1,5 +1,9 @@
 import { z } from 'zod'
+import { isHotkeyAccelerator } from './global-hotkeys'
 import { DEFAULT_PUSH_TO_TALK_KEY, isPushToTalkKey } from './push-to-talk'
+
+/** A global hotkey, or '' to clear it. */
+const hotkeySchema = z.string().refine((value) => value === '' || isHotkeyAccelerator(value))
 
 export const MAX_PEER_VOLUME = 200
 /** Remembered volumes are a convenience; old entries go once there are this many. */
@@ -50,6 +54,13 @@ export const settingsSchema = z.object({
       key: z.string().max(32),
     })
     .default({ enabled: false, key: DEFAULT_PUSH_TO_TALK_KEY }),
+  /** Hotkeys that work in any window during a call (PLAN #40); empty: not set (the default). */
+  globalHotkeys: z
+    .object({
+      mute: z.string().max(48),
+      deafen: z.string().max(48),
+    })
+    .default({ mute: '', deafen: '' }),
 })
 export type Settings = z.infer<typeof settingsSchema>
 
@@ -58,6 +69,7 @@ export const DEFAULT_SETTINGS: Settings = {
   profile: { name: '' },
   audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: {} },
   pushToTalk: { enabled: false, key: DEFAULT_PUSH_TO_TALK_KEY },
+  globalHotkeys: { mute: '', deafen: '' },
 }
 
 /** Partial update from the renderer; unknown keys are rejected. */
@@ -76,6 +88,12 @@ export const settingsPatchSchema = z.strictObject({
     .strictObject({
       enabled: z.boolean().optional(),
       key: z.string().refine(isPushToTalkKey, 'not a push-to-talk key').optional(),
+    })
+    .optional(),
+  globalHotkeys: z
+    .strictObject({
+      mute: hotkeySchema.optional(),
+      deafen: hotkeySchema.optional(),
     })
     .optional(),
 })

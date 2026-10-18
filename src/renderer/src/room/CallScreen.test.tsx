@@ -1,5 +1,5 @@
 import type { PushToTalkMode } from '@shared/push-to-talk'
-import { fireEvent, render, screen, within } from '@solidjs/testing-library'
+import { cleanup, fireEvent, render, screen, within } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { JoinResult } from '@shared/room'
@@ -85,12 +85,16 @@ function setup(
     sharerId?: string | null
     pushToTalk?: { enabled: boolean; key: string }
     pushToTalkMode?: PushToTalkMode
+    globalHotkeys?: { mute: string; deafen: string }
+    takenHotkeys?: string[]
   } = {},
 ) {
   const api = installTolkiMock({
     peerVolumes: options.peerVolumes ?? {},
     ...(options.pushToTalk ? { pushToTalk: options.pushToTalk } : {}),
     ...(options.pushToTalkMode ? { pushToTalkMode: options.pushToTalkMode } : {}),
+    ...(options.globalHotkeys ? { globalHotkeys: options.globalHotkeys } : {}),
+    ...(options.takenHotkeys ? { takenHotkeys: options.takenHotkeys } : {}),
   })
   const close = vi.fn()
   const setMuted = vi.fn<(muted: boolean) => Promise<void>>(() => Promise.resolve())
@@ -945,5 +949,82 @@ describe('push-to-talk (#39)', () => {
     expect(ctx.api.ptt.configure).toHaveBeenLastCalledWith(
       expect.objectContaining({ active: false }),
     )
+  })
+})
+
+describe('global hotkeys (#40)', () => {
+  it('registers the saved hotkeys for the call and acts on them like M and D', async () => {
+    const ctx = setup({ globalHotkeys: { mute: 'Control+Shift+M', deafen: 'Control+Shift+D' } })
+    await screen.findByText('Звук подключён')
+    await vi.waitFor(() => {
+      expect(ctx.api.hotkeys.configure).toHaveBeenLastCalledWith({
+        active: true,
+        mute: 'Control+Shift+M',
+        deafen: 'Control+Shift+D',
+      })
+    })
+
+    ctx.api.hotkeys.emitPressed('mute')
+    expect(ctx.setMuted).toHaveBeenLastCalledWith(true)
+    expect(screen.getByRole('button', { name: 'Включить микрофон' })).toBeTruthy()
+    ctx.api.hotkeys.emitPressed('deafen')
+    expect(screen.getByRole('button', { name: 'Включить звук' })).toBeTruthy()
+  })
+
+  it('registers nothing when none are set, and lets go of them when the call ends', async () => {
+    const quiet = setup()
+    await screen.findByText('Звук подключён')
+    expect(quiet.api.hotkeys.configure).not.toHaveBeenCalled()
+    cleanup()
+
+    const ctx = setup({ globalHotkeys: { mute: 'Alt+M', deafen: '' } })
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(screen.getByRole('button', { name: 'Выйти' }))
+    expect(ctx.api.hotkeys.configure).toHaveBeenLastCalledWith({
+      active: false,
+      mute: '',
+      deafen: '',
+    })
+  })
+
+  it('sets a combination in «Настройки звука», steps the others aside meanwhile, and clears it', async () => {
+    const ctx = setup({ globalHotkeys: { mute: '', deafen: 'Alt+F9' } })
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(screen.getByRole('button', { name: 'Настройки' }))
+    const dialog = screen.getByRole('dialog', { name: 'Настройки звука' })
+
+    await ctx.user.click(within(dialog).getByRole('button', { name: 'Микрофон: не задано' }))
+    expect(ctx.api.hotkeys.configure).toHaveBeenLastCalledWith(
+      expect.objectContaining({ active: false }),
+    )
+    // A plain letter would fire while typing elsewhere.
+    await ctx.user.keyboard('m')
+    expect(within(dialog).getByText(/Нужно сочетание с Ctrl, Alt или Cmd/)).toBeTruthy()
+    await ctx.user.keyboard('{Control>}{Shift>}m{/Shift}{/Control}')
+    expect(ctx.api.settings.update).toHaveBeenLastCalledWith({
+      globalHotkeys: { mute: 'Control+Shift+M' },
+    })
+    expect(ctx.api.hotkeys.configure).toHaveBeenLastCalledWith({
+      active: true,
+      mute: 'Control+Shift+M',
+      deafen: 'Alt+F9',
+    })
+    expect(within(dialog).getByRole('button', { name: 'Микрофон: Ctrl+Shift+M' })).toBeTruthy()
+
+    await ctx.user.click(within(dialog).getByRole('button', { name: 'Убрать: звук' }))
+    expect(ctx.api.settings.update).toHaveBeenLastCalledWith({ globalHotkeys: { deafen: '' } })
+    expect(within(dialog).getByRole('button', { name: 'Звук: не задано' })).toBeTruthy()
+  })
+
+  it('says when another app holds the combination', async () => {
+    const ctx = setup({
+      globalHotkeys: { mute: 'Control+Shift+M', deafen: '' },
+      takenHotkeys: ['Control+Shift+M'],
+    })
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(screen.getByRole('button', { name: 'Настройки' }))
+    expect(
+      await screen.findByText('Это сочетание занято другим приложением — нужно другое.'),
+    ).toBeTruthy()
   })
 })

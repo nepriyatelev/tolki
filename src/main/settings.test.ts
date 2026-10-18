@@ -36,6 +36,7 @@ describe('SettingsStore', () => {
         profile: { name: '' },
         audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: {} },
         pushToTalk: { enabled: false, key: 'Backquote' },
+        globalHotkeys: { mute: '', deafen: '' },
       },
     ])
   })
@@ -48,6 +49,7 @@ describe('SettingsStore', () => {
       profile: { name: '' },
       audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: {} },
       pushToTalk: { enabled: false, key: 'Backquote' },
+      globalHotkeys: { mute: '', deafen: '' },
     })
   })
 
@@ -58,6 +60,17 @@ describe('SettingsStore', () => {
       enabled: true,
       key: 'KeyV',
     })
+  })
+
+  it('saves global hotkeys one by one and clears them with an empty string (#40)', () => {
+    const store = new SettingsStore(backend({}))
+    store.update({ globalHotkeys: { mute: 'Control+Shift+M' } })
+    expect(store.update({ globalHotkeys: { deafen: 'Alt+F9' } }).globalHotkeys).toEqual({
+      mute: 'Control+Shift+M',
+      deafen: 'Alt+F9',
+    })
+    expect(store.update({ globalHotkeys: { mute: '' } }).globalHotkeys.mute).toBe('')
+    expect(settingsPatchSchema.safeParse({ globalHotkeys: { mute: 'M' } }).success).toBe(false)
   })
 
   it('takes only keys push-to-talk can use (#39)', () => {
