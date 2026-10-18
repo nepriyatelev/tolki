@@ -74,6 +74,7 @@ export type RoomEvent = Extract<
       | 'join-request'
       | 'join-request-gone'
       | 'approval-changed'
+      | 'chat'
   }
 >
 

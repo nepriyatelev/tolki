@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { CHAT_MAX_LENGTH, chatTextSchema } from './chat'
 import { SCREEN_MODES } from './screen'
 
 /**
@@ -116,6 +117,8 @@ export const mediaRequestSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('answerJoin'), requestId: z.string().max(64), admit: z.boolean() }),
   /** The organizer only: whether entry waits for them. Turning it off lets everyone waiting in. */
   z.object({ method: z.literal('setApproval'), enabled: z.boolean() }),
+  /** A chat message (#45): the host passes it to everyone, the sender too, and keeps nothing. */
+  z.object({ method: z.literal('sendChat'), text: chatTextSchema }),
 ])
 export type MediaRequest = z.infer<typeof mediaRequestSchema>
 export type MediaMethod = MediaRequest['method']
@@ -154,6 +157,7 @@ export interface MediaResults {
   removePeer: Record<string, never>
   answerJoin: Record<string, never>
   setApproval: Record<string, never>
+  sendChat: Record<string, never>
 }
 
 export const clientMessageSchema = z.discriminatedUnion('type', [
@@ -206,6 +210,8 @@ export const hostMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('join-request-gone'), requestId: z.string() }),
   /** To the organizer: entry waits for them now, or not. */
   z.object({ type: z.literal('approval-changed'), enabled: z.boolean() }),
+  /** A chat message (#45), to everyone in the room at the moment. */
+  z.object({ type: z.literal('chat'), peerId: z.string(), text: z.string().max(CHAT_MAX_LENGTH) }),
   z.object({ type: z.literal('error'), code: errorCodeSchema }),
   /** Answer to the client's `request` with the same id: `data` on success, otherwise `error`. */
   z.object({

@@ -3,6 +3,7 @@ import Headphones from 'lucide-solid/icons/headphones'
 import Lock from 'lucide-solid/icons/lock'
 import LockOpen from 'lucide-solid/icons/lock-open'
 import LogOut from 'lucide-solid/icons/log-out'
+import MessageSquare from 'lucide-solid/icons/message-square'
 import Mic from 'lucide-solid/icons/mic'
 import MicOff from 'lucide-solid/icons/mic-off'
 import ScreenShare from 'lucide-solid/icons/screen-share'
@@ -46,6 +47,7 @@ import {
   type RoomEventSource,
   type ScreenSample,
 } from './call'
+import { ChatPanel, type ChatMessage, type ChatSendResult } from './ChatPanel'
 import { cueLimiter, playCue as playRealCue, type Cue } from '../audio/cue-sounds'
 import { CALL_LOG_INTERVAL_MS, callLogLine } from './call-log'
 import { formatCallTime } from './call-timer'
@@ -57,6 +59,9 @@ import { startCall as startRealCall, type CallHandle } from './start-call'
 import './CallScreen.css'
 
 const plural = new Intl.PluralRules('ru-RU')
+
+/** The chat keeps the latest messages of the call only, in memory (#45). */
+const MAX_CHAT_MESSAGES = 500
 
 /** «1 участник», «3 участника», «5 участников». */
 export function peopleCount(n: number): string {
@@ -180,6 +185,18 @@ export function CallScreen(props: {
   const [screenRequests, setScreenRequests] = createSignal<string[]>([])
   const nameOf = (peerId: string | null): string =>
     peers().find((p) => p.id === peerId)?.name ?? 'Участник'
+  // The mini chat (#45): only what came during this call, nothing saved anywhere.
+  const [chatOpen, setChatOpen] = createSignal(false)
+  const [chat, setChat] = createSignal<ChatMessage[]>([])
+  const [unread, setUnread] = createSignal(0)
+  let chatId = 0
+  const sendChat = async (text: string): Promise<ChatSendResult> => {
+    const response = await window.tolki.room
+      .request({ method: 'sendChat', text })
+      .catch(() => ({ ok: false as const, error: 'failed' }))
+    if (response.ok) return 'sent'
+    return response.error === 'too many messages' ? 'too-many' : 'failed'
+  }
   const someoneElseShares = (): boolean => {
     const id = sharerId()
     return id !== null && id !== joined().peerId
@@ -304,6 +321,20 @@ export function CallScreen(props: {
         if (event.accepted) setPickerOpen(true)
         else setScreenNote(`${nameOf(sharerId())} продолжает показ`)
         break
+      case 'chat': {
+        const me = event.peerId === joined().peerId
+        const message = {
+          id: ++chatId,
+          peerId: event.peerId,
+          name: me ? name : nameOf(event.peerId),
+          me,
+          text: event.text,
+          time: Date.now(),
+        }
+        setChat((list) => [...list.slice(-(MAX_CHAT_MESSAGES - 1)), message])
+        if (!chatOpen() && !me) setUnread((n) => n + 1)
+        break
+      }
       case 'peer-muted':
         setMutedPeers((set) => {
           const next = new Set(set)
@@ -767,92 +798,102 @@ export function CallScreen(props: {
         </Button>
       </header>
       <div class="call-body">
-        <Show
-          when={stage()}
-          fallback={
-            <>
-              <Show when={shownScreen()}>
-                {(shown) => (
-                  <div class="call-screen-banner" role="status">
-                    <span>{shown().title}</span>
-                    <Button
-                      variant="primary"
-                      onClick={() => {
-                        setView('stage')
-                      }}
-                    >
-                      Смотреть
-                    </Button>
-                  </div>
-                )}
-              </Show>
-              <ul class="call-tiles" aria-label="Участники">
-                <For each={everyone()}>
-                  {(person) => (
-                    <ParticipantTile
-                      person={person}
-                      speaking={speaking().has(person.id)}
-                      muted={person.me ? muted() : mutedPeers().has(person.id)}
-                      volume={volumeOfName(person.name)}
-                      onVolumePreview={(volume) => {
-                        previewVolume(person.name, volume)
-                      }}
-                      onVolumeSave={(volume) => {
-                        saveVolume(person.name, volume)
-                      }}
-                      onOpenSettings={() => setSettingsOpen(true)}
-                      onRemove={
-                        isOrganizer() && !person.me
-                          ? () => {
-                              organizerRequest({ method: 'removePeer', peerId: person.id })
-                            }
-                          : undefined
-                      }
-                    />
+        <div class="call-content">
+          <Show
+            when={stage()}
+            fallback={
+              <>
+                <Show when={shownScreen()}>
+                  {(shown) => (
+                    <div class="call-screen-banner" role="status">
+                      <span>{shown().title}</span>
+                      <Button
+                        variant="primary"
+                        onClick={() => {
+                          setView('stage')
+                        }}
+                      >
+                        Смотреть
+                      </Button>
+                    </div>
                   )}
-                </For>
-              </ul>
-            </>
-          }
-        >
-          {(shown) => (
-            <div class="call-stage">
-              <ScreenStage
-                title={shown().title}
-                name={shown().name}
-                stream={shown().stream}
-                consumerId={shown().consumerId}
-                sample={(consumerId) => call?.screenSample(consumerId) ?? Promise.resolve(null)}
-                onVisibleChange={(consumerId, visible) => {
-                  void call?.setScreenVisible(consumerId, visible).catch(() => undefined)
-                }}
-                onLayerChange={(consumerId, layer) => {
-                  void call?.setScreenLayer(consumerId, layer).catch(() => undefined)
-                }}
-              />
-              <ul class="call-strip" aria-label="Участники">
-                <For each={everyone()}>
-                  {(person) => (
-                    <li
-                      class="call-strip-person"
-                      classList={{ 'call-strip-person--speaking': speaking().has(person.id) }}
-                    >
-                      <Avatar name={person.name} size="sm" />
-                      <span class="call-strip-name">{person.name}</span>
-                      <Show when={person.me}>
-                        <span class="call-tile-you">я</span>
-                      </Show>
-                      <Show when={person.me ? muted() : mutedPeers().has(person.id)}>
-                        <span class="call-tile-muted" role="img" aria-label="Микрофон выключен">
-                          <MicOff />
-                        </span>
-                      </Show>
-                    </li>
-                  )}
-                </For>
-              </ul>
-            </div>
-          )}
+                </Show>
+                <ul class="call-tiles" aria-label="Участники">
+                  <For each={everyone()}>
+                    {(person) => (
+                      <ParticipantTile
+                        person={person}
+                        speaking={speaking().has(person.id)}
+                        muted={person.me ? muted() : mutedPeers().has(person.id)}
+                        volume={volumeOfName(person.name)}
+                        onVolumePreview={(volume) => {
+                          previewVolume(person.name, volume)
+                        }}
+                        onVolumeSave={(volume) => {
+                          saveVolume(person.name, volume)
+                        }}
+                        onOpenSettings={() => setSettingsOpen(true)}
+                        onRemove={
+                          isOrganizer() && !person.me
+                            ? () => {
+                                organizerRequest({ method: 'removePeer', peerId: person.id })
+                              }
+                            : undefined
+                        }
+                      />
+                    )}
+                  </For>
+                </ul>
+              </>
+            }
+          >
+            {(shown) => (
+              <div class="call-stage">
+                <ScreenStage
+                  title={shown().title}
+                  name={shown().name}
+                  stream={shown().stream}
+                  consumerId={shown().consumerId}
+                  sample={(consumerId) => call?.screenSample(consumerId) ?? Promise.resolve(null)}
+                  onVisibleChange={(consumerId, visible) => {
+                    void call?.setScreenVisible(consumerId, visible).catch(() => undefined)
+                  }}
+                  onLayerChange={(consumerId, layer) => {
+                    void call?.setScreenLayer(consumerId, layer).catch(() => undefined)
+                  }}
+                />
+                <ul class="call-strip" aria-label="Участники">
+                  <For each={everyone()}>
+                    {(person) => (
+                      <li
+                        class="call-strip-person"
+                        classList={{ 'call-strip-person--speaking': speaking().has(person.id) }}
+                      >
+                        <Avatar name={person.name} size="sm" />
+                        <span class="call-strip-name">{person.name}</span>
+                        <Show when={person.me}>
+                          <span class="call-tile-you">я</span>
+                        </Show>
+                        <Show when={person.me ? muted() : mutedPeers().has(person.id)}>
+                          <span class="call-tile-muted" role="img" aria-label="Микрофон выключен">
+                            <MicOff />
+                          </span>
+                        </Show>
+                      </li>
+                    )}
+                  </For>
+                </ul>
+              </div>
+            )}
+          </Show>
+        </div>
+        <Show when={chatOpen()}>
+          <ChatPanel
+            messages={chat()}
+            onSend={sendChat}
+            onOpenLink={(url) => void window.tolki.app.openLink(url).catch(() => undefined)}
+            onClose={() => setChatOpen(false)}
+          />
         </Show>
       </div>
       <footer class="call-footer">
@@ -980,6 +1021,27 @@ export function CallScreen(props: {
               {myScreen() ? <ScreenShareOff /> : <ScreenShare />}
             </span>
             {screenButton().text}
+          </button>
+          <button
+            type="button"
+            class="call-control"
+            classList={{ 'call-control--active': chatOpen() }}
+            aria-pressed={chatOpen()}
+            aria-label={unread() > 0 ? `Чат, новых сообщений: ${unread()}` : 'Чат'}
+            onClick={() => {
+              setChatOpen((open) => !open)
+              setUnread(0)
+            }}
+          >
+            <span class="call-control-icon">
+              <MessageSquare />
+              <Show when={unread() > 0}>
+                <span class="call-control-badge" aria-hidden="true">
+                  {unread() > 99 ? '99+' : unread()}
+                </span>
+              </Show>
+            </span>
+            Чат
           </button>
           <button
             type="button"

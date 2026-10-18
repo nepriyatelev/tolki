@@ -1,0 +1,121 @@
+/* The mini chat (#45): a column on the right of the call, as in other call apps. */
+.chat {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  flex: 0 0 320px;
+  min-height: 0;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-panel);
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.chat-header h2 {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  overflow-y: auto;
+  list-style: none;
+}
+
+.chat-empty {
+  margin: auto 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.chat-message--grouped {
+  margin-top: calc(var(--space-2) - var(--space-3));
+}
+
+.chat-meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: 2px;
+  font-size: var(--text-sm);
+}
+
+.chat-name {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-you {
+  color: var(--color-text-muted);
+}
+
+.chat-meta time {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-text {
+  color: var(--color-text-soft);
+  font-size: var(--text-md);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.chat-text a {
+  color: var(--color-accent-text);
+}
+
+.chat-note {
+  padding: 0 var(--space-4) var(--space-2);
+  color: var(--color-warning-text);
+  font-size: var(--text-sm);
+}
+
+.chat-form {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.chat-field {
+  flex: 1;
+  min-width: 0;
+  max-height: 140px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-md);
+  resize: none;
+}
+
+.chat-field::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+.chat-field:focus {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+  border-color: transparent;
+}

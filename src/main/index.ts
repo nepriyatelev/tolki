@@ -22,6 +22,7 @@ import {
 } from 'electron'
 import Store from 'electron-store'
 import { APP_NAME, DOWNLOAD_PAGE } from '@shared/app'
+import { isOpenableLink } from '@shared/chat'
 import { systemAudioSupported } from '@shared/screen'
 import { DEFAULT_HOST_PORT } from '@shared/host-protocol'
 import type { RecentStatus } from '@shared/recent'
@@ -88,6 +89,8 @@ process.on('unhandledRejection', (reason) => {
 })
 // e2e must not open Finder / Explorer windows.
 const showSavedLogs = process.env['TOLKI_SHOW_IN_FOLDER'] !== 'off'
+// …nor a browser for a chat link.
+const openChatLinks = process.env['TOLKI_OPEN_LINKS'] !== 'off'
 
 // One app per profile: a second launch (e.g. a clicked invite link) hands its arguments to the
 // running one via 'second-instance' and quits.
@@ -521,6 +524,15 @@ registerIpcHandlers(
     },
     'app:open-download-page': async () => {
       await shell.openExternal(DOWNLOAD_PAGE)
+      return null
+    },
+    'app:open-link': async (url) => {
+      // The renderer shows only http(s) as links; anything else is not opened, whatever it is.
+      if (!isOpenableLink(url)) {
+        logs.main.warn('a chat link that is not http(s) was not opened')
+        return null
+      }
+      if (openChatLinks) await shell.openExternal(url)
       return null
     },
     'app:check-update': () => updates.check(),

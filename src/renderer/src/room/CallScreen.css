@@ -57,13 +57,22 @@
 /* The middle: tiles, or the shared screen with people in a strip under it (mockup 5). */
 .call-body {
   display: flex;
-  flex-direction: column;
   gap: 14px;
   min-height: 0;
 }
 
-.call-body > .call-tiles,
-.call-body > .call-stage {
+/* Tiles or the screen; the chat (#45), when open, takes a column on the right. */
+.call-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.call-content > .call-tiles,
+.call-content > .call-stage {
   flex: 1;
 }
 
@@ -356,6 +365,7 @@
 }
 
 .call-control-icon {
+  position: relative;
   display: grid;
   place-items: center;
   width: 56px;
@@ -394,6 +404,24 @@
 .call-control--active:not(:disabled):hover .call-control-icon {
   background: var(--color-accent-soft);
   color: var(--color-accent-soft-text);
+}
+
+/* Unread chat messages (#45), on the corner of the circle. */
+.call-control-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 20px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .call-control-icon svg {

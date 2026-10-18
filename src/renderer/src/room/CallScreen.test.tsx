@@ -1197,3 +1197,57 @@ describe('the tray (#44)', () => {
     })
   })
 })
+
+describe('the chat (#45)', () => {
+  it('sends with Enter, a new line with Shift+Enter; the host echo shows the message', async () => {
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    ctx.api.room.request.mockImplementation((request) => {
+      if (request.method === 'sendChat') {
+        ctx.api.room.emitEvent({ type: 'chat', peerId: 'me', text: request.text })
+      }
+      return Promise.resolve({ ok: true, data: {} })
+    })
+    await ctx.user.click(screen.getByRole('button', { name: 'Чат' }))
+    const field = screen.getByRole('textbox', { name: 'Сообщение' })
+    expect(document.activeElement).toBe(field)
+    await ctx.user.type(field, 'первая{Shift>}{Enter}{/Shift}вторая{Enter}')
+
+    expect(ctx.api.room.request).toHaveBeenCalledWith({
+      method: 'sendChat',
+      text: 'первая\nвторая',
+    })
+    const chat = screen.getByRole('complementary', { name: 'Чат' })
+    expect(await within(chat).findByText(/первая\s+вторая/)).toBeTruthy()
+    expect(within(chat).getByText('Алексей')).toBeTruthy()
+    expect((field as HTMLTextAreaElement).value).toBe('')
+    // Typing does not reach the M hotkey.
+    expect(ctx.setMuted).not.toHaveBeenCalledWith(true)
+  })
+
+  it('counts unread messages while closed and opens links through main', async () => {
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    ctx.api.room.emitEvent({ type: 'chat', peerId: 'dima', text: 'см. https://example.com/a.' })
+    ctx.api.room.emitEvent({ type: 'chat', peerId: 'dima', text: 'ещё' })
+    const button = await screen.findByRole('button', { name: 'Чат, новых сообщений: 2' })
+
+    await ctx.user.click(button)
+    expect(screen.getByRole('button', { name: 'Чат' })).toBeTruthy()
+    const chat = screen.getByRole('complementary', { name: 'Чат' })
+    expect(within(chat).getAllByText('Дима')).toHaveLength(1)
+    await ctx.user.click(within(chat).getByRole('link', { name: 'https://example.com/a' }))
+    expect(ctx.api.app.openLink).toHaveBeenCalledWith('https://example.com/a')
+  })
+
+  it('says so when messages go too fast, and keeps the draft', async () => {
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    ctx.api.room.request.mockResolvedValue({ ok: false, error: 'too many messages' })
+    await ctx.user.click(screen.getByRole('button', { name: 'Чат' }))
+    const field = screen.getByRole('textbox', { name: 'Сообщение' })
+    await ctx.user.type(field, 'быстро{Enter}')
+    expect(await screen.findByText(/Слишком много сообщений подряд/)).toBeTruthy()
+    expect((field as HTMLTextAreaElement).value).toBe('быстро')
+  })
+})

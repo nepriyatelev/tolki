@@ -8,7 +8,7 @@ import type { Invite } from '@shared/invite'
 import { AttemptLimiter, normalizeAddress } from '../host/attempt-limiter'
 import { loadOrCreateCertificate, type HostCertificate } from '../host/certificate'
 import { MediaServer } from '../host/media-server'
-import { Room } from '../host/room'
+import { CHAT_BURST, Room } from '../host/room'
 import { startSignalingServer, type SignalingServer } from '../host/server'
 import type { RoomEvent } from '@shared/room'
 import { joinRoom, pointCandidatesAt, probeRoom, type RoomConnection } from './room-client'
@@ -554,5 +554,51 @@ describe('the organizer’s rights (#42)', () => {
     await expect.poll(() => waited).toBe(true)
     stop.abort()
     expect((await again).result).toEqual({ ok: false, error: 'cancelled' })
+  })
+})
+
+describe('the chat (#45)', () => {
+  it('passes a message to everyone in the room, the sender too, and keeps nothing', async () => {
+    const invite = await startHost('')
+    const katya = await joinRoom({ invite, name: 'Катя', password: undefined })
+    connections.push(katya)
+    const misha = await joinRoom({ invite, name: 'Миша', password: undefined })
+    connections.push(misha)
+    const katyaSees: RoomEvent[] = []
+    const mishaSees: RoomEvent[] = []
+    katya.onEvent((event) => katyaSees.push(event))
+    misha.onEvent((event) => mishaSees.push(event))
+    const katyaId = katya.result.ok ? katya.result.peerId : ''
+
+    expect(
+      await katya.request({ method: 'sendChat', text: '  смотрите https://example.com  ' }),
+    ).toEqual({ ok: true, data: {} })
+    const chat = (events: RoomEvent[]) => events.filter((e) => e.type === 'chat')
+    await expect.poll(() => chat(mishaSees).length).toBe(1)
+    expect(chat(mishaSees)[0]).toMatchObject({
+      peerId: katyaId,
+      text: 'смотрите https://example.com',
+    })
+    await expect.poll(() => chat(katyaSees).length).toBe(1)
+
+    // Whoever comes later sees nothing of it.
+    const late = await joinRoom({ invite, name: 'Оля', password: undefined })
+    connections.push(late)
+    const lateSees: RoomEvent[] = []
+    late.onEvent((event) => lateSees.push(event))
+    await new Promise((r) => setTimeout(r, 100))
+    expect(chat(lateSees)).toEqual([])
+  })
+
+  it('refuses too many messages at once', async () => {
+    const invite = await startHost('')
+    const katya = await joinRoom({ invite, name: 'Катя', password: undefined })
+    connections.push(katya)
+    const answers = []
+    for (let i = 0; i <= CHAT_BURST; i++) {
+      answers.push(await katya.request({ method: 'sendChat', text: `сообщение ${i}` }))
+    }
+    expect(answers.slice(0, CHAT_BURST).every((a) => a.ok)).toBe(true)
+    expect(answers[CHAT_BURST]).toEqual({ ok: false, error: 'too many messages' })
   })
 })
