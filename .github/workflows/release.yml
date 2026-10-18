@@ -2,7 +2,7 @@ name: Release
 
 # Tag vX.Y.Z (or vX.Y.Z-alpha.N / -beta.N: a pre-release) → installers for every OS → GitHub
 # release in the public tolki-releases repo. The version comes from the tag; package.json keeps
-# 0.0.0 for development builds.
+# 0.0.0 for development builds. Any other vX.Y.Z-… tag starts the workflow only to fail on it.
 on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+', 'v[0-9]+.[0-9]+.[0-9]+-*']
@@ -18,8 +18,24 @@ env:
   RELEASES_REPO: nepriyatelev/tolki-releases
 
 jobs:
+  # electron-updater knows only the alpha and beta channels (#46): an alpha would never get a
+  # «-rc.1», and «-alpha10» sorts before «-alpha9». Such tags stop here, before any build.
+  tag:
+    name: check the tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: vX.Y.Z, vX.Y.Z-alpha.N or vX.Y.Z-beta.N
+        run: |
+          n='(0|[1-9][0-9]*)'
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v$n\.$n\.$n(-(alpha|beta)\.$n)?$ ]]; then
+            echo "::error::Тег $GITHUB_REF_NAME не подходит: нужен vX.Y.Z, vX.Y.Z-alpha.N или vX.Y.Z-beta.N (например v0.1.0-alpha.1)"
+            exit 1
+          fi
+
   build:
     name: build ${{ matrix.name }}
+    needs: tag
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:

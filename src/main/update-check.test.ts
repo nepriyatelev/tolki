@@ -22,6 +22,16 @@ describe('versions', () => {
     expect(parseVersion('1.0.0-')).toBeNull()
   })
 
+  it('takes only alpha.N and beta.N pre-releases, as the release workflow (#46)', () => {
+    expect(parseVersion('v0.1.0-alpha.0')).toEqual({ core: [0, 1, 0], pre: ['alpha', 0] })
+    expect(parseVersion('v0.1.0-rc.1')).toBeNull()
+    expect(parseVersion('v0.1.0-alpha1')).toBeNull()
+    expect(parseVersion('v0.1.0-alpha')).toBeNull()
+    expect(parseVersion('v0.1.0-alpha.01')).toBeNull()
+    expect(parseVersion('v01.1.0')).toBeNull()
+    expect(isNewer('v0.1.0-rc.1', '0.1.0-alpha.1')).toBe(false)
+  })
+
   it('compares part by part, not as text', () => {
     expect(isNewer('v0.10.0', '0.9.0')).toBe(true)
     expect(isNewer('v0.1.1', '0.1.0')).toBe(true)

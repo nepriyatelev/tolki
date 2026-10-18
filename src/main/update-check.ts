@@ -23,9 +23,15 @@ export interface Version {
   pre: (string | number)[]
 }
 
-/** "v0.2.0", "0.2.0" or "0.2.0-alpha.1"; null for anything else. */
+const NUMBER = '(0|[1-9]\\d*)'
+/** The tags the release workflow accepts (#46): vX.Y.Z, vX.Y.Z-alpha.N, vX.Y.Z-beta.N. */
+const VERSION = new RegExp(
+  `^v?${NUMBER}\\.${NUMBER}\\.${NUMBER}(?:-((?:alpha|beta)\\.${NUMBER}))?$`,
+)
+
+/** "v0.2.0", "0.2.0", "0.2.0-alpha.1" or "0.2.0-beta.3"; null for anything else. */
 export function parseVersion(text: string): Version | null {
-  const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/.exec(text.trim())
+  const match = VERSION.exec(text.trim())
   if (!match) return null
   return {
     core: [Number(match[1]), Number(match[2]), Number(match[3])],
