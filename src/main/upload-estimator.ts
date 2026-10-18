@@ -21,6 +21,11 @@ export class UploadEstimator {
     this.#now = options.now ?? Date.now
   }
 
+  /** The last measured upload, Mbit/s, without measuring anew (#86); null if none. */
+  get lastMbps(): number | null {
+    return this.#last?.mbps ?? null
+  }
+
   measure({ force = false }: { force?: boolean } = {}): Promise<UploadMeasurement> {
     if (!this.options.isEnabled()) return Promise.resolve({ status: 'disabled' })
     if (this.#pending) return this.#pending

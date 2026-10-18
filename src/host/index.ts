@@ -13,6 +13,8 @@ import { monitorUpload } from './upload-monitor'
 const port = process.parentPort
 let server: SignalingServer | null = null
 let room: Room | null = null
+/** The upload measured in main before the call (#86). */
+let measuredUpload: number | null = null
 let media: MediaServer | null = null
 let stopMonitor: (() => void) | null = null
 let mapping: Promise<PortMappingSession> | null = null
@@ -62,8 +64,10 @@ async function start(message: Extract<MainToHostMessage, { type: 'start' }>): Pr
       () => room?.transports ?? [],
       (capacity) => {
         send({ type: 'call-upload', capacity })
+        room?.setUpload('live', capacity.uploadMbps)
       },
     )
+    if (measuredUpload !== null) room.setUpload('measured', measuredUpload)
     // stdout goes to host.log in main (#106).
     console.log(
       `room open on port ${server.port}, screen mode ${message.screenMode}, ` +
@@ -132,6 +136,11 @@ port.on('message', (event) => {
       return
     case 'shutdown':
       void shutdown()
+      return
+    case 'upload':
+      // May come before the room is open: kept for it.
+      measuredUpload = message.mbps
+      room?.setUpload('measured', message.mbps)
       return
   }
 })

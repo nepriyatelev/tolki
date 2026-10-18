@@ -4,6 +4,7 @@ import { vi, type Mock } from 'vitest'
 import type { InviteParseResult } from '@shared/invite'
 import type { TolkiApi, UpdateOffer } from '@shared/ipc'
 import type { PermissionKind, PermissionState } from '@shared/permissions'
+import type { ScreenMode } from '@shared/screen'
 import type { NetworkCheckResult } from '@shared/network'
 import type { RecentRoom, RecentStatus } from '@shared/recent'
 import type { JoinResult, RoomClosedEvent, RoomEvent, RoomPreview } from '@shared/room'
@@ -107,6 +108,8 @@ export interface TolkiMock {
 export interface TolkiMockOptions extends Partial<TolkiApi['network']> {
   /** A newer release main found (PLAN #36). */
   update?: UpdateOffer
+  /** The screen mode last picked in «Что показать» (#86). */
+  screenMode?: ScreenMode
   /** OS permissions (#85); granted when not given. */
   permissions?: Partial<Record<PermissionKind, PermissionState>>
   /** A link that "started the app". */
@@ -213,6 +216,7 @@ export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
           audio: { ...DEFAULT_SETTINGS.audio, peerVolumes: options.peerVolumes ?? {} },
           pushToTalk: options.pushToTalk ?? DEFAULT_SETTINGS.pushToTalk,
           globalHotkeys: options.globalHotkeys ?? DEFAULT_SETTINGS.globalHotkeys,
+          screen: { mode: options.screenMode ?? null },
         }),
       ),
       update: vi.fn<TolkiApi['settings']['update']>(() => Promise.resolve(DEFAULT_SETTINGS)),

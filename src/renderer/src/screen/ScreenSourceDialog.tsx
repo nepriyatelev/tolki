@@ -11,8 +11,9 @@ import {
   Switch,
   type JSX,
 } from 'solid-js'
-import type { CaptureSource, ScreenSourcesResult } from '@shared/screen'
-import { Button, Checkbox, IconButton } from '../ui'
+import type { CaptureSource, ScreenMode, ScreenSourcesResult } from '@shared/screen'
+import { Button, Checkbox, IconButton, RadioPillGroup } from '../ui'
+import { SCREEN_MODE_OPTIONS } from './screen-modes'
 import { browserScreen, type ScreenAccess } from './screen-share'
 import './ScreenSourceDialog.css'
 
@@ -29,7 +30,9 @@ export function ScreenSourceDialog(props: {
   open: boolean
   onClose: () => void
   /** null: the system picker (Wayland) chooses; `systemAudio`: the computer's sound goes too. */
-  onPick: (sourceId: string | null, systemAudio: boolean) => void
+  onPick: (sourceId: string | null, systemAudio: boolean, mode: ScreenMode) => void
+  /** What is shown, picked here (#86): the last pick, or the room's mode at first. */
+  mode: ScreenMode
   access?: ScreenAccess
 }): JSX.Element {
   let dialog: HTMLDialogElement | undefined
@@ -58,11 +61,15 @@ export function ScreenSourceDialog(props: {
     void refetch()
   }
 
+  // eslint-disable-next-line solid/reactivity -- set again from props each time the dialog opens
+  const [mode, setMode] = createSignal<ScreenMode>(props.mode)
+
   createEffect(() => {
     if (!dialog) return
     if (props.open && !dialog.open) {
       setSelected(null)
       setTab('screen')
+      setMode(props.mode)
       dialog.showModal()
     }
     if (!props.open && dialog.open) dialog.close()
@@ -77,7 +84,7 @@ export function ScreenSourceDialog(props: {
 
   const pick = (): void => {
     const id = selected()
-    if (id !== null) props.onPick(id, soundOffered() && withSound())
+    if (id !== null) props.onPick(id, soundOffered() && withSound(), mode())
   }
 
   return (
@@ -180,7 +187,7 @@ export function ScreenSourceDialog(props: {
                 variant="primary"
                 icon={<Monitor />}
                 onClick={() => {
-                  props.onPick(null, false)
+                  props.onPick(null, false, mode())
                 }}
               >
                 Выбрать экран
@@ -255,6 +262,12 @@ export function ScreenSourceDialog(props: {
                 </For>
               </div>
             </Show>
+            <RadioPillGroup
+              legend="Что показываете"
+              value={mode()}
+              onChange={setMode}
+              options={SCREEN_MODE_OPTIONS}
+            />
             <div class="screen-picker-actions">
               <Show when={soundOffered()}>
                 <Checkbox

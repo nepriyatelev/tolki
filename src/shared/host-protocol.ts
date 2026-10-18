@@ -62,6 +62,8 @@ export type MainToHostMessage =
       /** Proves the organizer's own connection (#42): their rights in the room. Memory only. */
       organizerKey: string
     }
+  /** The upload measured before the call (#86): the base of the screen's ceiling. */
+  | { type: 'upload'; mbps: number }
   /** One-shot network check: try to forward the port, report, remove the mapping, exit. */
   | { type: 'check'; port: number }
   | { type: 'shutdown' }

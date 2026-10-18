@@ -1,4 +1,4 @@
-import { Device, FakeHandler, testFakeParameters } from 'mediasoup-client'
+import { Device, FakeHandler, testFakeParameters, type types } from 'mediasoup-client'
 import { describe, expect, it, vi } from 'vitest'
 import type { MediaResponse, RoomEvent } from '@shared/room'
 import type { MediaRequest } from '@shared/signaling'
@@ -334,6 +334,51 @@ describe('sending the screen (#27, #34)', () => {
     expect(stop).toHaveBeenCalledTimes(1)
     await call.stopScreen()
     expect(host.methods().filter((m) => m === 'closeProducer')).toHaveLength(2)
+  })
+
+  it('keeps to the organizer’s ceiling, before the screen starts and while it goes (#86)', async () => {
+    const device = createDevice()
+    const producers: types.Producer[] = []
+    const createSendTransport = device.createSendTransport.bind(device)
+    vi.spyOn(device, 'createSendTransport').mockImplementation((options) => {
+      const transport = createSendTransport(options)
+      const produce = transport.produce.bind(transport)
+      vi.spyOn(transport, 'produce').mockImplementation(async (args) => {
+        const producer = await produce(args)
+        producers.push(producer)
+        return producer
+      })
+      return transport
+    })
+    const host = fakeHost()
+    const call = await Call.start({
+      routerRtpCapabilities: { ...testFakeParameters.generateRouterRtpCapabilities() },
+      events: fakeEvents().source,
+      request: host.request,
+      microphone: null,
+      muted: false,
+      onRemoteAudio: () => undefined,
+      createDevice: () => device,
+    })
+    type Produce = { screenLayer?: number; rtpParameters: { encodings: { maxBitrate?: number }[] } }
+    const bigStream = () =>
+      (host.request.mock.calls.map((c) => c[0]) as unknown as Produce[]).filter(
+        (r) => r.screenLayer === 1,
+      )
+
+    // Told before sharing: the screen starts at 720p and 1.5 Mbit/s instead of 2.8.
+    await call.setScreenBudget({ height: 720, maxBitrate: 1_500_000 })
+    await call.startScreen(fakeScreenTrack(1080).track, 'motion')
+    expect(bigStream().at(-1)?.rtpParameters.encodings[0]?.maxBitrate).toBe(1_500_000)
+
+    // Told while sharing: the big stream changes on the fly, nothing is sent anew.
+    const big = producers[0]
+    if (!big) throw new Error('no producer')
+    const set = vi.spyOn(big, 'setRtpEncodingParameters').mockResolvedValue()
+    const produced = bigStream().length
+    await call.setScreenBudget({ height: 360, maxBitrate: 500_000 })
+    expect(set).toHaveBeenCalledWith({ maxBitrate: 500_000, scaleResolutionDownBy: 3 })
+    expect(bigStream()).toHaveLength(produced)
   })
 
   it('works without a microphone: the send transport is created for the screen', async () => {

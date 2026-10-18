@@ -39,6 +39,7 @@ describe('SettingsStore', () => {
         sounds: { enabled: true },
         tray: { closeToTray: true, hintShown: false },
         globalHotkeys: { mute: '', deafen: '' },
+        screen: { mode: null },
       },
     ])
   })
@@ -54,6 +55,7 @@ describe('SettingsStore', () => {
       sounds: { enabled: true },
       tray: { closeToTray: true, hintShown: false },
       globalHotkeys: { mute: '', deafen: '' },
+      screen: { mode: null },
     })
   })
 
@@ -140,5 +142,12 @@ describe('SettingsStore', () => {
       false,
     )
     expect(settingsPatchSchema.safeParse({ audio: { peerVolumes: { a: -1 } } }).success).toBe(false)
+  })
+
+  it('remembers the screen mode picked in «Что показать» (#86)', () => {
+    const store = new SettingsStore(backend({}))
+    expect(store.get().screen.mode).toBeNull()
+    expect(store.update({ screen: { mode: 'motion' } }).screen.mode).toBe('motion')
+    expect(settingsPatchSchema.safeParse({ screen: { mode: 'fast' } }).success).toBe(false)
   })
 })

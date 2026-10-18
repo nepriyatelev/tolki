@@ -23,6 +23,24 @@ describe('screen encodings (PLAN #27, #34)', () => {
     expect([small.high.scaleResolutionDownBy, small.low.scaleResolutionDownBy]).toEqual([1, 1])
   })
 
+  it('lowers the big stream to the host’s ceiling, never above the mode (#86)', () => {
+    expect(screenStreams('motion', 1080, { height: 720, maxBitrate: 1_500_000 }).high).toEqual({
+      scaleResolutionDownBy: 1.5,
+      maxBitrate: 1_500_000,
+      maxFramerate: 60,
+    })
+    // A generous ceiling does not raise sharp text above its own bitrate or 1080p.
+    expect(screenStreams('text', 1440, { height: 1080, maxBitrate: 2_800_000 }).high).toEqual({
+      scaleResolutionDownBy: 1440 / 1080,
+      maxBitrate: 1_500_000,
+      maxFramerate: 15,
+    })
+    // The small stream stays as it is.
+    expect(screenStreams('auto', 1080, { height: 360, maxBitrate: 500_000 }).low).toEqual(
+      screenStreams('auto', 1080).low,
+    )
+  })
+
   it('keeps the small stream at 15 fps at most', () => {
     expect(screenStreams('text', 1080).low.maxFramerate).toBe(15)
     expect(screenStreams('auto', 1080).low.maxFramerate).toBe(15)

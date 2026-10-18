@@ -12,6 +12,7 @@ test('settings default to the speed test being on and survive a restart', async 
       sounds: { enabled: true },
       tray: { closeToTray: true, hintShown: false },
       globalHotkeys: { mute: '', deafen: '' },
+      screen: { mode: null },
     })
     expect(
       await first.page.evaluate(() =>
@@ -25,6 +26,7 @@ test('settings default to the speed test being on and survive a restart', async 
       sounds: { enabled: true },
       tray: { closeToTray: true, hintShown: false },
       globalHotkeys: { mute: '', deafen: '' },
+      screen: { mode: null },
     })
     // A friend's volume is remembered by name (PLAN #23).
     await first.page.evaluate(() =>
@@ -44,6 +46,7 @@ test('settings default to the speed test being on and survive a restart', async 
       sounds: { enabled: true },
       tray: { closeToTray: true, hintShown: false },
       globalHotkeys: { mute: '', deafen: '' },
+      screen: { mode: null },
     })
   } finally {
     await second.app.close()

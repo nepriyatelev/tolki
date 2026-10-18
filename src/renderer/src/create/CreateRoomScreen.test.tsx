@@ -15,6 +15,7 @@ const startCall = vi.fn(() =>
     setInputDevice: () => Promise.resolve(),
     startScreen: () => Promise.resolve(),
     stopScreen: () => Promise.resolve(),
+    setScreenBudget: () => Promise.resolve(),
     setScreenVisible: () => Promise.resolve(),
     setScreenLayer: () => Promise.resolve(),
     requestScreen: () => Promise.resolve(),

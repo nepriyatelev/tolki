@@ -75,6 +75,7 @@ export type RoomEvent = Extract<
       | 'join-request-gone'
       | 'approval-changed'
       | 'chat'
+      | 'screen-budget'
   }
 >
 

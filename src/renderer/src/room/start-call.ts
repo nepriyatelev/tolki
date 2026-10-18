@@ -1,4 +1,5 @@
 import type { ScreenMode } from '@shared/screen'
+import type { ScreenBudget } from '@shared/upload-capacity'
 import { openMicrophoneTrack } from '../audio/microphone'
 import {
   Call,
@@ -26,6 +27,8 @@ export interface CallHandle {
     audio?: MediaStreamTrack | null,
   ): Promise<void>
   stopScreen(): Promise<void>
+  /** The host's ceiling for the big screen stream (#86). */
+  setScreenBudget(budget: ScreenBudget): Promise<void>
   /** Others' screens: shown or hidden, and the layer for the size shown (PLAN #28). */
   setScreenVisible(consumerId: string, visible: boolean): Promise<void>
   setScreenLayer(consumerId: string, layer: ScreenLayer): Promise<void>
@@ -64,6 +67,7 @@ export async function startCall(options: StartCallOptions): Promise<CallHandle> 
       },
       startScreen: (track, mode, audio) => call.startScreen(track, mode, audio ?? null),
       stopScreen: () => call.stopScreen(),
+      setScreenBudget: (budget) => call.setScreenBudget(budget),
       setScreenVisible: (consumerId, visible) => call.setScreenVisible(consumerId, visible),
       setScreenLayer: (consumerId, layer) => call.setScreenLayer(consumerId, layer),
       requestScreen: () => call.requestScreen(),

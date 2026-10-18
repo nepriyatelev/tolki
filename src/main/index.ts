@@ -423,6 +423,9 @@ function logRoomEvent(event: RoomEvent): void {
     case 'approval-changed':
       logs.main.info(`entry by approval: ${event.enabled ? 'on' : 'off'}`)
       return
+    case 'screen-budget':
+      logs.main.info(`screen ceiling from the organizer: ${event.height}p`)
+      return
     default:
   }
 }
@@ -601,7 +604,7 @@ registerIpcHandlers(
           `screen mode ${screenMode ?? 'auto'}, password ${password ? 'yes' : 'no'}`,
       )
       try {
-        return await host.start({
+        const started = await host.start({
           port: port ?? DEFAULT_HOST_PORT,
           portMapping: portMappingEnabled && (portMapping ?? true),
           roomName: roomName ?? 'Комната',
@@ -612,6 +615,10 @@ registerIpcHandlers(
           organizerKey: (organizerKey = randomBytes(24).toString('base64url')),
           dataDir: app.getPath('userData'),
         })
+        // The screen's ceiling (#86) starts from the last measurement; no new test mid-call.
+        const measured = upload.lastMbps
+        if (measured !== null) host.setUpload(measured)
+        return started
       } catch (error) {
         if (error instanceof HostStartError) return host.state
         throw error
@@ -629,6 +636,7 @@ registerIpcHandlers(
     'network:measure-upload': async ({ force }) => {
       const result = await upload.measure({ force: force ?? false })
       logs.main.info(uploadLine(result))
+      if (result.status === 'measured') host.setUpload(result.mbps)
       return result
     },
     'settings:get': () => settings.get(),

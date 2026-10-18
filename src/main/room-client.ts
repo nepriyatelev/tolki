@@ -236,6 +236,7 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
         case 'join-request-gone':
         case 'approval-changed':
         case 'chat':
+        case 'screen-budget':
           if (eventListener) eventListener(message)
           else earlyEvents.push(message)
           return

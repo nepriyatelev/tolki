@@ -33,6 +33,7 @@ import {
   type PushToTalkMode,
 } from '@shared/push-to-talk'
 import { volumeKey } from '@shared/settings'
+import type { ScreenMode } from '@shared/screen'
 import type { MediaRequest, Peer } from '@shared/signaling'
 import { AudioSettingsDialog } from '../audio/AudioSettingsDialog'
 import type { MicrophoneAccess } from '../audio/microphone'
@@ -125,6 +126,11 @@ export function CallScreen(props: {
   /** What this user is showing (PLAN #26); sending it to the others comes with #27. */
   const [myScreen, setMyScreen] = createSignal<MediaStream | null>(null)
   const [screenError, setScreenError] = createSignal(false)
+  /** The mode last picked in «Что показать» (#86), remembered; the room's until then. */
+  const [pickedMode, setPickedMode] = createSignal<ScreenMode | null>(null)
+  const screenMode = (): ScreenMode => pickedMode() ?? joined().screenMode
+  /** The mode the user's screen goes out in now: a reconnect resumes it the same. */
+  let sharingMode: ScreenMode = 'auto'
   /** One screen at a time (PLAN #29): who shares now, and «Показать свой» in progress. */
   const [sharerId, setSharerId] = createSignal<string | null>(initial.sharerId)
   const [askingToShare, setAskingToShare] = createSignal(false)
@@ -337,6 +343,15 @@ export function CallScreen(props: {
         if (!chatOpen() && !me) setUnread((n) => n + 1)
         break
       }
+      case 'screen-budget':
+        // What the organizer's upload carries to everyone watching (#86).
+        console.info(`[screen] ceiling from the organizer: ${event.height}p`)
+        void call
+          ?.setScreenBudget({ height: event.height, maxBitrate: event.maxBitrate })
+          .catch((error: unknown) => {
+            console.warn('[screen] could not apply the ceiling:', error)
+          })
+        break
       case 'peer-muted':
         setMutedPeers((set) => {
           const next = new Set(set)
@@ -388,7 +403,7 @@ export function CallScreen(props: {
         const track = myScreen()?.getVideoTracks()[0]
         if (track) {
           const sound = myScreen()?.getAudioTracks()[0] ?? null
-          void handle.startScreen(track, room.screenMode, sound).catch((error: unknown) => {
+          void handle.startScreen(track, sharingMode, sound).catch((error: unknown) => {
             console.warn('[screen] could not resume after reconnecting:', error)
             stopScreen()
           })
@@ -429,6 +444,7 @@ export function CallScreen(props: {
       setSoundsOn(settings.sounds.enabled)
       if (settings.pushToTalk.enabled) changePtt(settings.pushToTalk, false)
       setHotkeyKeys(settings.globalHotkeys)
+      setPickedMode(settings.screen.mode)
       if (settings.globalHotkeys.mute || settings.globalHotkeys.deafen) configureHotkeys()
     })
     startTheCall(joined(), callEvents)
@@ -622,9 +638,17 @@ export function CallScreen(props: {
       console.warn('[screen] could not stop sending:', error)
     })
   }
-  const shareScreen = async (sourceId: string | null, systemAudio: boolean): Promise<void> => {
+  const shareScreen = async (
+    sourceId: string | null,
+    systemAudio: boolean,
+    mode: ScreenMode,
+  ): Promise<void> => {
     setPickerOpen(false)
     setScreenError(false)
+    if (mode !== pickedMode()) {
+      setPickedMode(mode)
+      void window.tolki.settings.update({ screen: { mode } }).catch(() => undefined)
+    }
     try {
       const stream = await (props.screen ?? browserScreen).capture(sourceId, systemAudio)
       stopScreen()
@@ -634,12 +658,13 @@ export function CallScreen(props: {
         if (myScreen() === stream) stopScreen()
       })
       setMyScreen(stream)
-      // Everyone else gets it in the room's mode (sharp text, smooth motion or auto).
+      // Everyone else gets it in the mode picked (sharp text, smooth motion or auto).
       if (track && call) {
         const sound = stream.getAudioTracks()[0] ?? null
-        await call.startScreen(track, joined().screenMode, sound)
+        sharingMode = mode
+        await call.startScreen(track, mode, sound)
         console.info(
-          `[screen] sharing started: ${captureText(track)}, mode ${joined().screenMode}` +
+          `[screen] sharing started: ${captureText(track)}, mode ${mode}` +
             (sound ? ', with the computer’s sound' : ''),
         )
       }
@@ -1079,7 +1104,8 @@ export function CallScreen(props: {
         <ScreenSourceDialog
           open={pickerOpen()}
           onClose={() => setPickerOpen(false)}
-          onPick={(sourceId, systemAudio) => void shareScreen(sourceId, systemAudio)}
+          mode={screenMode()}
+          onPick={(sourceId, systemAudio, mode) => void shareScreen(sourceId, systemAudio, mode)}
           {...(props.screen ? { access: props.screen } : {})}
         />
         <AudioSettingsDialog
