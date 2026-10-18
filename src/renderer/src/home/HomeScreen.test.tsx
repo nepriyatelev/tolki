@@ -117,17 +117,31 @@ describe('HomeScreen', () => {
 
 describe('new version banner (#36)', () => {
   it('offers the newer version and opens the download page', async () => {
-    const { api, user } = show({ update: { version: '0.2.0' } })
+    const { api, user } = show({ update: { version: '0.2.0', ready: false } })
     expect(await screen.findByText('Доступна версия 0.2.0')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Скачать' }))
     expect(api.app.openDownloadPage).toHaveBeenCalledOnce()
   })
 
   it('can be put away', async () => {
-    const { user } = show({ update: { version: '0.2.0' } })
+    const { user } = show({ update: { version: '0.2.0', ready: false } })
     await screen.findByText('Доступна версия 0.2.0')
     await user.click(screen.getByRole('button', { name: 'Скрыть' }))
     expect(screen.queryByText('Доступна версия 0.2.0')).toBeNull()
+  })
+
+  it('offers to restart once the new version is downloaded (#46)', async () => {
+    const { api, user } = show()
+    await vi.waitFor(() => {
+      expect(api.app.checkUpdate).toHaveBeenCalled()
+    })
+    api.app.emitUpdate({ version: '0.2.0', ready: true })
+    expect(
+      await screen.findByText('Версия 0.2.0 загружена и установится при выходе из Tolki'),
+    ).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Скачать' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Перезапустить' }))
+    expect(api.app.installUpdate).toHaveBeenCalledOnce()
   })
 
   it('is not there when the app is up to date', async () => {

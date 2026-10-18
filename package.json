@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "electron-log": "5.4.4",
+    "electron-updater": "6.8.9",
     "mediasoup": "3.27.1",
     "selfsigned": "5.5.0",
     "uiohook-napi": "1.5.5",

@@ -90,4 +90,10 @@ linux:
 deb:
   packageCategory: net
 
-publish: null
+# Auto-update (#46): app-update.yml inside the app and latest*.yml / alpha*.yml next to the
+# installers point electron-updater at the public releases repository. The release workflow
+# uploads them itself (`--publish never`); electron-builder never publishes.
+publish:
+  provider: github
+  owner: nepriyatelev
+  repo: tolki-releases

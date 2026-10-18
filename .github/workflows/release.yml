@@ -1,10 +1,11 @@
 name: Release
 
-# Tag vX.Y.Z → installers for every OS → GitHub release in the public tolki-releases repo.
-# The version comes from the tag; package.json keeps 0.0.0 for development builds.
+# Tag vX.Y.Z (or vX.Y.Z-alpha.N / -beta.N: a pre-release) → installers for every OS → GitHub
+# release in the public tolki-releases repo. The version comes from the tag; package.json keeps
+# 0.0.0 for development builds.
 on:
   push:
-    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+    tags: ['v[0-9]+.[0-9]+.[0-9]+', 'v[0-9]+.[0-9]+.[0-9]+-*']
 
 permissions:
   contents: read
@@ -83,6 +84,9 @@ jobs:
             release/*.dmg
             release/*.AppImage
             release/*.deb
+            release/*.exe.blockmap
+            release/latest.yml
+            release/latest-linux.yml
           if-no-files-found: error
           retention-days: 7
 
@@ -115,10 +119,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
+          # An alpha or beta is a pre-release: «latest» stays the last full release, and only
+          # those already on an alpha or beta update to it (electron-updater, #46).
+          prerelease=()
+          case "$GITHUB_REF_NAME" in *-*) prerelease=(--prerelease) ;; esac
           gh release create "$GITHUB_REF_NAME" dist/* \
             --repo "$RELEASES_REPO" \
             --title "Tolki ${GITHUB_REF_NAME#v}" \
-            --notes-file notes.md
+            --notes-file notes.md \
+            "${prerelease[@]}"
 
       # The install guide (docs/INSTALL.md) is the releases repository's README, kept in step
       # with every release.

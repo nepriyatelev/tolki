@@ -2,7 +2,7 @@ import type { HotkeyAction } from '@shared/global-hotkeys'
 import type { PushToTalkMode } from '@shared/push-to-talk'
 import { vi, type Mock } from 'vitest'
 import type { InviteParseResult } from '@shared/invite'
-import type { TolkiApi } from '@shared/ipc'
+import type { TolkiApi, UpdateOffer } from '@shared/ipc'
 import type { NetworkCheckResult } from '@shared/network'
 import type { RecentRoom, RecentStatus } from '@shared/recent'
 import type { JoinResult, RoomClosedEvent, RoomEvent, RoomPreview } from '@shared/room'
@@ -37,6 +37,9 @@ export interface TolkiMock {
     openDownloadPage: Mock<TolkiApi['app']['openDownloadPage']>
     openLink: Mock<TolkiApi['app']['openLink']>
     checkUpdate: Mock<TolkiApi['app']['checkUpdate']>
+    installUpdate: Mock<TolkiApi['app']['installUpdate']>
+    /** Simulates main reporting a downloaded update (#46). */
+    emitUpdate(offer: UpdateOffer): void
   }
   host: {
     start: Mock<TolkiApi['host']['start']>
@@ -96,7 +99,7 @@ export interface TolkiMock {
 
 export interface TolkiMockOptions extends Partial<TolkiApi['network']> {
   /** A newer release main found (PLAN #36). */
-  update?: { version: string }
+  update?: UpdateOffer
   /** A link that "started the app". */
   pendingInvite?: InviteParseResult
   join?: TolkiApi['room']['join']
@@ -127,6 +130,7 @@ export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
   const inviteListeners = new Set<(result: InviteParseResult) => void>()
   const pttListeners = new Set<(event: { pressed: boolean }) => void>()
   const hotkeyListeners = new Set<(event: { action: HotkeyAction }) => void>()
+  const updateListeners = new Set<(offer: UpdateOffer) => void>()
   const trayListeners = new Set<(event: { command: 'mute' | 'deafen' | 'leave' }) => void>()
   const closedListeners = new Set<(event: RoomClosedEvent) => void>()
   const eventListeners = new Set<(event: RoomEvent) => void>()
@@ -143,6 +147,14 @@ export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
       checkUpdate: vi.fn<TolkiApi['app']['checkUpdate']>(() =>
         Promise.resolve(options.update ?? null),
       ),
+      installUpdate: vi.fn<TolkiApi['app']['installUpdate']>(() => Promise.resolve(true)),
+      onUpdate: (listener: (offer: UpdateOffer) => void) => {
+        updateListeners.add(listener)
+        return () => updateListeners.delete(listener)
+      },
+      emitUpdate: (offer: UpdateOffer) => {
+        for (const listener of updateListeners) listener(offer)
+      },
     },
     host: {
       start: vi.fn<TolkiApi['host']['start']>(
