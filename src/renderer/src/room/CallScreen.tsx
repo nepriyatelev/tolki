@@ -51,6 +51,12 @@ import {
 import { ChatPanel, type ChatMessage, type ChatSendResult } from './ChatPanel'
 import { cueLimiter, playCue as playRealCue, type Cue } from '../audio/cue-sounds'
 import { CALL_LOG_INTERVAL_MS, callLogLine } from './call-log'
+import {
+  hostUploadHint,
+  hostUploadText,
+  hostUploadWarning,
+  type HostStats,
+} from './upload-estimate'
 import { formatCallTime } from './call-timer'
 import { ConnectionIndicator } from './ConnectionIndicator'
 import { ParticipantTile } from './ParticipantTile'
@@ -126,6 +132,8 @@ export function CallScreen(props: {
   /** What this user is showing (PLAN #26); sending it to the others comes with #27. */
   const [myScreen, setMyScreen] = createSignal<MediaStream | null>(null)
   const [screenError, setScreenError] = createSignal(false)
+  /** The organizer's upload, as the host reports it (#87). */
+  const [hostStats, setHostStats] = createSignal<HostStats | null>(null)
   /** The mode last picked in «Что показать» (#86), remembered; the room's until then. */
   const [pickedMode, setPickedMode] = createSignal<ScreenMode | null>(null)
   const screenMode = (): ScreenMode => pickedMode() ?? joined().screenMode
@@ -343,6 +351,14 @@ export function CallScreen(props: {
         if (!chatOpen() && !me) setUnread((n) => n + 1)
         break
       }
+      case 'host-stats':
+        setHostStats({
+          uploadMbps: event.uploadMbps,
+          participants: event.participants,
+          screen: event.screen,
+          measured: event.measured,
+        })
+        break
       case 'screen-budget':
         // What the organizer's upload carries to everyone watching (#86).
         console.info(`[screen] ceiling from the organizer: ${event.height}p`)
@@ -784,8 +800,13 @@ export function CallScreen(props: {
 
   const everyone = (): (Peer & { me: boolean })[] => [
     ...peers().map((peer) => ({ ...peer, me: false })),
-    { id: joined().peerId, name, me: true },
+    { id: joined().peerId, name, me: true, organizer: joined().organizer },
   ]
+  /** The organizer's upload in the call (#87), and a warning when it falls short. */
+  const uploadWarning = (): string | null => {
+    const stats = hostStats()
+    return stats ? hostUploadWarning(stats, everyone().length, shownScreen() !== null) : null
+  }
 
   return (
     <main class="call">
@@ -795,6 +816,17 @@ export function CallScreen(props: {
         <time class="call-timer" aria-label="Время в звонке">
           {formatCallTime(now() - joinedAt)}
         </time>
+        <Show when={hostStats()}>
+          {(stats) => (
+            <span
+              class="call-host-upload"
+              title={hostUploadHint(stats())}
+              aria-label={`${hostUploadText(stats())}. ${hostUploadHint(stats())}`}
+            >
+              {hostUploadText(stats())}
+            </span>
+          )}
+        </Show>
         <Show when={!props.organizer}>
           <ConnectionIndicator
             sample={() => call?.connectionSample() ?? Promise.resolve(null)}
@@ -908,6 +940,9 @@ export function CallScreen(props: {
                         <Show when={person.me}>
                           <span class="call-tile-you">я</span>
                         </Show>
+                        <Show when={person.organizer}>
+                          <span class="call-tile-organizer">организатор</span>
+                        </Show>
                         <Show when={person.me ? muted() : mutedPeers().has(person.id)}>
                           <span class="call-tile-muted" role="img" aria-label="Микрофон выключен">
                             <MicOff />
@@ -1004,6 +1039,13 @@ export function CallScreen(props: {
           {(note) => (
             <p class="call-sound" role="status">
               {note()}
+            </p>
+          )}
+        </Show>
+        <Show when={uploadWarning()}>
+          {(warning) => (
+            <p class="call-sound call-sound--warning" role="status">
+              {warning()}
             </p>
           )}
         </Show>

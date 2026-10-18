@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { describeUpload, formatMbps } from './upload-estimate'
+import {
+  describeUpload,
+  formatMbps,
+  hostUploadHint,
+  hostUploadText,
+  hostUploadWarning,
+} from './upload-estimate'
 
 const measured = (mbps: number) => ({ status: 'measured' as const, mbps, measuredAt: 0 })
 
@@ -31,5 +37,31 @@ describe('formatMbps', () => {
     expect(formatMbps(92.6)).toBe('93')
     expect(formatMbps(9.94)).toBe('9,9')
     expect(formatMbps(2)).toBe('2')
+  })
+})
+
+describe('the organizer’s upload in the call (#87)', () => {
+  const stats = { uploadMbps: 39.4, participants: 15, screen: '720p' as const, measured: true }
+
+  it('reads the upload and what it carries', () => {
+    expect(hostUploadText(stats)).toBe('Отдача организатора 39 Мбит/с')
+    expect(hostUploadText({ ...stats, uploadMbps: 12, measured: false })).toBe(
+      'Отдача организатора от 12 Мбит/с',
+    )
+    expect(hostUploadHint(stats)).toBe('Хватит на 15 человек и экран в 720p')
+  })
+
+  it('warns when the measured upload is short of the call', () => {
+    const slow = { uploadMbps: 1, participants: 6, screen: null, measured: true }
+    expect(hostUploadWarning(slow, 4, false)).toBeNull()
+    expect(hostUploadWarning(slow, 7, false)).toMatch(/не хватает скорости отдачи на всех/)
+    expect(hostUploadWarning(slow, 4, true)).toMatch(/на показ экрана/)
+    expect(hostUploadWarning(stats, 10, true)).toBeNull()
+  })
+
+  it('does not warn from a lower bound only', () => {
+    expect(
+      hostUploadWarning({ uploadMbps: 1, participants: 6, screen: null, measured: false }, 9, true),
+    ).toBeNull()
   })
 })

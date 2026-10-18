@@ -12,6 +12,8 @@ export interface TilePerson {
   id: string
   name: string
   me: boolean
+  /** The room is on their computer (#87). */
+  organizer?: boolean | undefined
 }
 
 /**
@@ -62,6 +64,7 @@ export function ParticipantTile(props: {
   const label = (): string =>
     props.person.name +
     (props.person.me ? ' (я)' : '') +
+    (props.person.organizer ? ', организатор' : '') +
     (props.speaking ? ', говорит' : '') +
     (props.muted ? ', микрофон выключен' : '') +
     (changed() ? `, громкость ${props.volume} %` : '')
@@ -80,6 +83,9 @@ export function ParticipantTile(props: {
         <span class="call-tile-name-text">{props.person.name}</span>
         <Show when={props.person.me}>
           <span class="call-tile-you">я</span>
+        </Show>
+        <Show when={props.person.organizer}>
+          <span class="call-tile-organizer">организатор</span>
         </Show>
         <Show when={props.muted}>
           <span class="call-tile-muted" role="img" aria-label="Микрофон выключен">

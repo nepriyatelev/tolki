@@ -3,7 +3,12 @@ import type { RawData, WebSocket } from 'ws'
 import { newNonce, verifyAuthHmac } from '@shared/auth'
 import type { types } from 'mediasoup'
 import type { ScreenMode } from '@shared/screen'
-import { MAX_PARTICIPANTS, screenBudget, type ScreenBudget } from '@shared/upload-capacity'
+import {
+  estimateCapacity,
+  MAX_PARTICIPANTS,
+  screenBudget,
+  type ScreenBudget,
+} from '@shared/upload-capacity'
 import {
   clientMessageSchema,
   parseMessage,
@@ -89,6 +94,8 @@ export class Room {
   #upload: { measured: number | null; live: number | null } = { measured: null, live: null }
   /** The ceiling the sharer was told last, so it is sent only when it changes. */
   #sentBudget: { peerId: string; budget: ScreenBudget } | null = null
+  /** The organizer's upload as everyone was told last (#87); null until it is known. */
+  #hostStats: Extract<HostMessage, { type: 'host-stats' }> | null = null
   /** Participants waiting for the sharer's answer to «Показать свой». */
   readonly #screenRequests = new Set<string>()
   /** Entry waits for the organizer (#42). */
@@ -243,7 +250,7 @@ export class Room {
     const send = (message: HostMessage): void => {
       socket.send(JSON.stringify(message))
     }
-    const peer: Peer = { id: randomUUID(), name }
+    const peer: Peer = { id: randomUUID(), name, ...(organizer ? { organizer: true } : {}) }
     const media = this.#media
       ? new PeerMedia(this.#media, {
           beforeProduce: (kind, screenAudio) => {
@@ -323,6 +330,7 @@ export class Room {
         send(newProducer(member.peer.id, producer))
       }
     }
+    if (this.#hostStats) send(this.#hostStats)
     this.#updateBudget()
   }
 
@@ -506,6 +514,34 @@ export class Room {
   setUpload(source: 'measured' | 'live', mbps: number): void {
     this.#upload = { ...this.#upload, [source]: mbps }
     this.#updateBudget()
+    this.#updateHostStats()
+  }
+
+  /** Everyone sees the organizer's upload (#87); sent when it changes by a whole Mbit/s. */
+  #updateHostStats(): void {
+    const { measured, live } = this.#upload
+    const mbps = Math.max(measured ?? 0, live ?? 0)
+    if (mbps <= 0) return
+    const { participants, screen } = estimateCapacity(mbps)
+    const stats: Extract<HostMessage, { type: 'host-stats' }> = {
+      type: 'host-stats',
+      uploadMbps: Math.round(mbps * 10) / 10,
+      participants,
+      screen,
+      measured: measured !== null,
+    }
+    const before = this.#hostStats
+    if (
+      before &&
+      Math.round(before.uploadMbps) === Math.round(stats.uploadMbps) &&
+      before.participants === stats.participants &&
+      before.screen === stats.screen &&
+      before.measured === stats.measured
+    ) {
+      return
+    }
+    this.#hostStats = stats
+    this.#broadcast(stats)
   }
 
   /** Tells the sharer how much of the big screen stream the upload carries to everyone. */

@@ -36,6 +36,17 @@
   font-size: var(--text-sm);
 }
 
+/* The organizer's upload (#87); what it carries is in the tooltip. */
+.call-host-upload {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .call-count {
   flex-shrink: 0;
   padding: 2px var(--space-3);
@@ -203,6 +214,16 @@
   font-size: 11px;
 }
 
+/* Whose computer the room is on (#87): a small chip next to the name. */
+.call-tile-organizer {
+  flex-shrink: 0;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-soft-text);
+  font-size: 11px;
+}
+
 .call-tile-muted,
 .call-tile-volume {
   display: inline-flex;
@@ -337,6 +358,10 @@
 
 .call-sound--failed {
   color: var(--color-danger-text);
+}
+
+.call-sound--warning {
+  color: var(--color-warning-text);
 }
 
 .call-controls {

@@ -415,6 +415,47 @@ describe('the organizer’s rights (#42)', () => {
     expect(guest.result).toMatchObject({ ok: true, organizer: false })
   })
 
+  it('marks the organizer for everyone, and tells everyone the organizer’s upload (#87)', async () => {
+    const invite = await startHost('', { organizerKey: KEY })
+    const own = await organizer(invite)
+    const katya = await joinRoom({ invite, name: 'Катя', password: undefined })
+    connections.push(katya)
+    const katyaSees: RoomEvent[] = []
+    katya.onEvent((event) => katyaSees.push(event))
+    // Already inside: the organizer is marked in the list Katya gets.
+    expect(katya.result.ok && katya.result.peers).toEqual([
+      expect.objectContaining({ name: 'Организатор', organizer: true }),
+    ])
+    // Katya herself is not.
+    await expect
+      .poll(() => own.events.find((e) => e.type === 'peer-joined'))
+      .toMatchObject({
+        peer: { name: 'Катя' },
+      })
+    const joined = own.events.find((e) => e.type === 'peer-joined')
+    expect(joined?.type === 'peer-joined' && joined.peer.organizer).toBeFalsy()
+
+    room.setUpload('measured', 40)
+    const stats = (events: RoomEvent[]) => events.filter((e) => e.type === 'host-stats')
+    await expect
+      .poll(() => stats(katyaSees))
+      .toEqual([
+        { type: 'host-stats', uploadMbps: 40, participants: 15, screen: '720p', measured: true },
+      ])
+    expect(stats(own.events)).toHaveLength(1)
+    // The call's statistics below the measurement change nothing.
+    room.setUpload('live', 12)
+    await new Promise((r) => setTimeout(r, 50))
+    expect(stats(katyaSees)).toHaveLength(1)
+
+    // Someone coming later hears it right away.
+    const misha = await joinRoom({ invite, name: 'Миша', password: undefined })
+    connections.push(misha)
+    const mishaSees: RoomEvent[] = []
+    misha.onEvent((event) => mishaSees.push(event))
+    await expect.poll(() => stats(mishaSees)).toHaveLength(1)
+  })
+
   it('makes a guest wait until the organizer lets them in, or not', async () => {
     const invite = await startHost('', { organizerKey: KEY, approval: true })
     const own = await organizer(invite)
