@@ -62,6 +62,7 @@ export type RoomEvent = Extract<
       | 'screen-share-stopped'
       | 'screen-request'
       | 'screen-request-answer'
+      | 'screen-layer'
   }
 >
 

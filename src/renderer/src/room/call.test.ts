@@ -90,6 +90,7 @@ async function start(options: { microphone?: MediaStreamTrack | null; muted?: bo
 
 function fakeScreenTrack(height = 1080) {
   const applyConstraints = vi.fn(() => Promise.resolve())
+  const stop = vi.fn()
   const track = {
     id: 'screen',
     kind: 'video',
@@ -98,12 +99,12 @@ function fakeScreenTrack(height = 1080) {
     contentHint: '',
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
-    stop: vi.fn(),
+    stop,
     applyConstraints,
     getSettings: () => ({ height }),
   }
   const fake = Object.assign(track, { clone: () => ({ ...track }) }) as unknown as MediaStreamTrack
-  return { track: fake, applyConstraints }
+  return { track: fake, applyConstraints, stop }
 }
 
 describe('Call', () => {
@@ -254,8 +255,8 @@ describe('Call', () => {
   })
 })
 
-describe('sending the screen (#27)', () => {
-  it('goes out as two layers in the preferred codec, tuned by the room mode', async () => {
+describe('sending the screen (#27, #34)', () => {
+  it('goes out as a ≈1080p and a ≈360p stream, tuned by the room mode', async () => {
     const { call, host } = await start()
     const { track, applyConstraints } = fakeScreenTrack(1080)
 
@@ -267,15 +268,26 @@ describe('sending the screen (#27)', () => {
       height: { max: 1080 },
       frameRate: { max: 15 },
     })
-    const produce = host.request.mock.calls
+    type Produce = {
+      screenLayer?: number
+      rtpParameters: { codecs: { mimeType: string }[]; encodings: { maxBitrate?: number }[] }
+    }
+    const produced = host.request.mock.calls
       .map((c) => c[0])
-      .find((r) => r.method === 'produce' && r.kind === 'video')
-    expect(produce).toBeDefined()
-    const rtp = (produce as unknown as { rtpParameters: { encodings: { maxBitrate?: number }[] } })
-      .rtpParameters
-    // ≈360p at 500 kbit/s and ≈1080p at the text mode's 1.5 Mbit/s.
-    expect(rtp.encodings.map((e) => e.maxBitrate)).toEqual([500_000, 1_500_000])
-    expect(call.screenCodec).toMatch(/^video\//)
+      .filter((r) => r.method === 'produce' && r.kind === 'video') as unknown as Produce[]
+    // Two streams, not simulcast: one encoding each, so ≈1080p can get the hardware encoder.
+    expect(
+      produced.map((p) => ({
+        layer: p.screenLayer,
+        codec: p.rtpParameters.codecs[0]?.mimeType,
+        bitrates: p.rtpParameters.encodings.map((e) => e.maxBitrate),
+      })),
+    ).toEqual([
+      // ≈1080p at the text mode's 1.5 Mbit/s, ≈360p in VP8 at 500 kbit/s.
+      { layer: 1, codec: expect.stringMatching(/^video\//) as string, bitrates: [1_500_000] },
+      { layer: 0, codec: 'video/VP8', bitrates: [500_000] },
+    ])
+    expect(call.screenCodec).toBe(produced[0]?.rtpParameters.codecs[0]?.mimeType)
   })
 
   it('starts the screen at 1 Mbit/s, not the browser default', async () => {
@@ -309,16 +321,19 @@ describe('sending the screen (#27)', () => {
     })
   })
 
-  it('stops: closes the producer here and on the host', async () => {
+  it('stops: closes both streams here and on the host', async () => {
     const { call, host } = await start({ microphone: null })
-    await call.startScreen(fakeScreenTrack().track, 'motion')
+    const { track, stop } = fakeScreenTrack()
+    await call.startScreen(track, 'motion')
 
     await call.stopScreen()
 
-    expect(host.methods().at(-1)).toBe('closeProducer')
+    expect(host.methods().slice(-2)).toEqual(['closeProducer', 'closeProducer'])
     expect(call.screenCodec).toBeNull()
+    // The ≈360p stream's own copy of the track is stopped; the caller's track is theirs.
+    expect(stop).toHaveBeenCalledTimes(1)
     await call.stopScreen()
-    expect(host.methods().filter((m) => m === 'closeProducer')).toHaveLength(1)
+    expect(host.methods().filter((m) => m === 'closeProducer')).toHaveLength(2)
   })
 
   it('works without a microphone: the send transport is created for the screen', async () => {
@@ -412,8 +427,49 @@ describe('receiving screens (#28)', () => {
     await call.setScreenLayer(consumerId, 1)
 
     expect(host.request.mock.calls.map((c) => c[0])).toEqual([
-      { method: 'setPreferredLayers', consumerId, spatialLayer: 0 },
-      { method: 'setPreferredLayers', consumerId, spatialLayer: 1 },
+      { method: 'setScreenLayer', layer: 0 },
+      { method: 'setScreenLayer', layer: 1 },
+    ])
+  })
+
+  it('takes both streams of a screen as one and shows the one the host sends (#34)', async () => {
+    const { call, host, events, onRemoteScreens, consumerId } = await startWithScreen()
+    const high = onRemoteScreens.mock.lastCall?.[0][0]?.track
+    events.emit({
+      type: 'new-producer',
+      peerId: 'dima',
+      producerId: 'screen-1-low',
+      kind: 'video',
+      screenLayer: 0,
+    })
+    await vi.waitFor(() => {
+      expect(host.request.mock.calls.filter((c) => c[0].method === 'resumeConsumer')).toHaveLength(
+        2,
+      )
+    })
+    await Promise.resolve()
+    expect(onRemoteScreens.mock.lastCall?.[0]).toEqual([
+      { consumerId, peerId: 'dima', track: high },
+    ])
+
+    // The host sends ≈360p now: same screen, the other track.
+    events.emit({ type: 'screen-layer', layer: 0 })
+    const shown = onRemoteScreens.mock.lastCall?.[0][0]
+    expect(shown?.consumerId).toBe(consumerId)
+    expect(shown?.track).not.toBe(high)
+
+    // Hiding it pauses both streams.
+    host.request.mockClear()
+    await call.setScreenVisible(consumerId, false)
+    expect(host.request.mock.calls.map((c) => c[0].method)).toEqual([
+      'pauseConsumer',
+      'pauseConsumer',
+    ])
+
+    // One stream ends: the screen stays with the other.
+    events.emit({ type: 'consumer-closed', consumerId })
+    expect(onRemoteScreens.mock.lastCall?.[0]).toEqual([
+      { consumerId, peerId: 'dima', track: shown?.track },
     ])
   })
 

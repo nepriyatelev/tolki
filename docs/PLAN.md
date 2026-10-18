@@ -75,7 +75,7 @@
 ### Экономия трафика хоста (обязательно)
 
 - **Голос:** пересылать каждому только **3 самых громких** голоса (ActiveSpeakerObserver / AudioLevelObserver + pause/resume consumers). Opus с DTX.
-- **Экран:** simulcast в 2 слоя (≈1080p и ≈360p). Хост выбирает слой для каждого зрителя по его окну и сети; свёрнутым окнам — пауза.
+- **Экран:** 2 потока (≈1080p и ≈360p). Хост выбирает поток для каждого зрителя по его окну и сети; свёрнутым окнам — пауза. Не simulcast: Chromium кодирует simulcast H.264 только программно, а одиночный поток ≈1080p — аппаратно; ≈360p — дешёвый программный VP8 (решение #34, замер в `docs/perf/README.md`).
 - Ориентир: экран 1080p на 14 зрителей ≈ 40 Мбит/с отдачи у хоста, голос ≈ 2 Мбит/с.
 
 ## 3. Стек
@@ -137,7 +137,7 @@ ratatosk://join?v=1&h=<host>&p=<port>&r=<roomId>&fp=<sha256 base64url>[&k=<passw
 `hello` → `challenge {nonce, room: {name, peerCount, hasPassword}}` → `auth {name, hmac}` → `welcome {peers, routerRtpCapabilities}` | `error {code}`
 
 До авторизации хост раскрывает только название комнаты, **число** участников и нужен ли пароль — имена участников не раскрываются (решение владельца). Этого же ответа хватает для статуса недавних комнат на главном экране.
-Далее: `createTransport`, `connectTransport`, `produce`, `consume`, `resumeConsumer`, `setPreferredLayers`, `pauseProducer`, `peerJoined`, `peerLeft`, `activeSpeakers`, `screenShareStarted/Stopped`, `roomClosed`, `ping/pong`.
+Далее: `createTransport`, `connectTransport`, `produce`, `consume`, `resumeConsumer`, `setScreenLayer`, `pauseProducer`, `peerJoined`, `peerLeft`, `activeSpeakers`, `screenShareStarted/Stopped`, `roomClosed`, `ping/pong`.
 Коды ошибок: `WRONG_PASSWORD`, `ROOM_FULL` (15), `TOO_MANY_ATTEMPTS`, `VERSION_MISMATCH`, `SCREEN_BUSY`.
 
 ## 6. Бюджеты производительности (проверяются в M4)
@@ -334,11 +334,11 @@ Mute останавливает отправку (pause producer), deafen глу
 Свой диалог на основе `desktopCapturer.getSources` (превью экранов и окон) + `setDisplayMediaRequestHandler`. macOS — запрос разрешения «Запись экрана» с подсказкой; Linux Wayland — портал PipeWire.
 
 **#27 Публикация экрана: simulcast + аппаратный кодек** · `mvp` `area:screen` `area:perf` · M3
-2 слоя (≈1080p и ≈360p), приоритет H.264 (аппаратный), запасной VP8. `contentHint` и fps по режиму: Авто, Чёткий текст (`detail`, 15 к/с), Плавно (`motion`, до 60 к/с).
+2 слоя (≈1080p и ≈360p), приоритет H.264 (аппаратный), запасной VP8. (В #34 слои стали двумя отдельными потоками: ≈1080p H.264 и ≈360p VP8 — см. §2.) `contentHint` и fps по режиму: Авто, Чёткий текст (`detail`, 15 к/с), Плавно (`motion`, до 60 к/с).
 - нагрузка CPU у показывающего в режиме «Плавно» 1080p ≤ 15 % при аппаратном кодеке
 
 **#28 Приём: выбор слоя и пауза** · `mvp` `area:screen` `area:perf` · M3
-`setPreferredLayers` по размеру окна и сети; пауза consumer при свёрнутом окне или скрытой демонстрации.
+`setPreferredLayers` по размеру окна и сети (с #34 — `setScreenLayer`: выбор между двумя потоками); пауза consumer при свёрнутом окне или скрытой демонстрации.
 
 **#29 Один показывающий** · `mvp` `area:screen` · M3
 Хост допускает одну демонстрацию одновременно (`SCREEN_BUSY`). Кнопка «Показать свой» отправляет текущему показывающему запрос; демонстрация переключается, только если он согласился или сам остановил показ.

@@ -379,7 +379,7 @@ describe('media on the host (mediasoup)', () => {
     expect(burst.some((r) => r.error === 'too many requests')).toBe(true)
   })
 
-  it('takes a simulcast screen and closes it on request (#27)', async () => {
+  it('takes a screen as two streams and sends each viewer one of them (#27, #34)', async () => {
     const consumers = watchConsumers()
     const { port } = await startRoom()
     const alice = await connect(port, 'Алиса')
@@ -389,68 +389,85 @@ describe('media on the host (mediasoup)', () => {
     const send = await alice.ok<Transport>({ method: 'createTransport', direction: 'send' })
     await alice.ok({ method: 'connectTransport', transportId: send.id, dtlsParameters: DTLS })
 
-    const screenProducer = await alice.ok<{ id: string }>({
-      method: 'produce',
-      transportId: send.id,
-      kind: 'video',
-      rtpParameters: {
-        mid: '1',
-        codecs: [
-          {
-            mimeType: 'video/VP8',
-            payloadType: 96,
-            clockRate: 90000,
-            parameters: {},
-            rtcpFeedback: [],
-          },
-        ],
-        headerExtensions: [
-          { uri: 'urn:ietf:params:rtp-hdrext:sdes:mid', id: 1 },
-          { uri: 'urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id', id: 2 },
-        ],
-        encodings: [
-          { rid: 'low', scaleResolutionDownBy: 3, maxBitrate: 500000 },
-          { rid: 'high', scaleResolutionDownBy: 1, maxBitrate: 2800000 },
-        ],
-        rtcp: { cname: 'screen' },
-      },
-    })
+    const stream = (mid: string, ssrc: number, screenLayer: 0 | 1) =>
+      alice.ok<{ id: string }>({
+        method: 'produce',
+        transportId: send.id,
+        kind: 'video',
+        screenLayer,
+        rtpParameters: {
+          mid,
+          codecs: [
+            {
+              mimeType: 'video/VP8',
+              payloadType: 96,
+              clockRate: 90000,
+              parameters: {},
+              rtcpFeedback: [],
+            },
+          ],
+          headerExtensions: [{ uri: 'urn:ietf:params:rtp-hdrext:sdes:mid', id: 1 }],
+          encodings: [{ ssrc }],
+          rtcp: { cname: 'screen' },
+        },
+      })
+    const high = await stream('1', 1111, 1)
+    expect(await bob.next('screen-share-started')).toMatchObject({})
     expect(await bob.next('new-producer')).toMatchObject({
-      producerId: screenProducer.id,
+      producerId: high.id,
       kind: 'video',
+      screenLayer: 1,
     })
+    const low = await stream('2', 2222, 0)
+    expect(await bob.next('new-producer')).toMatchObject({ producerId: low.id, screenLayer: 0 })
 
     const recv = await bob.ok<Transport>({ method: 'createTransport', direction: 'recv' })
-    const consumer = await bob.ok<{ id: string; kind: string }>({
-      method: 'consume',
-      transportId: recv.id,
-      producerId: screenProducer.id,
-      rtpCapabilities: caps,
-    })
-    expect(consumer.kind).toBe('video')
+    const consume = (producerId: string) =>
+      bob.ok<{ id: string; kind: string }>({
+        method: 'consume',
+        transportId: recv.id,
+        producerId,
+        rtpCapabilities: caps,
+      })
+    const highConsumer = await consume(high.id)
+    const lowConsumer = await consume(low.id)
+    expect(highConsumer.kind).toBe('video')
+    const hostSide = (id: string) => consumers.find((c) => c.id === id)
 
-    // The viewer picks the layer by size and pauses it while hidden (#28).
-    await bob.ok({ method: 'resumeConsumer', consumerId: consumer.id })
-    expect(
-      await bob.ok({ method: 'setPreferredLayers', consumerId: consumer.id, spatialLayer: 0 }),
-    ).toEqual({})
-    const hostSide = consumers.find((c) => c.id === consumer.id)
-    expect(hostSide?.preferredLayers).toMatchObject({ spatialLayer: 0 })
-    expect(hostSide?.paused).toBe(false)
-    await bob.ok({ method: 'pauseConsumer', consumerId: consumer.id })
-    expect(hostSide?.paused).toBe(true)
-    await bob.ok({ method: 'resumeConsumer', consumerId: consumer.id })
-    expect(hostSide?.paused).toBe(false)
-    expect(
-      (await bob.request({ method: 'setPreferredLayers', consumerId: 'nope', spatialLayer: 1 }))
-        .error,
-    ).toBe('unknown consumer')
+    // Ready to play both: the host sends ≈1080p only, and says so.
+    await bob.ok({ method: 'resumeConsumer', consumerId: highConsumer.id })
+    await bob.ok({ method: 'resumeConsumer', consumerId: lowConsumer.id })
+    expect(await bob.next('screen-layer')).toEqual({ type: 'screen-layer', layer: 1 })
+    expect(hostSide(highConsumer.id)?.paused).toBe(false)
+    expect(hostSide(lowConsumer.id)?.paused).toBe(true)
 
-    expect(await alice.ok({ method: 'closeProducer', producerId: screenProducer.id })).toEqual({})
-    expect(await bob.next('consumer-closed')).toMatchObject({ consumerId: consumer.id })
-    expect(
-      (await alice.request({ method: 'closeProducer', producerId: screenProducer.id })).error,
-    ).toBe('unknown producer')
+    // Shown small: ≈360p instead (#28).
+    expect(await bob.ok({ method: 'setScreenLayer', layer: 0 })).toEqual({})
+    expect(await bob.next('screen-layer')).toEqual({ type: 'screen-layer', layer: 0 })
+    await expect.poll(() => hostSide(lowConsumer.id)?.paused).toBe(false)
+    expect(hostSide(highConsumer.id)?.paused).toBe(true)
+
+    // Hidden: nothing is sent.
+    await bob.ok({ method: 'pauseConsumer', consumerId: lowConsumer.id })
+    await bob.ok({ method: 'pauseConsumer', consumerId: highConsumer.id })
+    expect(hostSide(lowConsumer.id)?.paused).toBe(true)
+    expect(hostSide(highConsumer.id)?.paused).toBe(true)
+    await bob.ok({ method: 'resumeConsumer', consumerId: lowConsumer.id })
+    expect(hostSide(lowConsumer.id)?.paused).toBe(false)
+
+    // The ≈360p stream ends (say, its encoder failed): ≈1080p is all there is.
+    expect(await alice.ok({ method: 'closeProducer', producerId: low.id })).toEqual({})
+    expect(await bob.next('consumer-closed')).toMatchObject({ consumerId: lowConsumer.id })
+    await bob.ok({ method: 'resumeConsumer', consumerId: highConsumer.id })
+    expect(await bob.next('screen-layer')).toEqual({ type: 'screen-layer', layer: 1 })
+    expect(hostSide(highConsumer.id)?.paused).toBe(false)
+
+    expect(await alice.ok({ method: 'closeProducer', producerId: high.id })).toEqual({})
+    expect(await bob.next('consumer-closed')).toMatchObject({ consumerId: highConsumer.id })
+    expect(await bob.next('screen-share-stopped')).toMatchObject({})
+    expect((await alice.request({ method: 'closeProducer', producerId: high.id })).error).toBe(
+      'unknown producer',
+    )
   })
 
   it('tells everyone the room’s screen mode', async () => {

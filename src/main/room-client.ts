@@ -195,6 +195,7 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
         case 'screen-share-stopped':
         case 'screen-request':
         case 'screen-request-answer':
+        case 'screen-layer':
           if (eventListener) eventListener(message)
           else earlyEvents.push(message)
           return

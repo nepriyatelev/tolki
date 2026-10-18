@@ -735,6 +735,21 @@ describe('the screen stage (#30)', () => {
     expect(await screen.findByRole('region', { name: 'Экран: Катя' })).toBeTruthy()
   })
 
+  it('shows the other stream when the host switches, staying where the user is (#34)', async () => {
+    const ctx = await withRemoteScreen()
+    const video = (): HTMLVideoElement | null => document.querySelector('.screen-stage-video')
+    const before = video()?.srcObject
+    const low = {} as MediaStreamTrack
+
+    ctx.showScreens([{ consumerId: 'c1', peerId: 'dima', track: low }])
+
+    expect(screen.getByRole('region', { name: 'Экран: Дима' })).toBeTruthy()
+    expect(video()?.srcObject).not.toBe(before)
+    expect(vi.mocked(MediaStream)).toHaveBeenLastCalledWith([low])
+    // The stage stays the same screen: no «hidden» for it in between.
+    expect(ctx.setScreenVisible).not.toHaveBeenCalledWith('c1', false)
+  })
+
   it('goes back to the tiles when sharing ends', async () => {
     const ctx = await withRemoteScreen()
     ctx.showScreens([])

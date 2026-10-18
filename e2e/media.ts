@@ -15,43 +15,46 @@ export function tapPeerConnections(page: Page): Promise<void> {
   })
 }
 
-export interface SentVideo {
+export interface SentStream {
   codec: string
   contentHint: string
-  layers: { rid: string; framesEncoded: number; frameHeight: number; encoder: string }[]
+  framesEncoded: number
+  frameHeight: number
+  encoder: string
+  /** Encoded in hardware. */
+  powerEfficient: boolean
 }
 
-/** What the app sends as video: codec, the track's hint and each simulcast layer. */
-export function sentVideo(page: Page): Promise<SentVideo | null> {
+/** What the app sends as video: each stream of the screen (≈1080p first, then ≈360p — #34). */
+export function sentVideo(page: Page): Promise<SentStream[]> {
   return page.evaluate(async () => {
     const { connections } = window as unknown as { connections: RTCPeerConnection[] }
+    const streams: SentStream[] = []
     for (const pc of connections) {
-      const sender = pc.getSenders().find((s) => s.track?.kind === 'video')
-      if (!sender?.track) continue
-      const stats = [...(await sender.getStats()).values()] as {
-        type: string
-        mimeType?: string
-        rid?: string
-        framesEncoded?: number
-        frameHeight?: number
-        encoderImplementation?: string
-      }[]
-      const codec = stats.find((s) => s.type === 'codec')
-      return {
-        codec: codec?.mimeType ?? '',
-        contentHint: sender.track.contentHint,
-        layers: stats
-          .filter((s) => s.type === 'outbound-rtp')
-          .map((s) => ({
-            rid: s.rid ?? '',
-            framesEncoded: s.framesEncoded ?? 0,
-            frameHeight: s.frameHeight ?? 0,
-            encoder: s.encoderImplementation ?? '',
-          }))
-          .sort((a, b) => a.rid.localeCompare(b.rid)),
+      for (const sender of pc.getSenders()) {
+        // Read before awaiting: stopping the screen takes the track away meanwhile.
+        const track = sender.track
+        if (track?.kind !== 'video') continue
+        const stats = [...(await sender.getStats()).values()] as {
+          type: string
+          mimeType?: string
+          framesEncoded?: number
+          frameHeight?: number
+          encoderImplementation?: string
+          powerEfficientEncoder?: boolean
+        }[]
+        const outbound = stats.find((s) => s.type === 'outbound-rtp')
+        streams.push({
+          codec: stats.find((s) => s.type === 'codec')?.mimeType ?? '',
+          contentHint: track.contentHint,
+          framesEncoded: outbound?.framesEncoded ?? 0,
+          frameHeight: outbound?.frameHeight ?? 0,
+          encoder: outbound?.encoderImplementation ?? '',
+          powerEfficient: outbound?.powerEfficientEncoder ?? false,
+        })
       }
     }
-    return null
+    return streams
   })
 }
 
@@ -69,7 +72,10 @@ export async function cpuPercent(app: ElectronApplication): Promise<number> {
   return sample()
 }
 
-/** The screen this app receives: decoded frames and the height of the layer it gets. */
+/**
+ * The screen this app receives: frames decoded of all its streams, and the height of the one
+ * that arrives now (the host sends one of the two — #34).
+ */
 export function receivedVideo(
   page: Page,
 ): Promise<{ framesDecoded: number; frameHeight: number } | null> {
@@ -82,13 +88,20 @@ export function receivedVideo(
         framesDecoded?: number
         frameHeight?: number
         mid?: string
+        lastPacketReceivedTimestamp?: number
       }[]
-      // mediasoup's 'probator' stream only probes bandwidth; the screen is the other one.
-      const inbound = stats.find(
+      // mediasoup's 'probator' stream only probes bandwidth; the screen is the others.
+      const inbound = stats.filter(
         (s) => s.type === 'inbound-rtp' && s.kind === 'video' && s.mid !== 'probator',
       )
-      if (inbound) {
-        return { framesDecoded: inbound.framesDecoded ?? 0, frameHeight: inbound.frameHeight ?? 0 }
+      if (inbound.length > 0) {
+        const latest = inbound.reduce((a, b) =>
+          (b.lastPacketReceivedTimestamp ?? 0) > (a.lastPacketReceivedTimestamp ?? 0) ? b : a,
+        )
+        return {
+          framesDecoded: inbound.reduce((sum, s) => sum + (s.framesDecoded ?? 0), 0),
+          frameHeight: latest.frameHeight ?? 0,
+        }
       }
     }
     return null

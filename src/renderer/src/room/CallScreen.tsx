@@ -408,11 +408,12 @@ export function CallScreen(props: {
     if (accept) stopScreen()
   }
 
-  // One MediaStream per remote screen, so the video keeps playing while names or people change.
-  let remoteStreamCache: { consumerId: string; stream: MediaStream } | null = null
+  // One MediaStream per remote screen, so the video keeps playing while names or people change;
+  // a new one only when the host switches the screen to its other stream (#34).
+  let remoteStreamCache: { track: MediaStreamTrack; stream: MediaStream } | null = null
   const remoteStream = (remote: RemoteScreen): MediaStream => {
-    if (remoteStreamCache?.consumerId !== remote.consumerId) {
-      remoteStreamCache = { consumerId: remote.consumerId, stream: new MediaStream([remote.track]) }
+    if (remoteStreamCache?.track !== remote.track) {
+      remoteStreamCache = { track: remote.track, stream: new MediaStream([remote.track]) }
     }
     return remoteStreamCache.stream
   }

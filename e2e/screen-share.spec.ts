@@ -92,11 +92,14 @@ test('the user picks a screen and sees what they are showing', async () => {
         .poll(() => preview.evaluate((v: HTMLVideoElement) => v.videoWidth), { timeout: 15_000 })
         .toBeGreaterThan(0)
 
-      // Sent to the room (#27): two simulcast layers (≈360p and ≈1080p), both encoding,
-      // H.264 or VP8, tuned for motion.
+      // Sent to the room (#27, #34): two streams, ≈1080p in H.264 (or VP8) and ≈360p in VP8,
+      // both encoding, tuned for motion.
       const encoded = await expect
         .poll(
-          async () => (await sentVideo(page))?.layers.every((l) => l.framesEncoded > 0) ?? false,
+          async () => {
+            const streams = await sentVideo(page)
+            return streams.length === 2 && streams.every((s) => s.framesEncoded > 0)
+          },
           { timeout: 20_000 },
         )
         .toBe(true)
@@ -104,20 +107,18 @@ test('the user picks a screen and sees what they are showing', async () => {
           () => true,
           () => false,
         )
-      const video = await sentVideo(page)
-      console.log('sent video:', JSON.stringify(video))
-      expect(video?.codec).toMatch(/^video\/(H264|VP8)$/)
-      expect(video?.contentHint).toBe('motion')
-      expect(video?.layers).toHaveLength(2)
+      const [high, low] = await sentVideo(page)
+      console.log('sent video:', JSON.stringify([high, low]))
       expect(encoded).toBe(true)
-      expect(video?.layers.map((l) => l.frameHeight).sort((a, b) => a - b)[0]).toBeLessThanOrEqual(
-        360,
-      )
+      expect(high?.codec).toMatch(/^video\/(H264|VP8)$/)
+      expect(low?.codec).toBe('video/VP8')
+      expect([high?.contentHint, low?.contentHint]).toEqual(['motion', 'motion'])
+      expect(low?.frameHeight).toBeLessThanOrEqual(360)
       // Reported, not asserted: CI encodes in software on a tiny virtual screen.
       console.log('cpu while sharing, % of one core:', (await cpuPercent(client.app)).toFixed(1))
 
       await page.getByRole('button', { name: 'Остановить показ экрана' }).click()
-      await expect.poll(async () => (await sentVideo(page))?.layers.length ?? 0).toBe(0)
+      await expect.poll(async () => (await sentVideo(page)).length).toBe(0)
       await expect(page.getByRole('region', { name: 'Мой экран' })).toHaveCount(0)
     } finally {
       await client.app.close()
@@ -184,13 +185,15 @@ test('others see the shared screen at a layer that fits, and nothing while hidde
       // For review: the stage as a viewer sees it (uploaded with test-results on CI).
       await misha.page.screenshot({ path: 'test-results/screen-stage.png' })
 
-      // Misha sees it, big: the ≈1080p layer — once Katya's browser turns that layer on (it
-      // waits for CPU and bandwidth; a CI runner encoding in software may never do it).
+      // Misha sees it, big: the ≈1080p stream — once Katya's browser encodes it (a CI runner
+      // encoding in software may lag).
       await expect(misha.page.getByRole('region', { name: 'Экран: Катя' })).toBeVisible()
       const highLayerOn = await expect
         .poll(
-          async () =>
-            (await sentVideo(katya.page))?.layers.every((l) => l.framesEncoded > 0) ?? false,
+          async () => {
+            const streams = await sentVideo(katya.page)
+            return streams.length === 2 && streams.every((s) => s.framesEncoded > 0)
+          },
           { timeout: 20_000 },
         )
         .toBe(true)
@@ -210,7 +213,7 @@ test('others see the shared screen at a layer that fits, and nothing while hidde
         JSON.stringify(await receivedVideo(misha.page)),
       )
 
-      // A small window: the ≈360p layer is enough — unless the display is so dense (Retina)
+      // A small window: the ≈360p stream is enough — unless the display is so dense (Retina)
       // that even the smallest window shows the stage over 540 device pixels tall.
       await resize(960, 640)
       await misha.page.waitForTimeout(500)

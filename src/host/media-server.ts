@@ -18,13 +18,15 @@ const MEDIA_CODECS: types.RouterRtpCodecCapability[] = [
     parameters: { ...VOICE_OPUS_PARAMETERS },
   },
   // Screen sharing (PLAN #27): H.264 first, as computers encode it in hardware; VP8 as fallback.
+  // Baseline (42001f), not constrained baseline (42e01f): Chromium on macOS encodes only the
+  // former with VideoToolbox, the latter falls back to the software OpenH264 (#34).
   {
     kind: 'video',
     mimeType: 'video/H264',
     clockRate: 90000,
     parameters: {
       'packetization-mode': 1,
-      'profile-level-id': '42e01f',
+      'profile-level-id': '42001f',
       'level-asymmetry-allowed': 1,
     },
   },
