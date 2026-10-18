@@ -154,9 +154,7 @@ async function run(): Promise<void> {
     })
 
   const routerRtpCapabilities = await welcome
-  const microphone = (
-    await navigator.mediaDevices.getUserMedia({ audio: true })
-  ).getAudioTracks()[0]
+  const microphone = steadyVoice()
   let audioConsumers = 0
   const players = new Map<string, HTMLAudioElement>()
   const call = await Call.start({
@@ -275,4 +273,22 @@ run().catch((error: unknown) => {
 /** «2,8 Мбит/с» for a bitrate in bit/s. */
 function fmtKbps(bps: number): string {
   return `${(bps / 1e6).toLocaleString('ru-RU', { maximumFractionDigits: 1 })} Мбит/с`
+}
+
+/**
+ * A voice that never pauses (#96): a steady tone, a different pitch per participant. Chromium's
+ * fake microphone only beeps, with gaps that may outlast the two seconds after which a quiet
+ * voice gives up its slot — then «15 talking without pauses» would not be true.
+ */
+function steadyVoice(): MediaStreamTrack | null {
+  const context = new AudioContext()
+  const tone = context.createOscillator()
+  tone.frequency.value = 200 + Math.random() * 400
+  const level = context.createGain()
+  // About −20 dBov: well above the host's −70 dB speech threshold, not clipping.
+  level.gain.value = 0.1
+  const out = context.createMediaStreamDestination()
+  tone.connect(level).connect(out)
+  tone.start()
+  return out.stream.getAudioTracks()[0] ?? null
 }

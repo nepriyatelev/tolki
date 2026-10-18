@@ -102,7 +102,8 @@ test('cold start, idle and a voice call within the budgets', async () => {
   await idle.app.close()
 
   // A voice call: the organizer, two more participants talking and the measured participant —
-  // all four microphones play Chromium's fake beeping tone, so three voices come in.
+  // the organizer and the measured participant use Chromium's fake beeping microphone, the two
+  // others a steady tone (perf/client), so three voices come in.
   const host = await launchApp({ args: [FAKE_MEDIA] })
   const port = await freePort()
   const state = await host.page.evaluate(
