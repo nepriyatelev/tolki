@@ -21,6 +21,17 @@ export interface RemoteScreen {
   track: MediaStreamTrack
 }
 
+/** A moment's numbers of a shared screen, for «1080p · 30 к/с · 2,8 Мбит/с» (PLAN #30). */
+export interface ScreenSample {
+  /** Height of the frames sent or received now. */
+  height: number
+  fps: number
+  /** Total bytes so far; the bitrate comes from two samples. */
+  bytes: number
+  /** Milliseconds. */
+  timestamp: number
+}
+
 /** Simulcast layers of a shared screen: 0 is ≈360p, 1 is ≈1080p. */
 export type ScreenLayer = 0 | 1
 
@@ -276,6 +287,17 @@ export class Call {
     await this.#request({ method: 'answerScreenRequest', fromPeerId, accept })
   }
 
+  /**
+   * Numbers of a screen: someone else's (by consumer) or the user's own (null). For the own one
+   * the biggest layer being sent counts, and bytes of all layers add up.
+   */
+  async screenSample(consumerId: string | null): Promise<ScreenSample | null> {
+    const source = consumerId === null ? this.#screen : this.#screens.get(consumerId)?.consumer
+    if (!source || source.closed) return null
+    const type = consumerId === null ? 'outbound-rtp' : 'inbound-rtp'
+    return sampleOf(await source.getStats(), type)
+  }
+
   /** The codec the screen goes out with, e.g. "video/H264"; null when not sharing. */
   get screenCodec(): string | null {
     return this.#screen?.rtpParameters.codecs[0]?.mimeType ?? null
@@ -413,4 +435,34 @@ export function preferredScreenCodec(
     video.find((c) => c.mimeType.toLowerCase() === 'video/h264') ??
     video.find((c) => c.mimeType.toLowerCase() === 'video/vp8')
   )
+}
+
+interface RtpStat {
+  type: string
+  kind?: string
+  mid?: string
+  frameHeight?: number
+  framesPerSecond?: number
+  bytesSent?: number
+  bytesReceived?: number
+  timestamp: number
+}
+
+/** Folds an RTCStatsReport into one sample: the tallest layer, all bytes. */
+export function sampleOf(
+  report: RTCStatsReport,
+  type: 'inbound-rtp' | 'outbound-rtp',
+): ScreenSample | null {
+  // mediasoup's 'probator' only probes bandwidth.
+  const streams = ([...report.values()] as RtpStat[]).filter(
+    (s) => s.type === type && s.kind === 'video' && s.mid !== 'probator',
+  )
+  if (streams.length === 0) return null
+  const top = streams.reduce((a, b) => ((b.frameHeight ?? 0) > (a.frameHeight ?? 0) ? b : a))
+  return {
+    height: top.frameHeight ?? 0,
+    fps: Math.round(top.framesPerSecond ?? 0),
+    bytes: streams.reduce((sum, s) => sum + (s.bytesSent ?? s.bytesReceived ?? 0), 0),
+    timestamp: top.timestamp,
+  }
 }

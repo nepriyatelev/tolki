@@ -40,7 +40,77 @@
 
 .call-header .rt-button {
   flex-shrink: 0;
+}
+
+.call-header .rt-button:first-of-type {
   margin-left: auto;
+}
+
+/* The middle: tiles, or the shared screen with people in a strip under it (mockup 5). */
+.call-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+
+.call-body > .call-tiles,
+.call-body > .call-stage {
+  flex: 1;
+}
+
+/* A shared screen fills the middle; people go to a strip under it. */
+.call-stage {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 14px;
+  min-height: 0;
+}
+
+.call-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.call-strip-person {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 40px;
+  padding: 0 14px 0 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: var(--text-md);
+  transition: border-color 120ms var(--ease-out);
+}
+
+.call-strip-person--speaking {
+  border-color: var(--color-accent);
+}
+
+.call-strip-name {
+  max-width: 16ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Back on the tiles while a screen is shared: a way to it. */
+.call-screen-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background: var(--color-accent-selected);
+  font-size: var(--text-md);
 }
 
 .call-tiles {
@@ -83,22 +153,6 @@
 
 .call-tile--speaking::after {
   opacity: 1;
-}
-
-/* A shared screen (yours or someone else's): a whole row, 16:9, big enough to read. */
-.call-tile--screen {
-  grid-column: 1 / -1;
-  height: auto;
-  aspect-ratio: 16 / 9;
-  max-height: 60vh;
-  overflow: hidden;
-  background: var(--color-bg);
-}
-
-.call-screen-video {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
 }
 
 .call-tile-name {
