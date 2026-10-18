@@ -213,25 +213,25 @@ test('others see the shared screen at a layer that fits, and nothing while hidde
         JSON.stringify(await receivedVideo(misha.page)),
       )
 
-      // A small window: the ≈360p stream is enough — unless the display is so dense (Retina)
-      // that even the smallest window shows the stage over 540 device pixels tall.
-      await resize(960, 640)
-      await misha.page.waitForTimeout(500)
-      const shownPx = await misha.page.evaluate(() => {
-        const video = document.querySelector('.screen-stage-video')
-        return (video?.getBoundingClientRect().height ?? 0) * window.devicePixelRatio
+      // Shown small: the ≈360p stream is enough, and the organizer switches to it (#34). Even the
+      // smallest window shows the stage over 540 device pixels tall on a dense display, and a
+      // virtual one may not resize at all, so the stage itself is made small.
+      await misha.page.evaluate(() => {
+        const video = document.querySelector<HTMLVideoElement>('.screen-stage-video')
+        if (video) video.style.height = `${Math.floor(500 / window.devicePixelRatio / 2)}px`
       })
-      if (shownPx < 540) {
-        await expect
-          .poll(async () => (await receivedVideo(misha.page))?.frameHeight ?? 0, {
-            timeout: 20_000,
-          })
-          .toBeLessThanOrEqual(360)
-      }
-      console.log(
-        `small window (${Math.round(shownPx)} device px tall):`,
-        JSON.stringify(await receivedVideo(misha.page)),
-      )
+      await expect
+        .poll(async () => (await receivedVideo(misha.page))?.frameHeight ?? 0, { timeout: 20_000 })
+        .toBeLessThanOrEqual(360)
+      // Still the same screen on the stage, still playing.
+      await expect(misha.page.getByRole('region', { name: 'Экран: Катя' })).toBeVisible()
+      const smallAt = (await receivedVideo(misha.page))?.framesDecoded ?? 0
+      await expect
+        .poll(async () => (await receivedVideo(misha.page))?.framesDecoded ?? 0, {
+          timeout: 10_000,
+        })
+        .toBeGreaterThan(smallAt)
+      console.log('small stage:', JSON.stringify(await receivedVideo(misha.page)))
 
       // Hidden (minimized): nothing arrives; shown again: frames again. The OS signal itself
       // cannot be produced on a virtual display without a window manager, so the page is told
