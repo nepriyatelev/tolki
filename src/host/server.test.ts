@@ -1,10 +1,10 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { request } from 'node:https'
-import { createServer as createNetServer, connect, type AddressInfo } from 'node:net'
+import { createServer as createNetServer, connect, Socket, type AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TLSSocket } from 'node:tls'
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { WebSocket } from 'ws'
 import {
   certificateFingerprint,
@@ -108,6 +108,8 @@ describe('startSignalingServer', () => {
   })
 
   it('passes ICE-TCP media on the same port to mediasoup and keeps WSS working', async () => {
+    // Media must not wait for Nagle: it alone added >100 ms of round trip in a busy room (#33).
+    const setNoDelay = vi.spyOn(Socket.prototype, 'setNoDelay')
     const received: Buffer[] = []
     const mediasoup = createNetServer((socket) => {
       socket.on('data', (chunk) => {
@@ -139,6 +141,8 @@ describe('startSignalingServer', () => {
 
     expect(reply).toBe('pong')
     expect(Buffer.concat(received).equals(frame)).toBe(true)
+    expect(setNoDelay.mock.calls.filter(([on]) => on === true).length).toBeGreaterThanOrEqual(2)
+    setNoDelay.mockRestore()
     const { socket } = await connectWss(`wss://127.0.0.1:${server.port}/`)
     socket.close()
     mediasoup.close()

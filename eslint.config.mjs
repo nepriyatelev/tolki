@@ -5,7 +5,7 @@ import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['out/', 'dist/', 'release/', 'coverage/', 'docs/', 'build/'] },
+  { ignores: ['out/', 'dist/', 'release/', 'coverage/', 'docs/', 'build/', 'perf/.build/'] },
   js.configs.recommended,
   tseslint.configs.strictTypeChecked,
   {
@@ -27,6 +27,7 @@ export default tseslint.config(
       'src/host/**/*.ts',
       'src/preload/**/*.ts',
       'e2e/**/*.ts',
+      'perf/**/*.{ts,mjs}',
       '*.config.{ts,mjs}',
     ],
     languageOptions: { globals: globals.node },
