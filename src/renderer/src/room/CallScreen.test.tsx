@@ -732,3 +732,49 @@ describe('the screen stage (#30)', () => {
     expect(screen.getByRole('button', { name: 'Меню: Дима' })).toBeTruthy()
   })
 })
+
+describe('reconnecting (#31)', () => {
+  it('shows «Переподключение…» and starts the call over when back', async () => {
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+
+    ctx.api.room.emitEvent({ type: 'active-speakers', peerIds: ['dima'] })
+    ctx.api.room.emitReconnecting()
+    expect(screen.getByText('Переподключение…')).toBeTruthy()
+    // Nothing is heard meanwhile: no «Звук подключён», no speaking frame.
+    expect(screen.getByText('Звук подключён').closest('p')?.hidden).toBe(true)
+    expect(document.querySelector('.call-tile--speaking')).toBeNull()
+
+    ctx.api.room.emitReconnected({
+      ...RESULT,
+      peerId: 'me-again',
+      peers: [{ id: 'katya', name: 'Катя' }],
+      routerRtpCapabilities: { codecs: [] },
+      mutedPeers: [],
+      sharerId: null,
+    })
+
+    await screen.findByText('Звук подключён')
+    expect(screen.queryByText('Переподключение…')).toBeNull()
+    expect(ctx.close).toHaveBeenCalledOnce()
+    expect(ctx.labels()).toEqual(['Катя', 'Алексей (я)'])
+  })
+
+  it('sends the screen again after reconnecting', async () => {
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    await ctx.user.click(screen.getByRole('button', { name: 'Показать экран' }))
+    const dialog = screen.getByRole('dialog', { name: 'Что показать' })
+    await ctx.user.click(await within(dialog).findByRole('radio', { name: 'Экран 1' }))
+    await ctx.user.click(within(dialog).getByRole('button', { name: 'Показать' }))
+    await vi.waitFor(() => {
+      expect(ctx.startScreen).toHaveBeenCalledOnce()
+    })
+
+    ctx.api.room.emitReconnected({ ...RESULT, peerId: 'me-again', mutedPeers: [], sharerId: null })
+
+    await vi.waitFor(() => {
+      expect(ctx.startScreen).toHaveBeenCalledTimes(2)
+    })
+  })
+})

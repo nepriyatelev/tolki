@@ -472,6 +472,23 @@ describe('media on the host (mediasoup)', () => {
     expect((await alice.next('welcome')).screenMode).toBe('motion')
   })
 
+  it('gives new ICE credentials when media stalls (#31)', async () => {
+    const { port } = await startRoom()
+    const alice = await connect(port, 'Алиса')
+    await alice.next('welcome')
+    const transport = await alice.ok<Transport & { iceParameters: { usernameFragment: string } }>({
+      method: 'createTransport',
+      direction: 'recv',
+    })
+
+    const { iceParameters } = await alice.ok<{ iceParameters: { usernameFragment: string } }>({
+      method: 'restartIce',
+      transportId: transport.id,
+    })
+
+    expect(iceParameters.usernameFragment).not.toBe(transport.iceParameters.usernameFragment)
+  })
+
   it('reports a busy UDP port', async () => {
     const port = await freePort()
     media = await MediaServer.start({ port })

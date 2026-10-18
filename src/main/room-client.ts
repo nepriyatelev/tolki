@@ -3,6 +3,7 @@ import type { IncomingMessage } from 'node:http'
 import type { TLSSocket } from 'node:tls'
 import { WebSocket, type RawData } from 'ws'
 import { computeAuthHmac } from '@shared/auth'
+import { keepAlive } from '../host/heartbeat'
 import type { Invite } from '@shared/invite'
 import type {
   JoinResult,
@@ -28,6 +29,8 @@ export interface JoinRequest {
   timeoutMs?: number
   /** How long the host may take to answer a media request. */
   requestTimeoutMs?: number
+  /** Ping interval; a host silent for a whole interval counts as gone (PLAN #31). */
+  heartbeatMs?: number
 }
 
 export interface RoomConnection {
@@ -129,6 +132,7 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
     })
 
     socket.once('open', () => {
+      keepAlive(socket, request.heartbeatMs ?? 5000)
       if (!settled) send({ type: 'hello', protocolVersion: PROTOCOL_VERSION })
     })
 

@@ -24,7 +24,8 @@ import { HostProcess, HostStartError } from './host-process'
 import { findInviteLink, InviteLinks } from './invite-links'
 import { NetworkChecker } from './network-check'
 import { RecentRooms } from './recent-rooms'
-import { joinRoom, probeRoom, type RoomConnection } from './room-client'
+import { joinRoom, probeRoom } from './room-client'
+import { RoomSession } from './room-session'
 import { SettingsStore } from './settings'
 import { measureUpload } from './speed-test'
 import { UploadEstimator } from './upload-estimator'
@@ -151,11 +152,11 @@ function recentRooms(): RecentRooms {
 }
 
 // The room this app is a client of (also when the host user joins their own room).
-let roomConnection: RoomConnection | null = null
+let roomSession: RoomSession | null = null
 
 function leaveRoom(): void {
-  roomConnection?.close()
-  roomConnection = null
+  roomSession?.leave()
+  roomSession = null
 }
 
 function registerInviteScheme(): void {
@@ -259,23 +260,31 @@ registerIpcHandlers(
       const saved =
         password === undefined && recentId ? recentRooms().password(recentId) : undefined
       const used = password ?? checked.invite.password ?? saved
-      const connection = await joinRoom({ invite: checked.invite, name, password: used })
+      const joinRequest = { invite: checked.invite, name, password: used }
+      const connection = await joinRoom(joinRequest)
       const { result } = connection
       if (result.ok) {
-        roomConnection = connection
-        connection.onEvent((event) => {
-          if (roomConnection === connection) {
-            BrowserWindow.getAllWindows()[0]?.webContents.send('room:event', event)
-          }
-        })
-        connection.onClosed((reason) => {
-          if (roomConnection !== connection) return
-          roomConnection = null
-          BrowserWindow.getAllWindows()[0]?.webContents.send('room:closed', {
-            reason,
-            roomName: result.room.name,
-          })
-        })
+        const send = (): Electron.WebContents | undefined =>
+          BrowserWindow.getAllWindows()[0]?.webContents
+        // The link may drop and come back (PLAN #31); the session keeps the room for the user.
+        const session: RoomSession = new RoomSession(
+          connection,
+          joinRequest,
+          {
+            // A session the user left is silent, so these need no extra check; the first
+            // events (who already talks) arrive while the session is being created.
+            onReconnecting: () => send()?.send('room:reconnecting', null),
+            onReconnected: (rejoined) => send()?.send('room:reconnected', rejoined),
+            onEvent: (event) => send()?.send('room:event', event),
+            onClosed: (reason) => {
+              if (roomSession !== session) return
+              roomSession = null
+              send()?.send('room:closed', { reason, roomName: result.room.name })
+            },
+          },
+          { join: joinRoom },
+        )
+        roomSession = session
         recentRooms().remember(
           checked.invite,
           result.room.name,
@@ -293,7 +302,7 @@ registerIpcHandlers(
       return null
     },
     'room:request': (request) =>
-      roomConnection?.request(request) ?? Promise.resolve({ ok: false, error: 'not in a room' }),
+      roomSession?.request(request) ?? Promise.resolve({ ok: false, error: 'not in a room' }),
     'room:preview': (invite) => probeRoom(invite),
     'recent:list': () => recentRooms().list(),
     'recent:probe': async () => {

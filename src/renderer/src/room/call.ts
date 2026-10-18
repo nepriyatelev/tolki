@@ -303,8 +303,33 @@ export class Call {
     return this.#screen?.rtpParameters.codecs[0]?.mimeType ?? null
   }
 
+  /**
+   * Media stalls while signalling still works (a changed network path): new ICE credentials let
+   * the browser find a way again without rejoining (PLAN #31). «disconnected» often heals by
+   * itself, so it gets a moment first; «failed» does not.
+   */
+  #restartIceWhenStuck(transport: types.Transport): void {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const restart = (): void => {
+      if (this.#closed || transport.closed) return
+      void this.#request({ method: 'restartIce', transportId: transport.id })
+        .then(({ iceParameters }) =>
+          transport.restartIce({ iceParameters: iceParameters as unknown as types.IceParameters }),
+        )
+        .catch((error: unknown) => {
+          console.warn('[call] ICE restart failed:', error)
+        })
+    }
+    transport.on('connectionstatechange', (state) => {
+      clearTimeout(timer)
+      if (state === 'failed') restart()
+      else if (state === 'disconnected') timer = setTimeout(restart, ICE_RESTART_GRACE_MS)
+    })
+  }
+
   /** mediasoup-client asks for DTLS parameters on first use of a transport. */
   #connectOnDemand(transport: types.Transport): void {
+    this.#restartIceWhenStuck(transport)
     transport.on('connect', ({ dtlsParameters }, callback, errback) => {
       this.#request({
         method: 'connectTransport',
@@ -422,6 +447,9 @@ function asTransportOptions(parameters: TransportParameters): types.TransportOpt
     dtlsParameters: parameters.dtlsParameters as unknown as types.DtlsParameters,
   }
 }
+
+/** How long a «disconnected» transport may heal by itself before an ICE restart. */
+export const ICE_RESTART_GRACE_MS = 2000
 
 /** Initial bandwidth estimate for the screen, kbit/s. */
 export const SCREEN_START_KBPS = 1000

@@ -88,6 +88,8 @@ export const mediaRequestSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('resumeProducer'), producerId: mediaIdSchema }),
   /** The participant stopped sending it (e.g. ended screen sharing). */
   z.object({ method: z.literal('closeProducer'), producerId: mediaIdSchema }),
+  /** Media stalled while signalling is fine: new ICE credentials for the transport (#31). */
+  z.object({ method: z.literal('restartIce'), transportId: mediaIdSchema }),
   /** «Показать свой»: ask whoever shares now to give way (PLAN #29). */
   z.object({ method: z.literal('requestScreen') }),
   /** The current sharer's answer to a request. */
@@ -128,6 +130,7 @@ export interface MediaResults {
   pauseProducer: Record<string, never>
   resumeProducer: Record<string, never>
   closeProducer: Record<string, never>
+  restartIce: { iceParameters: Record<string, unknown> }
   requestScreen: Record<string, never>
   answerScreenRequest: Record<string, never>
 }

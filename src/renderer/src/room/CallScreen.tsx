@@ -78,9 +78,12 @@ export function CallScreen(props: {
   screen?: ScreenAccess
 }): JSX.Element {
   // eslint-disable-next-line solid/reactivity -- a session never changes while the screen lives
-  const { result, events, name } = props.session
-  const [peers, setPeers] = createSignal<Peer[]>(result.peers)
-  const [mutedPeers, setMutedPeers] = createSignal<ReadonlySet<string>>(new Set(result.mutedPeers))
+  const { events, name, result: initial } = props.session
+  /** The room as joined; after a reconnect (PLAN #31) the state of the new connection. */
+  const [joined, setJoined] = createSignal(initial)
+  const [reconnecting, setReconnecting] = createSignal(false)
+  const [peers, setPeers] = createSignal<Peer[]>(initial.peers)
+  const [mutedPeers, setMutedPeers] = createSignal<ReadonlySet<string>>(new Set(initial.mutedPeers))
   // eslint-disable-next-line solid/reactivity -- the initial choice from the join screen
   const [muted, setMutedSignal] = createSignal(props.session.muted)
   const [deafened, setDeafened] = createSignal(false)
@@ -92,7 +95,7 @@ export function CallScreen(props: {
   const [myScreen, setMyScreen] = createSignal<MediaStream | null>(null)
   const [screenError, setScreenError] = createSignal(false)
   /** One screen at a time (PLAN #29): who shares now, and «Показать свой» in progress. */
-  const [sharerId, setSharerId] = createSignal<string | null>(result.sharerId)
+  const [sharerId, setSharerId] = createSignal<string | null>(initial.sharerId)
   const [askingToShare, setAskingToShare] = createSignal(false)
   const [screenNote, setScreenNote] = createSignal<string | null>(null)
   /** Who asked the user (the sharer) to give way, oldest first. */
@@ -101,7 +104,7 @@ export function CallScreen(props: {
     peers().find((p) => p.id === peerId)?.name ?? 'Участник'
   const someoneElseShares = (): boolean => {
     const id = sharerId()
-    return id !== null && id !== result.peerId
+    return id !== null && id !== joined().peerId
   }
   const [outputDeviceId, setOutputDeviceId] = createSignal('')
   /** Remembered volumes by name (PLAN #23); loaded from settings. */
@@ -154,8 +157,9 @@ export function CallScreen(props: {
   onCleanup(() => {
     for (const timer of releaseTimers.values()) clearTimeout(timer)
   })
-  // The call gets its own copy of the events; the screen keeps the list of people.
-  const callEvents = createEventBuffer()
+  // The call gets its own copy of the events; the screen keeps the list of people. A new
+  // connection after a reconnect gets a new copy.
+  let callEvents = createEventBuffer()
   let call: CallHandle | null = null
   let left = false
   // A function, not the variable: the user may leave while the call is starting.
@@ -216,31 +220,70 @@ export function CallScreen(props: {
     })
   })
 
-  onMount(() => {
-    void window.ratatosk.settings.get().then((settings) => {
-      setVolumes((current) => ({ ...settings.audio.peerVolumes, ...current }))
-      setOutputDeviceId(settings.audio.outputDeviceId)
-    })
+  /** Starts the call for the room as joined; again after a reconnect, with the same choices. */
+  const startTheCall = (room: CallSession['result'], buffer: typeof callEvents): void => {
     void (props.startCall ?? startRealCall)({
-      routerRtpCapabilities: result.routerRtpCapabilities,
-      events: callEvents,
+      routerRtpCapabilities: room.routerRtpCapabilities,
+      events: buffer,
       muted: muted(),
       onRemoteAudio: setVoices,
       onRemoteScreens: setScreens,
     }).then(
       (handle) => {
-        if (hasLeft()) {
+        if (hasLeft() || buffer !== callEvents) {
           handle.close()
           return
         }
         call = handle
         setSound(handle.sending ? 'on' : 'listen-only')
+        // Still sharing from before the reconnect: send the same capture again.
+        const track = myScreen()?.getVideoTracks()[0]
+        if (track) {
+          void handle.startScreen(track, room.screenMode).catch((error: unknown) => {
+            console.warn('[screen] could not resume after reconnecting:', error)
+            stopScreen()
+          })
+        }
       },
       (error: unknown) => {
         console.warn('[call] could not start:', error)
         setSound('failed')
       },
     )
+  }
+
+  /** Back in the room as a new participant: fresh state, fresh media, same microphone choice. */
+  const resume = (room: CallSession['result']): void => {
+    call?.close()
+    call = null
+    callEvents = createEventBuffer()
+    setJoined(room)
+    setPeers(room.peers)
+    setMutedPeers(new Set(room.mutedPeers))
+    setSharerId(room.sharerId)
+    setScreens([])
+    setVoices([])
+    setScreenRequests([])
+    setAskingToShare(false)
+    setReconnecting(false)
+    setSound('connecting')
+    startTheCall(room, callEvents)
+  }
+
+  onMount(() => {
+    void window.ratatosk.settings.get().then((settings) => {
+      setVolumes((current) => ({ ...settings.audio.peerVolumes, ...current }))
+      setOutputDeviceId(settings.audio.outputDeviceId)
+    })
+    startTheCall(joined(), callEvents)
+    onCleanup(
+      window.ratatosk.room.onReconnecting(() => {
+        setReconnecting(true)
+        // Nothing is heard right now: no one is framed as speaking.
+        show(new Set())
+      }),
+    )
+    onCleanup(window.ratatosk.room.onReconnected(resume))
   })
 
   const canSpeak = (): boolean => sound() === 'on'
@@ -319,7 +362,7 @@ export function CallScreen(props: {
       })
       setMyScreen(stream)
       // Everyone else gets it in the room's mode (sharp text, smooth motion or auto).
-      if (track && call) await call.startScreen(track, result.screenMode)
+      if (track && call) await call.startScreen(track, joined().screenMode)
     } catch (error) {
       // Someone else started first: the room shows one screen at a time.
       if (error instanceof Error && error.message.includes('SCREEN_BUSY')) {
@@ -423,13 +466,13 @@ export function CallScreen(props: {
 
   const everyone = (): (Peer & { me: boolean })[] => [
     ...peers().map((peer) => ({ ...peer, me: false })),
-    { id: result.peerId, name, me: true },
+    { id: joined().peerId, name, me: true },
   ]
 
   return (
     <main class="call">
       <header class="call-header">
-        <h1>{result.room.name}</h1>
+        <h1>{joined().room.name}</h1>
         <span class="call-count">{peopleCount(everyone().length)}</span>
         <Show when={stage()}>
           <Button
@@ -529,8 +572,14 @@ export function CallScreen(props: {
         </Show>
       </div>
       <footer class="call-footer">
+        <Show when={reconnecting()}>
+          <p class="call-reconnecting" role="status">
+            Переподключение…
+          </p>
+        </Show>
         <p
           class="call-sound"
+          hidden={reconnecting()}
           role="status"
           classList={{ 'call-sound--failed': sound() === 'failed' }}
         >
