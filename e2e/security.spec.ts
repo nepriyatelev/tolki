@@ -50,6 +50,7 @@ test('renderer has no Node APIs, only the typed bridge', async () => {
         'room',
         'screen',
         'settings',
+        'tray',
       ],
       hostApi: ['getFingerprint', 'getState', 'onState', 'start', 'stop'],
       screenApi: ['listSources', 'openPermissionSettings', 'select'],

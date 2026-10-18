@@ -11,6 +11,14 @@ import { mediaRequestSchema, peerNameSchema, type MediaRequest } from './signali
 import { settingsPatchSchema, type Settings, type SettingsPatch } from './settings'
 import type { UploadMeasurement } from './upload-capacity'
 
+/** The call, for the tray menu (PLAN #44). */
+export interface TrayCallState {
+  inCall: boolean
+  roomName: string
+  muted: boolean
+  deafened: boolean
+}
+
 export interface AppInfo {
   name: string
   version: string
@@ -67,6 +75,8 @@ export interface InvokeContract {
   }
   /** macOS «Универсальный доступ» pane (fixed URL). */
   'ptt:open-permission-settings': { args: []; result: null }
+  /** The call as the tray menu shows it (PLAN #44). */
+  'tray:update': { args: [state: TrayCallState]; result: null }
   /** Register the user's global hotkeys while active (in a call), PLAN #40. */
   'hotkeys:configure': {
     args: [request: { active: boolean; mute: string; deafen: string }]
@@ -122,6 +132,8 @@ export interface EventContract {
   'room:waiting': null
   /** A global hotkey was pressed (PLAN #40). */
   'hotkeys:pressed': { action: HotkeyAction }
+  /** Chosen in the tray menu (PLAN #44). */
+  'tray:command': { command: 'mute' | 'deafen' | 'leave' }
 }
 
 export type InvokeChannel = keyof InvokeContract
@@ -190,6 +202,14 @@ export const invokeArgsSchemas: {
     }),
   ]),
   'ptt:open-permission-settings': z.tuple([]),
+  'tray:update': z.tuple([
+    z.strictObject({
+      inCall: z.boolean(),
+      roomName: z.string().max(64),
+      muted: z.boolean(),
+      deafened: z.boolean(),
+    }),
+  ]),
   'hotkeys:configure': z.tuple([
     z.strictObject({
       active: z.boolean(),
@@ -258,6 +278,11 @@ export interface TolkiApi {
     openPermissionSettings(): Promise<null>
     /** Returns an unsubscribe function. */
     onKey(listener: (event: { pressed: boolean }) => void): () => void
+  }
+  tray: {
+    update(state: TrayCallState): Promise<null>
+    /** Returns an unsubscribe function. */
+    onCommand(listener: (event: { command: 'mute' | 'deafen' | 'leave' }) => void): () => void
   }
   hotkeys: {
     configure(request: {

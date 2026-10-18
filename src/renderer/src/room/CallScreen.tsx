@@ -444,6 +444,17 @@ export function CallScreen(props: {
       .then(setHotkeyStatus, () => undefined)
   }
 
+  // The tray menu shows the call as it is (PLAN #44).
+  createEffect(() => {
+    const state = {
+      inCall: true,
+      roomName: joined().room.name,
+      muted: muted(),
+      deafened: deafened(),
+    }
+    if (!hasLeft()) void window.tolki.tray.update(state).catch(() => undefined)
+  })
+
   /** Held key, not deafened, microphone not off: only then the voice goes out. */
   const transmitting = (): boolean => pttPressed() && !deafened() && !muted()
   const applyTransmit = (): void => {
@@ -530,6 +541,14 @@ export function CallScreen(props: {
     window.addEventListener('blur', onBlur)
     window.addEventListener('focus', onFocus)
     const stopGlobalKey = window.tolki.ptt.onKey(({ pressed }) => setPttPressed(pressed))
+    // The tray's menu (PLAN #44): the same as the buttons and M / D.
+    const stopTray = window.tolki.tray.onCommand(({ command }) => {
+      untrack(() => {
+        if (command === 'mute') toggleMic()
+        else if (command === 'deafen') toggleSound()
+        else void leave()
+      })
+    })
     // From IPC, outside any tracking scope, like room events.
     const stopHotkeys = window.tolki.hotkeys.onPressed(({ action }) => {
       untrack(() => {
@@ -544,6 +563,7 @@ export function CallScreen(props: {
       window.removeEventListener('focus', onFocus)
       stopGlobalKey()
       stopHotkeys()
+      stopTray()
     })
   })
 
@@ -679,6 +699,9 @@ export function CallScreen(props: {
         .catch(() => undefined)
       void window.tolki.hotkeys
         .configure({ active: false, mute: '', deafen: '' })
+        .catch(() => undefined)
+      void window.tolki.tray
+        .update({ inCall: false, roomName: '', muted: false, deafened: false })
         .catch(() => undefined)
     }
     left = true

@@ -70,6 +70,11 @@ export interface TolkiMock {
     emitReconnecting(): void
     emitReconnected(result: Extract<JoinResult, { ok: true }>): void
   }
+  tray: {
+    update: Mock<TolkiApi['tray']['update']>
+    /** Simulates a click in the tray's menu. */
+    emitCommand(command: 'mute' | 'deafen' | 'leave'): void
+  }
   hotkeys: {
     configure: Mock<TolkiApi['hotkeys']['configure']>
     /** Simulates main seeing a global hotkey. */
@@ -121,6 +126,7 @@ export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
   const inviteListeners = new Set<(result: InviteParseResult) => void>()
   const pttListeners = new Set<(event: { pressed: boolean }) => void>()
   const hotkeyListeners = new Set<(event: { action: HotkeyAction }) => void>()
+  const trayListeners = new Set<(event: { command: 'mute' | 'deafen' | 'leave' }) => void>()
   const closedListeners = new Set<(event: RoomClosedEvent) => void>()
   const eventListeners = new Set<(event: RoomEvent) => void>()
   const reconnectingListeners = new Set<() => void>()
@@ -240,6 +246,16 @@ export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
       },
       emitReconnected: (result: Extract<JoinResult, { ok: true }>) => {
         for (const listener of reconnectedListeners) listener(result)
+      },
+    },
+    tray: {
+      update: vi.fn<TolkiApi['tray']['update']>(() => Promise.resolve(null)),
+      onCommand: (listener: (event: { command: 'mute' | 'deafen' | 'leave' }) => void) => {
+        trayListeners.add(listener)
+        return () => trayListeners.delete(listener)
+      },
+      emitCommand: (command: 'mute' | 'deafen' | 'leave') => {
+        for (const listener of trayListeners) listener({ command })
       },
     },
     hotkeys: {

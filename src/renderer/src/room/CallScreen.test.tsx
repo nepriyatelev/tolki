@@ -1163,3 +1163,37 @@ describe('cues when people come and go (#43)', () => {
     expect(ctx.playCue).toHaveBeenLastCalledWith('knock', '')
   })
 })
+
+describe('the tray (#44)', () => {
+  it('shows the call in the tray menu as it is', async () => {
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    expect(ctx.api.tray.update).toHaveBeenLastCalledWith({
+      inCall: true,
+      roomName: 'Вечерний созвон',
+      muted: false,
+      deafened: false,
+    })
+    await ctx.user.keyboard('m')
+    expect(ctx.api.tray.update).toHaveBeenLastCalledWith(expect.objectContaining({ muted: true }))
+  })
+
+  it('acts on the tray menu: microphone, sound, leaving', async () => {
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    ctx.api.tray.emitCommand('mute')
+    expect(await screen.findByRole('button', { name: 'Включить микрофон' })).toBeTruthy()
+    ctx.api.tray.emitCommand('deafen')
+    expect(screen.getByRole('button', { name: 'Включить звук' })).toBeTruthy()
+    ctx.api.tray.emitCommand('leave')
+    await vi.waitFor(() => {
+      expect(ctx.onLeft).toHaveBeenCalled()
+    })
+    expect(ctx.api.tray.update).toHaveBeenLastCalledWith({
+      inCall: false,
+      roomName: '',
+      muted: false,
+      deafened: false,
+    })
+  })
+})

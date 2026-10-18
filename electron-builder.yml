@@ -24,6 +24,11 @@ extraResources:
   # Icon for the user-level .desktop entry an AppImage writes on first start.
   - from: build/icons/256x256.png
     to: icons/tolki.png
+  # Tray icon (#44), with the @2x one for dense displays.
+  - from: build/icons/16x16.png
+    to: icons/tray.png
+  - from: build/icons/32x32.png
+    to: icons/tray@2x.png
   # Window icon on Linux (Windows and macOS take it from the build).
   - from: build/icons/512x512.png
     to: icons/tolki-512.png

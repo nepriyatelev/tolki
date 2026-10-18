@@ -37,6 +37,7 @@ describe('SettingsStore', () => {
         audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: {} },
         pushToTalk: { enabled: false, key: 'Backquote' },
         sounds: { enabled: true },
+        tray: { closeToTray: true, hintShown: false },
         globalHotkeys: { mute: '', deafen: '' },
       },
     ])
@@ -51,6 +52,7 @@ describe('SettingsStore', () => {
       audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: {} },
       pushToTalk: { enabled: false, key: 'Backquote' },
       sounds: { enabled: true },
+      tray: { closeToTray: true, hintShown: false },
       globalHotkeys: { mute: '', deafen: '' },
     })
   })
