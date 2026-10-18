@@ -45,6 +45,8 @@ const textPairs: [fg: string, bg: string][] = [
   ['color-danger-text', 'color-surface'],
   ['color-danger-text', 'color-danger-soft'],
   ['color-danger-text', 'color-chip'],
+  ['color-warning-text', 'color-warning-soft'],
+  ['color-warning-text', 'color-surface'],
   ...[1, 2, 3, 4, 5, 6].map((i) => ['#ffffff', `color-avatar-${i}`] as [string, string]),
 ]
 

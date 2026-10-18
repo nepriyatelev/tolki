@@ -1,0 +1,39 @@
+.connection {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--radius-full);
+  background: var(--color-raised);
+  color: var(--color-text-soft);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transition:
+    background-color 200ms var(--ease-out),
+    color 200ms var(--ease-out);
+}
+
+.connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: currentcolor;
+}
+
+.connection--good {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-soft-text);
+}
+
+.connection--fair {
+  background: var(--color-warning-soft);
+  color: var(--color-warning-text);
+}
+
+.connection--poor {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+}

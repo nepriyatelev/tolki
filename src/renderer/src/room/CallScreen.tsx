@@ -35,6 +35,7 @@ import {
   type RemoteScreen,
   type RoomEventSource,
 } from './call'
+import { ConnectionIndicator } from './ConnectionIndicator'
 import { ParticipantTile } from './ParticipantTile'
 import { ScreenStage } from './ScreenStage'
 import { RemoteAudio } from './RemoteAudio'
@@ -474,6 +475,10 @@ export function CallScreen(props: {
       <header class="call-header">
         <h1>{joined().room.name}</h1>
         <span class="call-count">{peopleCount(everyone().length)}</span>
+        <ConnectionIndicator
+          sample={() => call?.connectionSample() ?? Promise.resolve(null)}
+          offline={reconnecting()}
+        />
         <Show when={stage()}>
           <Button
             class="call-header-switch"

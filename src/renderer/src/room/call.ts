@@ -32,6 +32,17 @@ export interface ScreenSample {
   timestamp: number
 }
 
+/** The link to the organizer at a moment (PLAN #32). */
+export interface ConnectionSample {
+  /** Round trip of the selected ICE pair, ms; null before one is selected. */
+  rttMs: number | null
+  /** How media reaches the organizer: UDP, or TCP when UDP is blocked. */
+  protocol: 'udp' | 'tcp' | null
+  /** Counters of everything received so far; loss comes from two samples. */
+  packetsReceived: number
+  packetsLost: number
+}
+
 /** Simulcast layers of a shared screen: 0 is ≈360p, 1 is ≈1080p. */
 export type ScreenLayer = 0 | 1
 
@@ -298,6 +309,13 @@ export class Call {
     return sampleOf(await source.getStats(), type)
   }
 
+  /** The link to the organizer, from the receive transport (always there, PLAN #32). */
+  async connectionSample(): Promise<ConnectionSample | null> {
+    const transport = this.#recv
+    if (!transport || transport.closed || this.#closed) return null
+    return connectionSampleOf(await transport.getStats())
+  }
+
   /** The codec the screen goes out with, e.g. "video/H264"; null when not sharing. */
   get screenCodec(): string | null {
     return this.#screen?.rtpParameters.codecs[0]?.mimeType ?? null
@@ -492,5 +510,43 @@ export function sampleOf(
     fps: Math.round(top.framesPerSecond ?? 0),
     bytes: streams.reduce((sum, s) => sum + (s.bytesSent ?? s.bytesReceived ?? 0), 0),
     timestamp: top.timestamp,
+  }
+}
+
+interface LinkStat {
+  type: string
+  id: string
+  kind?: string
+  mid?: string
+  selectedCandidatePairId?: string
+  nominated?: boolean
+  state?: string
+  currentRoundTripTime?: number
+  localCandidateId?: string
+  protocol?: string
+  packetsReceived?: number
+  packetsLost?: number
+}
+
+/** The selected ICE pair's round trip and protocol, and packet counters of what arrives. */
+export function connectionSampleOf(report: RTCStatsReport): ConnectionSample {
+  const stats = [...report.values()] as LinkStat[]
+  const byId = new Map(stats.map((s) => [s.id, s]))
+  const selectedId = stats.find((s) => s.type === 'transport')?.selectedCandidatePairId
+  const pair =
+    (selectedId !== undefined ? byId.get(selectedId) : undefined) ??
+    stats.find(
+      (s) => s.type === 'candidate-pair' && s.nominated === true && s.state === 'succeeded',
+    )
+  const local = pair?.localCandidateId !== undefined ? byId.get(pair.localCandidateId) : undefined
+  const inbound = stats.filter((s) => s.type === 'inbound-rtp' && s.mid !== 'probator')
+  return {
+    rttMs:
+      pair?.currentRoundTripTime !== undefined
+        ? Math.round(pair.currentRoundTripTime * 1000)
+        : null,
+    protocol: local?.protocol === 'udp' || local?.protocol === 'tcp' ? local.protocol : null,
+    packetsReceived: inbound.reduce((sum, s) => sum + (s.packetsReceived ?? 0), 0),
+    packetsLost: inbound.reduce((sum, s) => sum + Math.max(0, s.packetsLost ?? 0), 0),
   }
 }

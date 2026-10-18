@@ -7,6 +7,7 @@ import {
   type RoomEventSource,
   type ScreenLayer,
   type ScreenSample,
+  type ConnectionSample,
 } from './call'
 
 export interface CallHandle {
@@ -25,6 +26,8 @@ export interface CallHandle {
   requestScreen(): Promise<void>
   /** Numbers of someone's screen (consumer id) or the user's own (null), PLAN #30. */
   screenSample(consumerId: string | null): Promise<ScreenSample | null>
+  /** The link to the organizer now (PLAN #32). */
+  connectionSample(): Promise<ConnectionSample | null>
   answerScreenRequest(fromPeerId: string, accept: boolean): Promise<void>
   close(): void
 }
@@ -55,6 +58,7 @@ export async function startCall(options: StartCallOptions): Promise<CallHandle> 
       setScreenLayer: (consumerId, layer) => call.setScreenLayer(consumerId, layer),
       requestScreen: () => call.requestScreen(),
       screenSample: (consumerId) => call.screenSample(consumerId),
+      connectionSample: () => call.connectionSample(),
       answerScreenRequest: (fromPeerId, accept) => call.answerScreenRequest(fromPeerId, accept),
       setInputDevice: async (deviceId) => {
         if (!call.producing) return

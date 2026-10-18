@@ -5,7 +5,12 @@ import type { JoinResult } from '@shared/room'
 import { installRatatoskMock } from '../../../test/ratatosk-mock'
 import type { ScreenMode, ScreenSourcesResult } from '@shared/screen'
 import type { MicrophoneAccess } from '../audio/microphone'
-import { collectRoomEvents, type RemoteScreen, type ScreenSample } from './call'
+import {
+  collectRoomEvents,
+  type ConnectionSample,
+  type RemoteScreen,
+  type ScreenSample,
+} from './call'
 import { CallScreen, peopleCount, SPEAKING_HOLD_MS } from './CallScreen'
 
 const RESULT: Extract<JoinResult, { ok: true }> = {
@@ -101,6 +106,9 @@ function setup(
   const screenSample = vi.fn<(consumerId: string | null) => Promise<ScreenSample | null>>(() =>
     Promise.resolve(null),
   )
+  const connectionSample = vi.fn<() => Promise<ConnectionSample | null>>(() =>
+    Promise.resolve({ rttMs: 24, protocol: 'udp', packetsReceived: 100, packetsLost: 0 }),
+  )
   const onLeft = vi.fn()
   const events = collectRoomEvents()
   const playTestSound = vi.fn<(outputDeviceId: string) => Promise<void>>(() => Promise.resolve())
@@ -134,6 +142,7 @@ function setup(
           requestScreen,
           answerScreenRequest,
           screenSample,
+          connectionSample,
           close,
         })
       }}
@@ -155,6 +164,7 @@ function setup(
     requestScreen,
     answerScreenRequest,
     screenSample,
+    connectionSample,
     showScreens: (screens: RemoteScreen[]) => {
       showScreens(screens)
     },
@@ -776,5 +786,12 @@ describe('reconnecting (#31)', () => {
     await vi.waitFor(() => {
       expect(ctx.startScreen).toHaveBeenCalledTimes(2)
     })
+  })
+})
+
+describe('connection indicator in the header (#32)', () => {
+  it('shows how the link to the organizer is', async () => {
+    setup()
+    expect(await screen.findByText('24 мс · через организатора (UDP)')).toBeTruthy()
   })
 })
