@@ -83,6 +83,48 @@ describe('CreateRoomScreen', () => {
     expect(screen.getByRole('button', { name: 'Ссылка скопирована' })).toBeTruthy()
   })
 
+  it('builds the link from the STUN address when the port was forwarded by hand (#128)', async () => {
+    const manual: NetworkCheckResult = {
+      ...PUBLIC_IPV4_CHECK,
+      portMapping: { status: 'failed', reason: 'unsupported', detail: '' },
+      stunAddress: '93.184.216.34',
+      reachability: 'reachable',
+      verdict: {
+        canHost: true,
+        via: 'ipv4',
+        method: 'manual',
+        externalAddress: '93.184.216.34',
+        externalPort: 47000,
+      },
+    }
+    show({ check: () => Promise.resolve(manual) })
+    expect(await linkText()).toContain('h=93.184.216.34')
+    expect(screen.getByText('Порт 47000 доступен снаружи')).toBeTruthy()
+    expect(screen.getByText('Внешний адрес: 93.184.216.34')).toBeTruthy()
+  })
+
+  it('says the port is closed from outside and opens the router’s page (#128)', async () => {
+    const closed: NetworkCheckResult = {
+      ...PUBLIC_IPV4_CHECK,
+      portMapping: { status: 'failed', reason: 'unsupported', detail: '' },
+      stunAddress: '93.184.216.34',
+      reachability: 'closed',
+      verdict: { canHost: false, problem: 'closed' },
+    }
+    const { api, user } = show({ check: () => Promise.resolve(closed) })
+    expect(await screen.findByText('Порт 47000 закрыт снаружи')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Открыть настройки роутера' }))
+    expect(api.network.openRouter).toHaveBeenCalledOnce()
+
+    await user.click(screen.getByRole('button', { name: 'Почему и что делать?' }))
+    expect(
+      await screen.findByText(/проверка снаружи до этого компьютера не достучалась/),
+    ).toBeTruthy()
+    expect(screen.getAllByText(/http:\/\/192\.168\.1\.1/).length).toBeGreaterThan(0)
+    await user.click(screen.getByRole('button', { name: 'Открыть настройки роутера' }))
+    expect(api.network.openRouter).toHaveBeenCalledTimes(2)
+  })
+
   it('explains when there is no link to make', async () => {
     const cannot: NetworkCheckResult = {
       ...PUBLIC_IPV4_CHECK,

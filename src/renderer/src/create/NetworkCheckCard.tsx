@@ -25,18 +25,29 @@ export function networkCheckItems(result: NetworkCheckResult): Item[] {
       : mapping.status === 'disabled'
         ? { tone: 'neutral', text: 'Автоматический проброс порта выключен' }
         : { tone: 'bad', text: `Порт ${result.port} не удалось открыть автоматически` }
+  // The router's word first; without it, what a STUN server saw (#128).
+  const external =
+    mapping.status === 'mapped' ? mapping.externalAddress : (result.stunAddress ?? null)
   const address: Item =
-    mapping.status === 'mapped'
+    external !== null
       ? {
-          tone: classifyIPv4(mapping.externalAddress) === 'public' ? 'ok' : 'bad',
-          text: `Внешний адрес: ${mapping.externalAddress}`,
+          tone: classifyIPv4(external) === 'public' ? 'ok' : 'bad',
+          text: `Внешний адрес: ${external}`,
         }
       : { tone: 'neutral', text: 'Внешний адрес неизвестен' }
+  const outside: Item | null =
+    result.reachability === 'reachable'
+      ? { tone: 'ok', text: `Порт ${result.port} доступен снаружи` }
+      : result.reachability === 'closed'
+        ? { tone: 'bad', text: `Порт ${result.port} закрыт снаружи` }
+        : result.reachability === 'unknown'
+          ? { tone: 'neutral', text: 'Проверить порт снаружи не удалось' }
+          : null
   const ipv6: Item =
     result.ipv6Address !== null
       ? { tone: 'ok', text: 'IPv6 доступен' }
       : { tone: 'neutral', text: 'IPv6 нет' }
-  return [port, address, ipv6]
+  return [port, address, ...(outside ? [outside] : []), ipv6]
 }
 
 function ItemIcon(props: { tone: Tone }): JSX.Element {
@@ -100,15 +111,26 @@ export function NetworkCheckCard(props: {
                   Участники смогут подключаться к этому компьютеру напрямую.
                 </Show>
               </div>
-              <button
-                type="button"
-                class="network-card-retry"
-                onClick={() => {
-                  props.onRetry()
-                }}
-              >
-                Проверить снова
-              </button>
+              <div class="network-card-actions">
+                <button
+                  type="button"
+                  class="network-card-retry"
+                  onClick={() => {
+                    props.onRetry()
+                  }}
+                >
+                  Проверить снова
+                </button>
+                <Show when={!result().verdict.canHost && result().gateway}>
+                  <button
+                    type="button"
+                    class="network-card-retry"
+                    onClick={() => void window.tolki.network.openRouter()}
+                  >
+                    Открыть настройки роутера
+                  </button>
+                </Show>
+              </div>
             </>
           )
         }}

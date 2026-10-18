@@ -65,4 +65,21 @@ describe('describeHosting', () => {
     expect(text.title).toContain(title)
     expect(text.details[0]).toContain(advice)
   })
+
+  it('a port forwarded by hand, and a port closed from outside (#128)', () => {
+    expect(
+      describeHosting(
+        withVerdict({
+          canHost: true,
+          via: 'ipv4',
+          method: 'manual',
+          externalAddress: '93.184.216.34',
+          externalPort: 47000,
+        }),
+      ).title,
+    ).toBe('Этот компьютер может быть организатором: порт открыт через проброс вручную')
+    const closed = describeHosting(withVerdict({ canHost: false, problem: 'closed' }))
+    expect(closed.title).toBe('Этот компьютер не может быть организатором: порт закрыт снаружи')
+    expect(closed.details[0]).toMatch(/UPnP или проброс порта 47000/)
+  })
 })

@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { HostState, MainToHostMessage, PortMappingState } from '@shared/host-protocol'
 import type { HostChild } from './host-process'
+import type { Reachability } from '@shared/network'
 import { NetworkChecker, type HostView } from './network-check'
 
 const MAPPED: PortMappingState = {
@@ -40,7 +41,17 @@ class FakeHost extends EventEmitter implements HostView {
   }
 }
 
-function setup(options: { portMappingEnabled?: boolean; timeoutMs?: number } = {}) {
+function setup(
+  options: {
+    portMappingEnabled?: boolean
+    timeoutMs?: number
+    stunAddress?: string | null
+    reachability?: Reachability
+  } = {},
+) {
+  const reachability = vi.fn<(port: number, roomListening: boolean) => Promise<Reachability>>(() =>
+    Promise.resolve(options.reachability ?? 'skipped'),
+  )
   const children: FakeChild[] = []
   const host = new FakeHost()
   let now = 1_000_000
@@ -56,9 +67,13 @@ function setup(options: { portMappingEnabled?: boolean; timeoutMs?: number } = {
     timeoutMs: options.timeoutMs ?? 1000,
     cacheMs: 60_000,
     now: () => now,
+    stunAddress: () => Promise.resolve(options.stunAddress ?? null),
+    reachability,
+    gateway: () => Promise.resolve('192.168.1.1'),
   })
   return {
     checker,
+    reachability,
     children,
     host,
     advance: (ms: number) => {
@@ -163,5 +178,24 @@ describe('NetworkChecker', () => {
 
     await expect(result).resolves.toMatchObject({ portMapping: { status: 'failed' } })
     expect(children[0]?.killed).toBe(true)
+  })
+
+  it('asks from outside only when the router did not open the port (#128)', async () => {
+    const opened = setup({ stunAddress: '93.184.216.34', reachability: 'reachable' })
+    const first = opened.checker.check(47000)
+    opened.children[0]?.answer(MAPPED)
+    await expect(first).resolves.toMatchObject({ reachability: 'skipped', gateway: '192.168.1.1' })
+    expect(opened.reachability).not.toHaveBeenCalled()
+
+    const manual = setup({ stunAddress: '93.184.216.34', reachability: 'reachable' })
+    const second = manual.checker.check(47000)
+    manual.children[0]?.answer({ status: 'failed', reason: 'unsupported', detail: '' })
+    await expect(second).resolves.toMatchObject({
+      stunAddress: '93.184.216.34',
+      reachability: 'reachable',
+      verdict: { canHost: true, method: 'manual', externalAddress: '93.184.216.34' },
+    })
+    // No room yet: the check listens on the port itself.
+    expect(manual.reachability).toHaveBeenCalledWith(47000, false)
   })
 })

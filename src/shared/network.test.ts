@@ -107,3 +107,81 @@ describe('assessHosting', () => {
     })
   })
 })
+describe('assessHosting from outside (#128)', () => {
+  const unsupported: PortMappingState = { status: 'failed', reason: 'unsupported', detail: '' }
+  const mapped = (externalAddress: string): PortMappingState => ({
+    status: 'mapped',
+    method: 'upnp',
+    externalAddress,
+    externalPort: 47000,
+    externalUdpPort: 47000,
+  })
+
+  it('a port forwarded by hand that answers from outside: host via the STUN address', () => {
+    expect(
+      assessHosting({
+        portMapping: unsupported,
+        ipv6Address: null,
+        stunAddress: '93.184.216.34',
+        reachability: 'reachable',
+        port: 47000,
+      }),
+    ).toEqual({
+      canHost: true,
+      via: 'ipv4',
+      method: 'manual',
+      externalAddress: '93.184.216.34',
+      externalPort: 47000,
+    })
+  })
+
+  it('a port closed from outside is said so; an unknown answer keeps the router’s reason', () => {
+    const base = { portMapping: unsupported, ipv6Address: null, stunAddress: '93.184.216.34' }
+    expect(assessHosting({ ...base, reachability: 'closed', port: 47000 })).toEqual({
+      canHost: false,
+      problem: 'closed',
+    })
+    expect(assessHosting({ ...base, reachability: 'unknown', port: 47000 })).toEqual({
+      canHost: false,
+      problem: 'unsupported',
+    })
+  })
+
+  it('a router’s public address that the outside does not see means another NAT upstream', () => {
+    expect(
+      assessHosting({
+        portMapping: mapped('93.184.216.34'),
+        ipv6Address: null,
+        stunAddress: '93.184.216.99',
+      }),
+    ).toEqual({ canHost: false, problem: 'double-nat' })
+    expect(
+      assessHosting({
+        portMapping: mapped('93.184.216.34'),
+        ipv6Address: null,
+        stunAddress: '93.184.216.34',
+      }).canHost,
+    ).toBe(true)
+  })
+
+  it('reachability does not override a VPN; a private STUN answer is not trusted', () => {
+    expect(
+      assessHosting({
+        portMapping: { status: 'failed', reason: 'vpn', detail: '' },
+        ipv6Address: null,
+        stunAddress: '93.184.216.34',
+        reachability: 'reachable',
+        port: 47000,
+      }),
+    ).toEqual({ canHost: false, problem: 'vpn' })
+    expect(
+      assessHosting({
+        portMapping: unsupported,
+        ipv6Address: null,
+        stunAddress: '192.168.1.5',
+        reachability: 'reachable',
+        port: 47000,
+      }).canHost,
+    ).toBe(false)
+  })
+})

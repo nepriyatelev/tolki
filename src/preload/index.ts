@@ -50,6 +50,7 @@ const api: TolkiApi = {
   network: {
     check: (options = {}) => invoke('network:check', options),
     measureUpload: (options = {}) => invoke('network:measure-upload', options),
+    openRouter: () => invoke('network:open-router'),
   },
   settings: {
     get: () => invoke('settings:get'),

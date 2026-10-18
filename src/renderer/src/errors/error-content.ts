@@ -1,7 +1,14 @@
 import type { HostingProblem } from '@shared/network'
 
 export type ErrorKind =
-  | { kind: 'cannot-host'; problem: HostingProblem; port: number; localAddress: string | null }
+  | {
+      kind: 'cannot-host'
+      problem: HostingProblem
+      port: number
+      localAddress: string | null
+      /** The router's address: «Открыть настройки роутера» (#128). */
+      gateway?: string | null
+    }
   | { kind: 'host-offline' }
   | { kind: 'too-many-attempts' }
   | { kind: 'host-closed'; roomName: string }
@@ -36,15 +43,36 @@ const TAILSCALE: Tip = {
   text: 'Если Tailscale установлен у всех участников, в ссылке можно заменить адрес после «h=» на адрес Tailscale этого компьютера (100.x.y.z) — порт пробрасывать не нужно.',
 }
 
-function manualForwarding(port: number, localAddress: string | null): Tip {
+function routerPage(gateway: string | null): string {
+  return gateway ? `http://${gateway}` : 'обычно http://192.168.1.1 или http://192.168.0.1'
+}
+
+function manualForwarding(port: number, localAddress: string | null, gateway: string | null): Tip {
   const target = localAddress ?? 'адрес этого компьютера'
   return {
     title: 'Пробросить порт вручную',
-    text: `В настройках роутера (обычно http://192.168.1.1 или http://192.168.0.1), раздел «Проброс портов» / «Port forwarding»: порт ${port} для TCP и UDP на ${target}.`,
+    text: `В настройках роутера (${routerPage(gateway)}), раздел «Проброс портов» / «Port forwarding» / «Виртуальный сервер»: порт ${port} для TCP и UDP на ${target}. Затем — «Проверить снова»: Tolki сам проверит порт снаружи.`,
   }
 }
 
-function cannotHostTips(problem: HostingProblem, port: number, localAddress: string | null): Tip[] {
+function enableUpnp(gateway: string | null): Tip {
+  return {
+    title: 'Включить UPnP',
+    text: `В настройках роутера (${routerPage(gateway)}) — пункт «UPnP», обычно в разделах «Сеть», «NAT» или «Дополнительно». Тогда Tolki откроет порт сам.`,
+  }
+}
+
+const CGNAT_MAYBE: Tip = {
+  title: 'Если не помогло — спросить провайдера про белый IP',
+  text: 'Бывает, что провайдер выдаёт один адрес на многих клиентов (CGNAT): тогда до компьютера не дойдёт ни одно подключение снаружи. Поможет белый IP — его обычно подключают за небольшую плату.',
+}
+
+function cannotHostTips(
+  problem: HostingProblem,
+  port: number,
+  localAddress: string | null,
+  gateway: string | null,
+): Tip[] {
   switch (problem) {
     // Owner's decision (#60): for a VPN only these two tips.
     case 'vpn':
@@ -91,7 +119,21 @@ function cannotHostTips(problem: HostingProblem, port: number, localAddress: str
     case 'refused':
     case 'bad-address':
     case 'mapping-disabled':
-      return [manualForwarding(port, localAddress), IPV6, ANOTHER_ORGANIZER, TAILSCALE]
+      return [
+        enableUpnp(gateway),
+        manualForwarding(port, localAddress, gateway),
+        IPV6,
+        ANOTHER_ORGANIZER,
+        TAILSCALE,
+      ]
+    case 'closed':
+      return [
+        enableUpnp(gateway),
+        manualForwarding(port, localAddress, gateway),
+        CGNAT_MAYBE,
+        ANOTHER_ORGANIZER,
+        TAILSCALE,
+      ]
   }
 }
 
@@ -106,6 +148,8 @@ const CANNOT_HOST_TEXT: Record<HostingProblem, string> = {
   refused: 'Роутер отказался открыть порт автоматически.',
   'bad-address': 'Роутер сообщил непонятный внешний адрес.',
   'mapping-disabled': 'Автоматический проброс порта выключен.',
+  closed:
+    'Роутер не открыл порт сам, и проверка снаружи до этого компьютера не достучалась: порт закрыт.',
 }
 
 /** Title, explanation and tips for each error screen (PLAN #18). Neutral wording (#88). */
@@ -116,7 +160,7 @@ export function errorContent(error: ErrorKind): ErrorContent {
         tone: 'danger',
         title: 'Этот компьютер не может быть организатором',
         text: CANNOT_HOST_TEXT[error.problem],
-        tips: cannotHostTips(error.problem, error.port, error.localAddress),
+        tips: cannotHostTips(error.problem, error.port, error.localAddress, error.gateway ?? null),
       }
     case 'host-offline':
       return {

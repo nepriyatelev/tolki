@@ -4,7 +4,13 @@ import {
   type HostState,
   type PortMappingState,
 } from '@shared/host-protocol'
-import { assessHosting, classifyIPv4, isGlobalIPv6, type NetworkCheckResult } from '@shared/network'
+import {
+  assessHosting,
+  classifyIPv4,
+  isGlobalIPv6,
+  type NetworkCheckResult,
+  type Reachability,
+} from '@shared/network'
 import type { HostChild } from './host-process'
 
 /** What the checker needs from HostProcess: a running room already knows its mapping. */
@@ -21,6 +27,15 @@ export interface NetworkCheckerOptions {
   localAddress?: () => string | null
   /** False when automatic forwarding is turned off: the check then skips the router. */
   portMappingEnabled: boolean
+  /** This computer's address as the internet sees it (#128); absent: not asked (e2e). */
+  stunAddress?: () => Promise<string | null>
+  /**
+   * Whether the port answers from outside (#128), asked when the router did not open it;
+   * absent: not asked (e2e).
+   */
+  reachability?: (port: number, roomListening: boolean) => Promise<Reachability>
+  /** The router's address in the home network. */
+  gateway?: () => Promise<string | null>
   timeoutMs?: number
   /** A fresh result is reused for this long, so reopening the home screen does not re-map. */
   cacheMs?: number
@@ -37,6 +52,9 @@ export class NetworkChecker {
     this.#options = {
       ipv6Address: findGlobalIPv6,
       localAddress: findLocalIPv4,
+      stunAddress: () => Promise.resolve(null),
+      reachability: () => Promise.resolve('skipped'),
+      gateway: () => Promise.resolve(null),
       timeoutMs: 30_000,
       cacheMs: 10 * 60_000,
       now: Date.now,
@@ -66,7 +84,19 @@ export class NetworkChecker {
   }
 
   async #run(port: number): Promise<NetworkCheckResult> {
-    const portMapping = await this.#portMapping(port)
+    const [portMapping, stunAddress, gateway] = await Promise.all([
+      this.#portMapping(port),
+      this.#options.stunAddress().catch(() => null),
+      this.#options.gateway().catch(() => null),
+    ])
+    // A port the router opened is removed right after the check: nothing to knock on then.
+    const host = this.#options.host.state
+    const reachability: Reachability =
+      portMapping.status === 'mapped'
+        ? 'skipped'
+        : await this.#options
+            .reachability(port, host.status === 'running' && host.port === port)
+            .catch((): Reachability => 'unknown')
     const ipv6Address = this.#options.ipv6Address()
     const result: NetworkCheckResult = {
       checkedAt: this.#options.now(),
@@ -74,7 +104,10 @@ export class NetworkChecker {
       portMapping,
       ipv6Address,
       localAddress: this.#options.localAddress(),
-      verdict: assessHosting({ portMapping, ipv6Address }),
+      gateway,
+      stunAddress,
+      reachability,
+      verdict: assessHosting({ portMapping, ipv6Address, stunAddress, reachability, port }),
     }
     this.#last = result
     return result

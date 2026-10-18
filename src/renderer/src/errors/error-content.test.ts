@@ -25,15 +25,40 @@ describe('errorContent', () => {
     const titles = cannotHost('unsupported').tips.map((t) => t.title)
 
     expect(titles).toEqual([
+      'Включить UPnP',
       'Пробросить порт вручную',
       'Включить IPv6',
       'Выбрать другого организатора',
       'Tailscale',
     ])
-    expect(cannotHost('unsupported').tips[0]?.text).toContain(
+    expect(cannotHost('unsupported').tips[1]?.text).toContain(
       'порт 47000 для TCP и UDP на 192.168.1.42',
     )
-    expect(cannotHost('unsupported', null).tips[0]?.text).toContain('на адрес этого компьютера')
+    expect(cannotHost('unsupported', null).tips[1]?.text).toContain('на адрес этого компьютера')
+  })
+
+  it('names the router’s own page when it is known (#128)', () => {
+    const content = errorContent({
+      kind: 'cannot-host',
+      problem: 'unsupported',
+      port: 47000,
+      localAddress: '192.168.1.42',
+      gateway: '192.168.1.1',
+    })
+    expect(content.tips[0]?.text).toContain('http://192.168.1.1')
+    expect(content.tips[1]?.text).toContain('http://192.168.1.1')
+  })
+
+  it('a port closed from outside: UPnP, forwarding, then the provider (#128)', () => {
+    const content = cannotHost('closed')
+    expect(content.text).toContain('порт закрыт')
+    expect(content.tips.map((t) => t.title)).toEqual([
+      'Включить UPnP',
+      'Пробросить порт вручную',
+      'Если не помогло — спросить провайдера про белый IP',
+      'Выбрать другого организатора',
+      'Tailscale',
+    ])
   })
 
   it('gives only the owner’s two tips for a VPN (#60)', () => {
@@ -57,7 +82,11 @@ describe('errorContent', () => {
     'explains «%s» and suggests manual forwarding',
     (problem) => {
       expect(cannotHost(problem).text).not.toBe('')
-      expect(cannotHost(problem).tips[0]?.title).toBe('Пробросить порт вручную')
+      expect(
+        cannotHost(problem)
+          .tips.map((t) => t.title)
+          .slice(0, 2),
+      ).toEqual(['Включить UPnP', 'Пробросить порт вручную'])
     },
   )
 
