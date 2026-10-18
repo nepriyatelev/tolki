@@ -63,11 +63,14 @@ test('15 people and one screen: the organizer’s room server within budget', as
   const link = `tolki://join?v=1&h=127.0.0.1&p=${port}&r=load&fp=${state.fingerprint}`
 
   // The organizer is a participant too, through the app's own UI — the one real client here,
-  // so voice latency is read from it.
+  // so voice latency is read from it. Joined with the microphone off: the computer's own
+  // microphone hears the room, quiet one moment and loud the next, and the 14 steady voices
+  // are what the test is about (#96).
   await tapPeerConnections(host.page)
   await host.page.getByLabel('Ссылка-приглашение').fill(link)
   await host.page.getByRole('button', { name: 'Войти', exact: true }).click()
   await host.page.getByLabel('Имя', { exact: true }).fill('Организатор')
+  await host.page.getByLabel('Войти с выключенным микрофоном').check()
   await host.page.getByRole('button', { name: 'Войти в комнату' }).click()
   await expect(host.page.getByText(/Звук подключён|только прослушивание/)).toBeVisible()
 
@@ -223,7 +226,7 @@ test('15 people and one screen: the organizer’s room server within budget', as
 ## Машина
 - ${cpus()[0]?.model ?? 'CPU'}, ${cores} ядер, ${fmt(totalmem() / 1024 ** 3, 0)} ГБ, ${platform()} ${release()}
 - Организатор — настоящее приложение Tolki; он же 15-й участник (через свой интерфейс).
-- 14 участников — один отдельный Electron, по скрытому окну на каждого: тот же код звонка (\`Call\`), фейковый микрофон Chromium. Участник 1 показывает фейковое видео 1080p как экран (режим «Плавно», simulcast).
+- 14 участников — один отдельный Electron, по скрытому окну на каждого: тот же код звонка (\`Call\`); вместо микрофона — ровный тон без пауз, у каждого своей высоты. Участник 1 показывает фейковое видео 1080p как экран (режим «Плавно»: ≈1080p и ≈360p). Организатор входит с выключенным микрофоном.
 - Все на одной машине, медиа по ${protocols || 'UDP'} через адрес ${mediaHost}. Замер ${fmt(seconds, 0)} с после ${WARM_UP_MS / 1000} с разгона.
 
 ## Результаты против бюджетов (PLAN §6)
@@ -235,7 +238,7 @@ test('15 people and one screen: the organizer’s room server within budget', as
 | Исходящий трафик организатора | ориентир PLAN §2: голос ≈ 2 Мбит/с, экран 1080p на 14 ≈ 40 Мбит/с | ${fmt(uploadMbps)} Мбит/с | |
 | Входящий трафик организатора | — | ${fmt(downloadMbps)} Мбит/с | |
 | Голосов у одного участника одновременно (пакет за последние 300 мс, замер каждую секунду) | ≤ 3 (#21) | ${maxVoices} | ${verdict(maxVoices <= 3)} |
-| Голосов у одного участника за весь замер (все 15 говорят без пауз) | 3 — без перещёлкивания | ${maxVoicesWhole} | ${verdict(maxVoicesWhole <= 3)} |
+| Голосов у одного участника за весь замер (все 14 говорят без пауз) | 3 — без перещёлкивания | ${maxVoicesWhole} | ${verdict(maxVoicesWhole <= 3)} |
 | Экран доходит до всех 14 зрителей | — | ${screenFrames ? 'да' : 'нет'} | ${verdict(screenFrames)} |
 | Задержка голоса у приложения организатора (оценка: RTT + пакет 20 мс + буфер джиттера) | ≤ 150 мс в пределах страны | ${fmt(voiceLatencyMs, 0)} мс (RTT ${fmt(rttMs, 0)} мс по ${appAudioAfter.protocol.toUpperCase() || '?'}, буфер ${fmt(jitterMs, 0)} мс) | ${verdict(voiceLatencyMs <= 150)} |
 | Приложение организатора как участник (окно, GPU, основной процесс), CPU | клиент ≤ 5 % (#34) | ${fmt(appClient.cpu)} % одного ядра, ${fmt(appClient.mem / 1024, 0)} МБ | справочно |
@@ -245,7 +248,7 @@ test('15 people and one screen: the organizer’s room server within budget', as
 - **Трафик** — сумма того, что получили и отправили 14 участников, то есть отдача и приём организатора без 15-го участника (он на той же машине).
 - **Задержка** считается у приложения организатора — единственного настоящего клиента в этой комнате (14 тестовых окон проигрывают 42 потока через одно аудиоустройство, и их буфер джиттера не показателен). На одной машине она почти целиком состоит из буфера джиттера и пакетизации; по сети добавится время в пути. Это оценка, а не замер с общими часами.
 - Клиентский бюджет (CPU ≤ 5 %, RAM ≤ 250 МБ) и холодный старт проверяются в #34 на отдельном клиенте; строка выше — справочно, у организатора в этот момент декодируется экран.
-- **Фейковые данные не равны реальным:** микрофон Chromium пищит короткими сигналами раз в секунду (все 15 «говорят» одновременно — худший случай для выбора трёх голосов), а фейковое видео почти не меняется и сжимается в сотни кбит/с. Поэтому исходящий трафик здесь мал; на реальном экране 1080p ориентир PLAN §2 — ≈ 40 Мбит/с на 14 зрителей, это проверяется вручную в #34.
+- **Фейковые данные не равны реальным:** вместо голосов — ровные тоны (все 14 «говорят» одновременно и без пауз — худший случай для выбора трёх голосов), а фейковое видео почти не меняется и сжимается в сотни кбит/с. Поэтому исходящий трафик здесь мал; на реальном экране 1080p ориентир PLAN §2 — ≈ 40 Мбит/с на 14 зрителей, это проверяется вручную в #34.
 `
     writeFileSync(join(__dirname, '../docs/perf/load-15.md'), report)
     console.log(report)
