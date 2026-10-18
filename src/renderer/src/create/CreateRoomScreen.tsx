@@ -1,6 +1,7 @@
 import ArrowLeft from 'lucide-solid/icons/arrow-left'
 import ArrowRight from 'lucide-solid/icons/arrow-right'
 import Copy from 'lucide-solid/icons/copy'
+import Router from 'lucide-solid/icons/router'
 import { createResource, createSignal, onCleanup, onMount, Show, type JSX } from 'solid-js'
 import { DEFAULT_HOST_PORT, type HostStartFailure, type HostState } from '@shared/host-protocol'
 import { Button, Card, Checkbox, IconButton, Input, RadioPillGroup } from '../ui'
@@ -191,6 +192,7 @@ export function CreateRoomScreen(props: {
           problem: result.verdict.problem,
           port: result.port,
           localAddress: result.localAddress,
+          gateway: result.gateway,
         }
       : undefined
   }
@@ -204,14 +206,25 @@ export function CreateRoomScreen(props: {
             <ErrorScreen
               error={error()}
               actions={
-                <Button
-                  icon={<ArrowLeft />}
-                  onClick={() => {
-                    setShowHelp(false)
-                  }}
-                >
-                  Назад к настройкам комнаты
-                </Button>
+                <>
+                  <Show when={error().gateway}>
+                    <Button
+                      variant="primary"
+                      icon={<Router />}
+                      onClick={() => void window.tolki.network.openRouter()}
+                    >
+                      Открыть настройки роутера
+                    </Button>
+                  </Show>
+                  <Button
+                    icon={<ArrowLeft />}
+                    onClick={() => {
+                      setShowHelp(false)
+                    }}
+                  >
+                    Назад к настройкам комнаты
+                  </Button>
+                </>
               }
             />
           )}

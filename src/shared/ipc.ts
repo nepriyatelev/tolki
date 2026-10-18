@@ -57,6 +57,11 @@ export interface InvokeContract {
   'network:check': { args: [options: NetworkCheckRequest]; result: NetworkCheckResult }
   /** Upload speed via speed.cloudflare.com; `disabled` when turned off in settings. */
   'network:measure-upload': { args: [options: NetworkCheckRequest]; result: UploadMeasurement }
+  /**
+   * The router's settings page in the browser (#128): the gateway main found itself, a private
+   * address only; the renderer passes nothing. False when there is none.
+   */
+  'network:open-router': { args: []; result: boolean }
   'settings:get': { args: []; result: Settings }
   'settings:update': { args: [patch: SettingsPatch]; result: Settings }
   /** An invite link that arrived before the renderer was ready, if any. */
@@ -192,6 +197,7 @@ export const invokeArgsSchemas: {
   'host:stop': z.tuple([]),
   'host:get-state': z.tuple([]),
   'host:get-fingerprint': z.tuple([]),
+  'network:open-router': z.tuple([]),
   'network:check': z.tuple([
     z.strictObject({ force: z.boolean().optional(), port: hostPortSchema.optional() }),
   ]),
@@ -266,6 +272,7 @@ export interface TolkiApi {
   network: {
     check(options?: NetworkCheckRequest): Promise<NetworkCheckResult>
     measureUpload(options?: NetworkCheckRequest): Promise<UploadMeasurement>
+    openRouter(): Promise<boolean>
   }
   settings: {
     get(): Promise<Settings>

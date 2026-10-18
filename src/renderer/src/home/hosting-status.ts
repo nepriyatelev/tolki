@@ -7,10 +7,12 @@ export interface HostingStatusText {
   details: string[]
 }
 
-const METHOD_NAMES: Record<PortMappingMethod, string> = {
+const METHOD_NAMES: Record<PortMappingMethod | 'manual', string> = {
   pcp: 'PCP',
   'nat-pmp': 'NAT-PMP',
   upnp: 'UPnP',
+  // «порт открыт через проброс вручную» (#128).
+  manual: 'проброс вручную',
 }
 
 const PROBLEMS: Record<HostingProblem, string> = {
@@ -22,6 +24,7 @@ const PROBLEMS: Record<HostingProblem, string> = {
   refused: 'роутер отказался открыть порт',
   'bad-address': 'роутер сообщил непонятный внешний адрес',
   'mapping-disabled': 'автоматический проброс порта выключен',
+  closed: 'порт закрыт снаружи',
 }
 
 function advice(problem: HostingProblem, port: number): string {
@@ -41,6 +44,8 @@ function advice(problem: HostingProblem, port: number): string {
     case 'bad-address':
     case 'mapping-disabled':
       return `Порт ${port} должен быть проброшен на роутере`
+    case 'closed':
+      return `Поможет UPnP или проброс порта ${port} в настройках роутера; если нет — возможно, у провайдера общий адрес (CGNAT)`
   }
 }
 

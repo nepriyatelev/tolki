@@ -24,6 +24,7 @@ import Store from 'electron-store'
 import electronUpdater from 'electron-updater'
 import { APP_NAME, DOWNLOAD_PAGE } from '@shared/app'
 import { isOpenableLink } from '@shared/chat'
+import { classifyIPv4 } from '@shared/network'
 import { systemAudioSupported } from '@shared/screen'
 import { DEFAULT_HOST_PORT } from '@shared/host-protocol'
 import type { RecentStatus } from '@shared/recent'
@@ -38,6 +39,9 @@ import { integrateAppImage } from './appimage-integration'
 import { HostProcess, HostStartError } from './host-process'
 import { findInviteLink, InviteLinks } from './invite-links'
 import { NetworkChecker } from './network-check'
+import { checkReachability, PORT_CHECK_API } from './reachability'
+import { STUN_SERVER, stunPublicAddress } from './stun'
+import { findDefaultGateway } from '../host/nat/gateway'
 import { RecentRooms } from './recent-rooms'
 import { joinRoom, probeRoom } from './room-client'
 import { RoomSession } from './room-session'
@@ -92,7 +96,7 @@ process.on('unhandledRejection', (reason) => {
 })
 // e2e must not open Finder / Explorer windows.
 const showSavedLogs = process.env['TOLKI_SHOW_IN_FOLDER'] !== 'off'
-// …nor a browser for a chat link.
+// …nor a browser for a chat link or the router's page.
 const openChatLinks = process.env['TOLKI_OPEN_LINKS'] !== 'off'
 
 // One app per profile: a second launch (e.g. a clicked invite link) hands its arguments to the
@@ -185,9 +189,28 @@ const spawnHost = () =>
     }),
   )
 const host = new HostProcess({ spawn: spawnHost })
+// Checking from outside (#128): a STUN server for the address, a public port checker for the
+// port. TOLKI_REACHABILITY=off never asks either (e2e); TOLKI_STUN (host:port) and
+// TOLKI_PORT_CHECK_API point them at local stubs.
+const reachabilityAllowed = process.env['TOLKI_REACHABILITY'] !== 'off'
+const stunServer = parseHostPort(process.env['TOLKI_STUN']) ?? STUN_SERVER
+const portCheckApi = process.env['TOLKI_PORT_CHECK_API'] ?? PORT_CHECK_API
 const network = new NetworkChecker({
   host,
   portMappingEnabled,
+  gateway: async () => (await findDefaultGateway())?.gateway ?? null,
+  ...(reachabilityAllowed
+    ? {
+        stunAddress: () => stunPublicAddress(stunServer),
+        reachability: (port: number, roomListening: boolean) =>
+          checkReachability({
+            port,
+            roomListening,
+            api: portCheckApi,
+            fetch: (url, init) => net.fetch(url, init),
+          }),
+      }
+    : {}),
   spawn: () =>
     hostLog(
       '[network-check] ',
@@ -636,6 +659,12 @@ registerIpcHandlers(
       logs.main.info(networkCheckLine(result))
       return result
     },
+    'network:open-router': async () => {
+      const gateway = network.last?.gateway ?? null
+      if (gateway === null || classifyIPv4(gateway) !== 'private') return false
+      if (openChatLinks) await shell.openExternal(`http://${gateway}`)
+      return true
+    },
     'network:measure-upload': async ({ force }) => {
       const result = await upload.measure({ force: force ?? false })
       logs.main.info(uploadLine(result))
@@ -882,3 +911,9 @@ app.on('before-quit', (event) => {
     app.quit()
   })
 })
+
+/** «127.0.0.1:3478» → { host, port }; null for anything else. */
+function parseHostPort(value: string | undefined): { host: string; port: number } | null {
+  const match = /^([^:]+):(\d{1,5})$/.exec(value ?? '')
+  return match?.[1] && match[2] ? { host: match[1], port: Number(match[2]) } : null
+}

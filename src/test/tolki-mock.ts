@@ -24,6 +24,9 @@ export const PUBLIC_IPV4_CHECK: NetworkCheckResult = {
   },
   ipv6Address: null,
   localAddress: '192.168.1.42',
+  gateway: '192.168.1.1',
+  stunAddress: '93.184.216.34',
+  reachability: 'skipped',
   verdict: {
     canHost: true,
     via: 'ipv4',
@@ -51,6 +54,7 @@ export interface TolkiMock {
   network: {
     check: Mock<TolkiApi['network']['check']>
     measureUpload: Mock<TolkiApi['network']['measureUpload']>
+    openRouter: Mock<TolkiApi['network']['openRouter']>
   }
   settings: {
     get: Mock<TolkiApi['settings']['get']>
@@ -197,6 +201,7 @@ export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
       measureUpload: vi.fn<TolkiApi['network']['measureUpload']>(
         options.measureUpload ?? (() => Promise.resolve({ status: 'disabled' })),
       ),
+      openRouter: vi.fn<TolkiApi['network']['openRouter']>(() => Promise.resolve(true)),
     },
     recent: {
       list: vi.fn<TolkiApi['recent']['list']>(() => Promise.resolve(recent)),

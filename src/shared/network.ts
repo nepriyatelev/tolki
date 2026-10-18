@@ -37,11 +37,15 @@ export function isGlobalIPv6(address: string): boolean {
   return true
 }
 
+/** Whether the port answered from the internet (#128); `skipped` when it was not asked. */
+export type Reachability = 'reachable' | 'closed' | 'unknown' | 'skipped'
+
 export type HostingVerdict =
   | {
       canHost: true
       via: 'ipv4'
-      method: PortMappingMethod
+      /** `manual`: the router did not open it, but the port answers from outside (#128). */
+      method: PortMappingMethod | 'manual'
       externalAddress: string
       externalPort: number
     }
@@ -58,6 +62,8 @@ export type HostingProblem =
   | 'refused'
   | 'bad-address'
   | 'mapping-disabled'
+  /** The router did not open it and the port does not answer from outside (#128). */
+  | 'closed'
 
 /**
  * Heuristic from PLAN #9: a host is reachable if the router forwarded the port and its external
@@ -66,13 +72,52 @@ export type HostingProblem =
 export function assessHosting(input: {
   portMapping: PortMappingState
   ipv6Address: string | null
+  /** The address a STUN server saw (#128); null when unknown. */
+  stunAddress?: string | null
+  reachability?: Reachability
+  port?: number
 }): HostingVerdict {
-  const ipv4 = assessIPv4(input.portMapping)
+  const ipv4 = assessReachableIPv4(input)
   if (ipv4.canHost) return ipv4
   if (input.ipv6Address !== null && isGlobalIPv6(input.ipv6Address)) {
     return { canHost: true, via: 'ipv6', address: input.ipv6Address, ipv4Problem: ipv4.problem }
   }
   return ipv4
+}
+
+/**
+ * The router's word, checked against the outside (#128): a public address the router reports
+ * that differs from what a STUN server saw means another NAT upstream; a port the router did
+ * not open that answers from outside was forwarded by hand.
+ */
+function assessReachableIPv4(input: {
+  portMapping: PortMappingState
+  stunAddress?: string | null
+  reachability?: Reachability
+  port?: number
+}): ReturnType<typeof assessIPv4> {
+  const { portMapping: mapping, stunAddress = null, reachability = 'skipped' } = input
+  const ipv4 = assessIPv4(mapping)
+  const stunPublic = stunAddress !== null && classifyIPv4(stunAddress) === 'public'
+  if (ipv4.canHost) {
+    return stunPublic && stunAddress !== ipv4.externalAddress
+      ? { canHost: false, problem: 'double-nat' }
+      : ipv4
+  }
+  // Problems no forwarding can fix stay as they are.
+  if (ipv4.problem === 'vpn' || ipv4.problem === 'cgnat' || ipv4.problem === 'double-nat') {
+    return ipv4
+  }
+  if (reachability === 'reachable' && stunPublic && input.port !== undefined) {
+    return {
+      canHost: true,
+      via: 'ipv4',
+      method: 'manual',
+      externalAddress: stunAddress,
+      externalPort: input.port,
+    }
+  }
+  return reachability === 'closed' ? { canHost: false, problem: 'closed' } : ipv4
 }
 
 function assessIPv4(
@@ -113,5 +158,10 @@ export interface NetworkCheckResult {
   ipv6Address: string | null
   /** This computer's address in the home network, for manual port forwarding advice. */
   localAddress: string | null
+  /** The router's address in the home network: «Открыть настройки роутера» (#128). */
+  gateway: string | null
+  /** This computer's address as a STUN server saw it (#128). */
+  stunAddress: string | null
+  reachability: Reachability
   verdict: HostingVerdict
 }
