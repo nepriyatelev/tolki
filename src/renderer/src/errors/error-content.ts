@@ -6,6 +6,8 @@ export type ErrorKind =
   | { kind: 'too-many-attempts' }
   | { kind: 'host-closed'; roomName: string }
   | { kind: 'connection-lost'; roomName: string }
+  /** The organizer removed this participant (#42); coming back by the link is allowed. */
+  | { kind: 'removed'; roomName: string }
   | { kind: 'room-full' }
   | { kind: 'update-required'; reason: 'newer-link' | 'host-version' }
 
@@ -145,6 +147,13 @@ export function errorContent(error: ErrorKind): ErrorContent {
         tone: 'neutral',
         title: 'Организатор закрыл комнату',
         text: `Комната «${error.roomName}» закрыта. Она останется в недавних — войти снова можно, когда организатор её откроет.`,
+        tips: [],
+      }
+    case 'removed':
+      return {
+        tone: 'neutral',
+        title: 'Удаление из комнаты',
+        text: `Организатор удалил это подключение из комнаты «${error.roomName}». Войти снова можно по той же ссылке.`,
         tips: [],
       }
     case 'connection-lost':

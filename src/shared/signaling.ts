@@ -17,6 +17,8 @@ export const errorCodeSchema = z.enum([
   'TOO_MANY_ATTEMPTS',
   'VERSION_MISMATCH',
   'SCREEN_BUSY',
+  /** The organizer did not let this one in (#42). */
+  'JOIN_REFUSED',
   /** Malformed or out-of-order message. */
   'BAD_REQUEST',
 ])
@@ -40,6 +42,8 @@ export const roomInfoSchema = z.object({
   name: z.string(),
   peerCount: z.number().int().min(0),
   hasPassword: z.boolean(),
+  /** Entry waits for the organizer's «Впустить» (#42); absent: no. */
+  approval: z.boolean().optional().catch(undefined),
 })
 export type RoomInfo = z.infer<typeof roomInfoSchema>
 
@@ -106,6 +110,12 @@ export const mediaRequestSchema = z.discriminatedUnion('method', [
     fromPeerId: z.string().max(64),
     accept: z.boolean(),
   }),
+  /** The organizer only (#42): disconnect a participant; they may come back by the link. */
+  z.object({ method: z.literal('removePeer'), peerId: z.string().max(64) }),
+  /** The organizer only: let someone waiting in, or not. */
+  z.object({ method: z.literal('answerJoin'), requestId: z.string().max(64), admit: z.boolean() }),
+  /** The organizer only: whether entry waits for them. Turning it off lets everyone waiting in. */
+  z.object({ method: z.literal('setApproval'), enabled: z.boolean() }),
 ])
 export type MediaRequest = z.infer<typeof mediaRequestSchema>
 export type MediaMethod = MediaRequest['method']
@@ -141,6 +151,9 @@ export interface MediaResults {
   restartIce: { iceParameters: Record<string, unknown> }
   requestScreen: Record<string, never>
   answerScreenRequest: Record<string, never>
+  removePeer: Record<string, never>
+  answerJoin: Record<string, never>
+  setApproval: Record<string, never>
 }
 
 export const clientMessageSchema = z.discriminatedUnion('type', [
@@ -150,6 +163,10 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
     name: peerNameSchema,
     /** base64url HMAC-SHA256; null when the room has no password. */
     hmac: z.string().max(64).nullable(),
+    /** The organizer's own app (#42): proves their rights. */
+    organizerKey: z.string().max(64).optional(),
+    /** Coming back after a dropped link (#31): no waiting for the organizer again (#42). */
+    rejoinToken: z.string().max(64).optional(),
   }),
   z.object({
     type: z.literal('request'),
@@ -172,7 +189,23 @@ export const hostMessageSchema = z.discriminatedUnion('type', [
     screenMode: z.enum(SCREEN_MODES).catch('auto'),
     /** Who shares a screen right now; one at a time (PLAN #29). */
     sharerId: z.string().nullable().catch(null),
+    /** This connection is the organizer's (#42): may remove people and let them in. */
+    organizer: z.boolean().catch(false).default(false),
+    /** Entry waits for the organizer now (#42). */
+    approval: z.boolean().catch(false).default(false),
+    /** For coming back after a dropped link without waiting again (#42); single use. */
+    rejoinToken: z.string().max(64).optional(),
   }),
+  /** Entry waits for the organizer's «Впустить» (#42); welcome or JOIN_REFUSED comes later. */
+  z.object({ type: z.literal('waiting') }),
+  /** The organizer removed this participant (#42); the connection closes next. */
+  z.object({ type: z.literal('removed') }),
+  /** To the organizer: someone wants in (#42). Only the name they typed, nothing else. */
+  z.object({ type: z.literal('join-request'), requestId: z.string(), name: z.string() }),
+  /** To the organizer: the request is answered, or the one waiting left. */
+  z.object({ type: z.literal('join-request-gone'), requestId: z.string() }),
+  /** To the organizer: entry waits for them now, or not. */
+  z.object({ type: z.literal('approval-changed'), enabled: z.boolean() }),
   z.object({ type: z.literal('error'), code: errorCodeSchema }),
   /** Answer to the client's `request` with the same id: `data` on success, otherwise `error`. */
   z.object({

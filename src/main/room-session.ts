@@ -87,8 +87,9 @@ export class RoomSession {
   #watch(connection: RoomConnection): void {
     connection.onClosed((reason) => {
       if (this.#left || connection !== this.#connection) return
-      if (reason === 'host-closed') {
-        this.events.onClosed('host-closed')
+      // Closed on purpose, or removed by the organizer (#42): nothing to come back to.
+      if (reason === 'host-closed' || reason === 'removed') {
+        this.events.onClosed(reason)
         return
       }
       void this.#reconnect()
@@ -104,7 +105,11 @@ export class RoomSession {
       // The last pause is cut short: the final attempt comes right at the deadline.
       await this.#sleep(Math.min(pause, giveUpAt - this.#now()))
       if (this.#hasLeft()) return
-      const connection = await this.options.join(this.joinRequest)
+      // The token from the dropped connection: no waiting for the organizer again (#42).
+      const connection = await this.options.join({
+        ...this.joinRequest,
+        rejoinToken: this.#connection.rejoinToken,
+      })
       if (this.#hasLeft()) {
         connection.close()
         return

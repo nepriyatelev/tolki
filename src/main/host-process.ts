@@ -20,6 +20,10 @@ export interface HostStartOptions {
   roomName: string
   password: string
   screenMode: ScreenMode
+  /** Entry waits for the organizer (#42). */
+  approval: boolean
+  /** The organizer's own connection proves itself with it (#42). */
+  organizerKey: string
   /** Where the host keeps its certificate (Electron userData). */
   dataDir: string
 }
@@ -168,6 +172,8 @@ export class HostProcess {
         roomName: options.roomName,
         password: options.password,
         screenMode: options.screenMode,
+        approval: options.approval,
+        organizerKey: options.organizerKey,
       })
     })
   }

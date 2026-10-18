@@ -65,6 +65,8 @@ export interface TolkiMock {
     /** Simulates an event of the joined room. */
     emitEvent(event: RoomEvent): void
     /** Simulates main reconnecting, then being back with a new join result. */
+    /** Simulates main: entry waits for the organizer (#42). */
+    emitWaiting(): void
     emitReconnecting(): void
     emitReconnected(result: Extract<JoinResult, { ok: true }>): void
   }
@@ -122,6 +124,7 @@ export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
   const closedListeners = new Set<(event: RoomClosedEvent) => void>()
   const eventListeners = new Set<(event: RoomEvent) => void>()
   const reconnectingListeners = new Set<() => void>()
+  const waitingListeners = new Set<() => void>()
   const reconnectedListeners = new Set<(result: Extract<JoinResult, { ok: true }>) => void>()
   let recent = options.recentRooms ?? []
   const api = {
@@ -202,6 +205,8 @@ export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
               mutedPeers: [],
               screenMode: 'auto',
               sharerId: null,
+              organizer: false,
+              approval: false,
             })),
       ),
       leave: vi.fn<TolkiApi['room']['leave']>(() => Promise.resolve(null)),
@@ -214,6 +219,13 @@ export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
       }),
       emitEvent: (event: RoomEvent) => {
         for (const listener of eventListeners) listener(event)
+      },
+      onWaiting: (listener: () => void) => {
+        waitingListeners.add(listener)
+        return () => waitingListeners.delete(listener)
+      },
+      emitWaiting: () => {
+        for (const listener of waitingListeners) listener()
       },
       onReconnecting: vi.fn<TolkiApi['room']['onReconnecting']>((listener) => {
         reconnectingListeners.add(listener)

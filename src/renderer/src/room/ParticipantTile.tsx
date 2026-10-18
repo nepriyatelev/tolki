@@ -2,6 +2,7 @@ import Ellipsis from 'lucide-solid/icons/ellipsis'
 import MicOff from 'lucide-solid/icons/mic-off'
 import RotateCcw from 'lucide-solid/icons/rotate-ccw'
 import Settings from 'lucide-solid/icons/settings'
+import UserX from 'lucide-solid/icons/user-x'
 import Volume2 from 'lucide-solid/icons/volume-2'
 import { createSignal, createUniqueId, Show, type JSX } from 'solid-js'
 import { MAX_PEER_VOLUME } from '@shared/settings'
@@ -27,7 +28,11 @@ export function ParticipantTile(props: {
   onVolumePreview: (volume: number) => void
   onVolumeSave: (volume: number) => void
   onOpenSettings: () => void
+  /** The organizer only, on someone else's tile (#42): remove them from the room. */
+  onRemove?: (() => void) | undefined
 }): JSX.Element {
+  /** «Удалить из комнаты» asks once more before it acts. */
+  const [confirming, setConfirming] = createSignal(false)
   const menuId = `tile-menu-${createUniqueId()}`
   let button: HTMLButtonElement | undefined
   let menu: HTMLDivElement | undefined
@@ -44,6 +49,7 @@ export function ParticipantTile(props: {
   const onToggle = (event: Event): void => {
     const opening = (event as ToggleEvent).newState === 'open'
     setOpen(opening)
+    if (!opening) setConfirming(false)
     if (opening) {
       menu?.querySelector<HTMLElement>('input, button')?.focus()
     } else if (!document.activeElement || document.activeElement === document.body) {
@@ -164,6 +170,41 @@ export function ParticipantTile(props: {
           >
             Сбросить до 100 %
           </Button>
+          <Show when={props.onRemove}>
+            {(remove) => (
+              <Show
+                when={confirming()}
+                fallback={
+                  <Button
+                    variant="ghost"
+                    class="call-tile-remove"
+                    icon={<UserX />}
+                    onClick={() => setConfirming(true)}
+                  >
+                    Удалить из комнаты
+                  </Button>
+                }
+              >
+                <p class="call-tile-menu-note">
+                  {props.person.name} отключится. Войти снова можно по той же ссылке.
+                </p>
+                <div class="call-tile-confirm">
+                  <Button variant="ghost" onClick={() => setConfirming(false)}>
+                    Отмена
+                  </Button>
+                  <Button
+                    variant="danger"
+                    onClick={() => {
+                      menu?.hidePopover()
+                      remove()()
+                    }}
+                  >
+                    Удалить
+                  </Button>
+                </div>
+              </Show>
+            )}
+          </Show>
         </Show>
       </div>
     </li>

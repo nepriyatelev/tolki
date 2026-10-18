@@ -30,6 +30,11 @@ export function describeJoinError(error: JoinError): JoinErrorText {
       return { text: 'Организатор не в сети или недоступен.' }
     case 'timeout':
       return { text: 'Организатор не ответил. Можно попробовать ещё раз.' }
+    case 'JOIN_REFUSED':
+      return { text: 'Организатор не впустил в комнату.' }
+    case 'cancelled':
+      // The user stopped waiting themselves: nothing to say.
+      return { text: '' }
     case 'SCREEN_BUSY':
     case 'BAD_REQUEST':
     case 'protocol':

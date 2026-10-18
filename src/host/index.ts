@@ -53,6 +53,8 @@ async function start(message: Extract<MainToHostMessage, { type: 'start' }>): Pr
         password: message.password,
         fingerprint: certificate.fingerprint,
         screenMode: message.screenMode,
+        approval: message.approval,
+        organizerKey: message.organizerKey,
       },
       { media: sfu },
     )
@@ -65,7 +67,7 @@ async function start(message: Extract<MainToHostMessage, { type: 'start' }>): Pr
     // stdout goes to host.log in main (#106).
     console.log(
       `room open on port ${server.port}, screen mode ${message.screenMode}, ` +
-        `password ${message.password ? 'yes' : 'no'}`,
+        `password ${message.password ? 'yes' : 'no'}, entry by approval ${message.approval ? 'on' : 'off'}`,
     )
     send({ type: 'ready', port: server.port, fingerprint: certificate.fingerprint })
   } catch (error) {

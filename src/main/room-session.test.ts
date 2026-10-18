@@ -7,11 +7,13 @@ const OK = (peerId: string): Extract<JoinResult, { ok: true }> => ({
   ok: true,
   peerId,
   peers: [],
-  room: { name: 'Кино', peerCount: 1, hasPassword: false },
+  room: { name: 'Кино', peerCount: 1, hasPassword: false, approval: false },
   routerRtpCapabilities: {},
   mutedPeers: [],
   screenMode: 'auto',
   sharerId: null,
+  organizer: false,
+  approval: false,
 })
 
 /** A connection whose drop, events and requests the test controls. */
@@ -21,6 +23,7 @@ function fakeConnection(result: JoinResult = OK('p1')) {
   let listener: ((event: RoomEvent) => void) | null = null
   const connection = {
     result,
+    rejoinToken: `token-of-${result.ok ? result.peerId : 'none'}`,
     close: vi.fn(),
     onClosed: (l: (reason: RoomClosedReason) => void) => {
       closed = l
@@ -102,7 +105,8 @@ describe('RoomSession (#31)', () => {
     })
 
     expect(time.pauses).toEqual([500, 1000, 2000])
-    expect(join).toHaveBeenCalledWith(REQUEST)
+    // With the dropped connection's token: no waiting for the organizer again (#42).
+    expect(join).toHaveBeenCalledWith({ ...REQUEST, rejoinToken: 'token-of-p1' })
     second.emit({ type: 'peer-left', peerId: 'x' })
     expect(on.onEvent).toHaveBeenLastCalledWith({ type: 'peer-left', peerId: 'x' })
     await session.request({ method: 'createTransport', direction: 'send' })
@@ -154,6 +158,19 @@ describe('RoomSession (#31)', () => {
     first.drop('host-closed')
 
     expect(on.onClosed).toHaveBeenCalledWith('host-closed')
+    expect(on.onReconnecting).not.toHaveBeenCalled()
+    expect(join).not.toHaveBeenCalled()
+  })
+
+  it('does not reconnect when the organizer removed the user (#42)', () => {
+    const first = fakeConnection()
+    const join = vi.fn()
+    const on = events()
+    new RoomSession(first.connection, REQUEST, on, { join })
+
+    first.drop('removed')
+
+    expect(on.onClosed).toHaveBeenCalledWith('removed')
     expect(on.onReconnecting).not.toHaveBeenCalled()
     expect(join).not.toHaveBeenCalled()
   })

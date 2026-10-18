@@ -46,6 +46,8 @@ export function CreateRoomScreen(props: {
   const [roomName, setRoomName] = createSignal('')
   const [password, setPassword] = createSignal('')
   const [embedPassword, setEmbedPassword] = createSignal(false)
+  /** Entry waits for the organizer's «Впустить» (#42); can be changed in the call too. */
+  const [approval, setApproval] = createSignal(false)
   const [mode, setMode] = createSignal<ScreenMode>('auto')
   const [portText, setPortText] = createSignal(String(DEFAULT_HOST_PORT))
   const [checkedPort, setCheckedPort] = createSignal(DEFAULT_HOST_PORT)
@@ -128,6 +130,7 @@ export function CreateRoomScreen(props: {
       roomName: roomName().trim(),
       password: password(),
       screenMode: mode(),
+      approval: approval(),
     })
     if (state.status !== 'running') {
       const reason = state.status === 'stopped' ? (state.lastError ?? 'unknown') : 'unknown'
@@ -277,6 +280,12 @@ export function CreateRoomScreen(props: {
                 description="Удобнее: участникам не нужно ничего вводить. Безопаснее — отправить пароль отдельно."
                 checked={embedPassword()}
                 onChange={(e) => setEmbedPassword(e.currentTarget.checked)}
+              />
+              <Checkbox
+                label="Подтверждать вход"
+                description="Вошедший по ссылке ждёт, пока организатор нажмёт «Впустить». Можно поменять и в звонке."
+                checked={approval()}
+                onChange={(e) => setApproval(e.currentTarget.checked)}
               />
               <RadioPillGroup
                 legend="Демонстрация экрана"

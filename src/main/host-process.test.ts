@@ -10,6 +10,8 @@ const OPTIONS = {
   roomName: 'Комната',
   password: '',
   screenMode: 'auto',
+  approval: false,
+  organizerKey: 'organizer-key',
 } as const
 const FINGERPRINT = 'x'.repeat(43)
 
@@ -79,6 +81,8 @@ describe('HostProcess', () => {
         roomName: 'Комната',
         password: '',
         screenMode: 'auto',
+        approval: false,
+        organizerKey: 'organizer-key',
       },
     ])
     children[0]?.ready()

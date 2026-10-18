@@ -58,6 +58,10 @@ const api: TolkiApi = {
     leave: () => invoke('room:leave'),
     request: (request) => invoke('room:request', request),
     onEvent: (listener) => subscribe('room:event', listener),
+    onWaiting: (listener) =>
+      subscribe('room:waiting', () => {
+        listener()
+      }),
     onReconnecting: (listener) =>
       subscribe('room:reconnecting', () => {
         listener()

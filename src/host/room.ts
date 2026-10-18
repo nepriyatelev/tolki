@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { randomUUID, timingSafeEqual } from 'node:crypto'
 import type { RawData, WebSocket } from 'ws'
 import { newNonce, verifyAuthHmac } from '@shared/auth'
 import type { types } from 'mediasoup'
@@ -27,6 +27,10 @@ export interface RoomConfig {
   fingerprint: string
   /** How screens are shared here (PLAN #27); auto when absent. */
   screenMode?: ScreenMode
+  /** Entry waits for the organizer's «Впустить» (#42); can change during the call. */
+  approval?: boolean
+  /** The organizer's app proves itself with it (#42); empty or absent: nobody is organizer. */
+  organizerKey?: string
 }
 
 export interface RoomOptions {
@@ -48,7 +52,16 @@ interface Member {
   pending: number
   /** Their microphone is off (the audio producer is paused). */
   muted: boolean
+  /** The organizer's own connection (#42): may remove people and let them in. */
+  organizer: boolean
+  /** Brings them back after a dropped link without waiting again; single use. */
+  rejoinToken: string
+  /** The organizer removed them: no coming back by the token. */
+  removed: boolean
 }
+
+/** How long after a dropped link the rejoin token still lets someone straight back in (#42). */
+export const REJOIN_TOKEN_MS = 60_000
 
 /**
  * The room on the host: admits connections through the hello → challenge → auth handshake,
@@ -68,6 +81,12 @@ export class Room {
   #sharer: { peerId: string; producerIds: Set<string> } | null = null
   /** Participants waiting for the sharer's answer to «Показать свой». */
   readonly #screenRequests = new Set<string>()
+  /** Entry waits for the organizer (#42). */
+  #approval: boolean
+  /** Waiting for the organizer's «Впустить», by request id. */
+  readonly #waiting = new Map<string, { socket: WebSocket; name: string }>()
+  /** Tokens of those whose link dropped, until when they let them back in. */
+  readonly #rejoin = new Map<string, number>()
 
   constructor(
     private readonly config: RoomConfig,
@@ -77,6 +96,7 @@ export class Room {
     this.#handshakeTimeoutMs = options.handshakeTimeoutMs ?? 10_000
     this.#media = options.media
     this.#maxPeers = options.maxPeers ?? MAX_PARTICIPANTS
+    this.#approval = config.approval ?? false
     const levels = this.#media?.audioLevels
     levels?.on('volumes', (volumes) => {
       const loudest = volumes.map((v) => v.producer.id)
@@ -104,6 +124,12 @@ export class Room {
 
   /** Tells every participant the host closed the room, then disconnects them. */
   close(): void {
+    for (const { socket } of this.#waiting.values()) {
+      const message: HostMessage = { type: 'room-closed' }
+      socket.send(JSON.stringify(message))
+      socket.close(1001, 'Room closed by the host')
+    }
+    this.#waiting.clear()
     for (const [socket, member] of this.#peers) {
       member.media?.close()
       const message: HostMessage = { type: 'room-closed' }
@@ -160,6 +186,7 @@ export class Room {
             name: this.config.name,
             peerCount: this.#peers.size,
             hasPassword: this.config.password !== '',
+            approval: this.#approval,
           },
         })
         return
@@ -172,7 +199,10 @@ export class Room {
           if (ok === true && this.#peers.size >= this.#maxPeers) ok = 'ROOM_FULL'
           if (ok === true) {
             clearTimeout(timer)
-            this.#admit(socket, message.name)
+            const organizer = this.#isOrganizerKey(message.organizerKey)
+            const returning = this.#takeRejoinToken(message.rejoinToken)
+            if (this.#approval && !organizer && !returning) this.#wait(socket, message.name)
+            else this.#admit(socket, message.name, organizer)
           } else {
             // stdout goes to host.log in main, which masks the address (#106).
             console.log(`join refused: ${ok} (from ${address})`)
@@ -191,12 +221,14 @@ export class Room {
       if (!member) return
       this.#peers.delete(socket)
       console.log(`${peerAlias(member.peer.id)} left, ${this.#peers.size} in the room`)
+      // A dropped link may come back without waiting again; a removal may not.
+      if (!member.removed) this.#rejoin.set(member.rejoinToken, Date.now() + REJOIN_TOKEN_MS)
       member.media?.close()
       this.#broadcast({ type: 'peer-left', peerId: member.peer.id })
     })
   }
 
-  #admit(socket: WebSocket, name: string): void {
+  #admit(socket: WebSocket, name: string, organizer = false): void {
     const send = (message: HostMessage): void => {
       socket.send(JSON.stringify(message))
     }
@@ -245,7 +277,16 @@ export class Room {
     const others = [...this.#peers.values()]
     this.#broadcast({ type: 'peer-joined', peer })
     console.log(`${peerAlias(peer.id)} joined, ${this.#peers.size + 1} in the room`)
-    this.#peers.set(socket, { peer, media, muted: false, pending: 0 })
+    const rejoinToken = randomUUID()
+    this.#peers.set(socket, {
+      peer,
+      media,
+      muted: false,
+      pending: 0,
+      organizer,
+      rejoinToken,
+      removed: false,
+    })
     send({
       type: 'welcome',
       peerId: peer.id,
@@ -254,7 +295,16 @@ export class Room {
       mutedPeers: others.filter((member) => member.muted).map((member) => member.peer.id),
       screenMode: this.config.screenMode ?? 'auto',
       sharerId: this.#sharer?.peerId ?? null,
+      organizer,
+      approval: this.#approval,
+      rejoinToken,
     })
+    // The organizer (back after a dropped link, too) learns who is waiting.
+    if (organizer) {
+      for (const [requestId, waiting] of this.#waiting) {
+        send({ type: 'join-request', requestId, name: waiting.name })
+      }
+    }
     // Whoever is already talking can be consumed right away.
     for (const member of others) {
       for (const producer of member.media?.producers ?? []) {
@@ -264,6 +314,14 @@ export class Room {
   }
 
   async #serve(member: Member, id: number, request: MediaRequest): Promise<HostMessage> {
+    if (
+      request.method === 'removePeer' ||
+      request.method === 'answerJoin' ||
+      request.method === 'setApproval'
+    ) {
+      const error = this.#organizerRequest(member, request)
+      return error === null ? { type: 'response', id, data: {} } : { type: 'response', id, error }
+    }
     if (request.method === 'requestScreen' || request.method === 'answerScreenRequest') {
       const error = this.#screenRequest(member, request)
       return error === null ? { type: 'response', id, data: {} } : { type: 'response', id, error }
@@ -321,6 +379,97 @@ export class Room {
     if (!this.#screenRequests.delete(request.fromPeerId)) return 'no such request'
     this.#sendTo(request.fromPeerId, { type: 'screen-request-answer', accepted: request.accept })
     return null
+  }
+
+  /** Constant time, so the key cannot be guessed a character at a time. */
+  #isOrganizerKey(key: string | undefined): boolean {
+    const expected = this.config.organizerKey
+    if (!expected || !key || key.length !== expected.length) return false
+    return timingSafeEqual(Buffer.from(key), Buffer.from(expected))
+  }
+
+  #takeRejoinToken(token: string | undefined): boolean {
+    if (!token) return false
+    const until = this.#rejoin.get(token)
+    this.#rejoin.delete(token)
+    for (const [stale, expiry] of this.#rejoin) if (expiry < Date.now()) this.#rejoin.delete(stale)
+    return until !== undefined && until >= Date.now()
+  }
+
+  /** Entry waits for the organizer (#42): they get the name, the one waiting gets «waiting». */
+  #wait(socket: WebSocket, name: string): void {
+    const requestId = randomUUID()
+    this.#waiting.set(requestId, { socket, name })
+    const waiting: HostMessage = { type: 'waiting' }
+    socket.send(JSON.stringify(waiting))
+    this.#toOrganizers({ type: 'join-request', requestId, name })
+    console.log(`someone is waiting to be let in, ${this.#waiting.size} waiting`)
+    socket.once('close', () => {
+      if (this.#waiting.delete(requestId))
+        this.#toOrganizers({ type: 'join-request-gone', requestId })
+    })
+  }
+
+  /** The organizer's rights (#42): remove someone, let someone in, entry by approval. */
+  #organizerRequest(
+    member: Member,
+    request: Extract<MediaRequest, { method: 'removePeer' | 'answerJoin' | 'setApproval' }>,
+  ): string | null {
+    if (!member.organizer) return 'not the organizer'
+    switch (request.method) {
+      case 'removePeer': {
+        if (request.peerId === member.peer.id) return 'cannot remove yourself'
+        const target = [...this.#peers].find(([, m]) => m.peer.id === request.peerId)
+        if (!target) return 'no such participant'
+        const [socket, removed] = target
+        removed.removed = true
+        console.log(`${peerAlias(removed.peer.id)} removed by the organizer`)
+        const message: HostMessage = { type: 'removed' }
+        socket.send(JSON.stringify(message))
+        socket.close(1000, 'Removed by the organizer')
+        return null
+      }
+      case 'answerJoin': {
+        const waiting = this.#waiting.get(request.requestId)
+        if (!waiting) return 'no such request'
+        this.#waiting.delete(request.requestId)
+        this.#toOrganizers({ type: 'join-request-gone', requestId: request.requestId })
+        this.#letIn(waiting, request.admit)
+        return null
+      }
+      case 'setApproval': {
+        this.#approval = request.enabled
+        console.log(`entry by approval: ${request.enabled ? 'on' : 'off'}`)
+        this.#toOrganizers({ type: 'approval-changed', enabled: request.enabled })
+        // Nobody to approve any more: everyone waiting comes in.
+        if (!request.enabled) {
+          for (const [requestId, waiting] of [...this.#waiting]) {
+            this.#waiting.delete(requestId)
+            this.#toOrganizers({ type: 'join-request-gone', requestId })
+            this.#letIn(waiting, true)
+          }
+        }
+        return null
+      }
+    }
+  }
+
+  /** In (if there is room) or out, for someone who waited. */
+  #letIn(waiting: { socket: WebSocket; name: string }, admit: boolean): void {
+    const code = !admit ? 'JOIN_REFUSED' : this.#peers.size >= this.#maxPeers ? 'ROOM_FULL' : null
+    console.log(`a waiting participant: ${code ?? 'let in'}`)
+    if (code === null) {
+      this.#admit(waiting.socket, waiting.name, false)
+      return
+    }
+    const message: HostMessage = { type: 'error', code }
+    waiting.socket.send(JSON.stringify(message))
+    waiting.socket.close(1000, code)
+  }
+
+  #toOrganizers(message: HostMessage): void {
+    const text = JSON.stringify(message)
+    for (const [socket, member] of this.#peers) if (member.organizer) socket.send(text)
   }
 
   #sendTo(peerId: string, message: HostMessage): void {

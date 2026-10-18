@@ -31,10 +31,20 @@ export interface JoinRequest {
   requestTimeoutMs?: number
   /** Ping interval; a host silent for a whole interval counts as gone (PLAN #31). */
   heartbeatMs?: number
+  /** The organizer's own app (#42): proves their rights in their room. */
+  organizerKey?: string | undefined
+  /** Coming back after a dropped link: no waiting for the organizer again (#42). */
+  rejoinToken?: string | undefined
+  /** Entry waits for the organizer (#42); the join resolves when they answer. */
+  onWaiting?: () => void
+  /** The user stops waiting: the join resolves with `cancelled`. */
+  signal?: AbortSignal
 }
 
 export interface RoomConnection {
   readonly result: JoinResult
+  /** For coming back after a dropped link without waiting again (#42). */
+  readonly rejoinToken: string | undefined
   /** Leaves the room; no onClosed notification follows. */
   close(): void
   /** Called once if the room ends without close(): the host closed it or the link dropped. */
@@ -56,6 +66,8 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
 
   let leftOnPurpose = false
   let hostClosed = false
+  let removed = false
+  let rejoinToken: string | undefined
   let closedListener: ((reason: RoomClosedReason) => void) | undefined
   let eventListener: ((event: RoomEvent) => void) | undefined
   // Events that arrive with welcome (who is already talking) wait for the listener.
@@ -65,7 +77,9 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
   socket.on('close', () => {
     for (const answer of pending.values()) answer({ ok: false, error: 'disconnected' })
     pending.clear()
-    if (settled && !leftOnPurpose) closedListener?.(hostClosed ? 'host-closed' : 'connection-lost')
+    if (settled && !leftOnPurpose) {
+      closedListener?.(removed ? 'removed' : hostClosed ? 'host-closed' : 'connection-lost')
+    }
   })
   let settled = false
 
@@ -104,6 +118,7 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
       }
       resolve({
         result,
+        rejoinToken,
         close: () => {
           leftOnPurpose = true
           socket.close(1000, 'Left the room')
@@ -121,6 +136,9 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
     const timer = setTimeout(() => {
       finish({ ok: false, error: 'timeout' })
     }, request.timeoutMs ?? 10_000)
+    request.signal?.addEventListener('abort', () => {
+      finish({ ok: false, error: 'cancelled' })
+    })
     const send = (message: ClientMessage): void => {
       socket.send(JSON.stringify(message))
     }
@@ -155,11 +173,27 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
             : Promise.resolve(null)
           roomInfo = room
           void hmac.then((value) => {
-            if (!settled) send({ type: 'auth', name: request.name, hmac: value })
+            if (settled) return
+            send({
+              type: 'auth',
+              name: request.name,
+              hmac: value,
+              ...(request.organizerKey ? { organizerKey: request.organizerKey } : {}),
+              ...(request.rejoinToken ? { rejoinToken: request.rejoinToken } : {}),
+            })
           })
           return
         }
+        case 'waiting':
+          // As long as it takes the organizer: no join timeout while waiting.
+          clearTimeout(timer)
+          request.onWaiting?.()
+          return
+        case 'removed':
+          removed = true
+          return
         case 'welcome':
+          rejoinToken = message.rejoinToken
           finish(
             roomInfo === null
               ? { ok: false, error: 'protocol' }
@@ -172,6 +206,8 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
                   mutedPeers: message.mutedPeers,
                   screenMode: message.screenMode,
                   sharerId: message.sharerId,
+                  organizer: message.organizer,
+                  approval: message.approval,
                 },
           )
           return
@@ -196,6 +232,9 @@ export function joinRoom(request: JoinRequest): Promise<RoomConnection> {
         case 'screen-request':
         case 'screen-request-answer':
         case 'screen-layer':
+        case 'join-request':
+        case 'join-request-gone':
+        case 'approval-changed':
           if (eventListener) eventListener(message)
           else earlyEvents.push(message)
           return

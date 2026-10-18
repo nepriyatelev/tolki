@@ -115,3 +115,9 @@
   grid-template-columns: 1fr 1.8fr;
   gap: var(--space-3);
 }
+
+/* Entry waits for the organizer (#42). */
+.join-waiting {
+  color: var(--color-text-soft);
+  font-size: var(--text-md);
+}

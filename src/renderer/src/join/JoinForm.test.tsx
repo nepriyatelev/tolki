@@ -58,6 +58,8 @@ const ok: JoinResult = {
   mutedPeers: [],
   screenMode: 'auto',
   sharerId: null,
+  organizer: false,
+  approval: false,
 }
 
 describe('join form', () => {
@@ -116,6 +118,38 @@ describe('join form', () => {
     await user.click(screen.getByRole('button', { name: 'Пригласить' }))
 
     expect(api.app.copyText).toHaveBeenCalledWith(buildInvite(withPassword))
+  })
+
+  it('waits for the organizer and can stop waiting (#42)', async () => {
+    const { api, user } = setup(INVITE, ok)
+    let answer: (result: JoinResult) => void = () => undefined
+    api.room.join.mockImplementation(
+      () =>
+        new Promise<JoinResult>((resolve) => {
+          answer = resolve
+        }),
+    )
+    await user.type(screen.getByLabelText('Имя'), 'Катя')
+    await user.type(screen.getByLabelText('Пароль комнаты'), 'лиса-маяк-42')
+    await user.click(screen.getByRole('button', { name: 'Войти в комнату' }))
+
+    api.room.emitWaiting()
+    expect(await screen.findByText('Вход подтверждает организатор — нужно подождать.')).toBeTruthy()
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Ожидание…' }).disabled).toBe(true)
+
+    await user.click(screen.getByRole('button', { name: 'Отмена' }))
+    expect(api.room.leave).toHaveBeenCalled()
+    answer({ ok: false, error: 'cancelled' })
+    expect(await screen.findByRole('button', { name: 'Войти в комнату' })).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('says so when the organizer did not let them in (#42)', async () => {
+    const { user } = setup(INVITE, { ok: false, error: 'JOIN_REFUSED' })
+    await user.type(screen.getByLabelText('Имя'), 'Катя')
+    await user.type(screen.getByLabelText('Пароль комнаты'), 'лиса-маяк-42')
+    await user.click(screen.getByRole('button', { name: 'Войти в комнату' }))
+    expect((await screen.findByRole('alert')).textContent).toBe('Организатор не впустил в комнату.')
   })
 
   it('requires a name', async () => {
