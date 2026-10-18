@@ -9,6 +9,9 @@ import {
   clipboard,
   globalShortcut,
   Menu,
+  nativeImage,
+  Notification,
+  Tray,
   net,
   safeStorage,
   session,
@@ -26,6 +29,7 @@ import type { RoomEvent } from '@shared/room'
 import { buildInvite, parseInvite } from '@shared/invite'
 import { loadOrCreateCertificate } from '../host/certificate'
 import { appMenuTemplate } from './app-menu'
+import { trayMenuTemplate, trayTooltip } from './tray-menu'
 import { PushToTalk, type KeyHook } from './push-to-talk'
 import { GlobalHotkeys } from './global-hotkeys'
 import { integrateAppImage } from './appimage-integration'
@@ -43,6 +47,7 @@ import { registerIpcHandlers } from './ipc'
 import { isTrustedRendererOrigin, isTrustedRendererUrl } from './trusted-url'
 import { ScreenCapture } from './screen-capture'
 import { mainWindowOptions } from './window-options'
+import type { TrayCallState } from '@shared/ipc'
 import { LogPrivacy, logText, peerAlias, roomAlias } from './log-privacy'
 import { createLoggers, lineWriter, mergeLogs, readLogs, savedLogName } from './logging'
 import { networkCheckLine, uploadLine } from './log-events'
@@ -229,6 +234,68 @@ const inviteLinks = new InviteLinks((result) => {
   BrowserWindow.getAllWindows()[0]?.webContents.send('invite:opened', result)
 })
 
+// The tray (PLAN #44): Windows and Linux. macOS keeps the app in the Dock, as Mac apps do.
+let tray: Tray | null = null
+let trayCall: TrayCallState = { inCall: false, roomName: '', muted: false, deafened: false }
+/** Set by before-quit: then the window really closes. */
+let quitting = false
+
+function trayIconPath(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'icons/tray.png')
+    : join(app.getAppPath(), 'build/icons/16x16.png')
+}
+
+function sendTrayCommand(command: 'mute' | 'deafen' | 'leave'): void {
+  BrowserWindow.getAllWindows()[0]?.webContents.send('tray:command', { command })
+}
+
+function refreshTray(): void {
+  if (!tray) return
+  const state = { ...trayCall, closeToTray: settings.get().tray.closeToTray }
+  tray.setToolTip(trayTooltip(state))
+  tray.setContextMenu(
+    Menu.buildFromTemplate(
+      trayMenuTemplate(state, {
+        open: focusMainWindow,
+        toggleMute: () => {
+          sendTrayCommand('mute')
+        },
+        toggleDeafen: () => {
+          sendTrayCommand('deafen')
+        },
+        leaveCall: () => {
+          sendTrayCommand('leave')
+        },
+        setCloseToTray: (enabled) => {
+          settings.update({ tray: { closeToTray: enabled } })
+          refreshTray()
+        },
+        quit: () => {
+          app.quit()
+        },
+      }),
+    ),
+  )
+}
+
+function createTray(): void {
+  if (process.platform === 'darwin') return
+  tray = new Tray(nativeImage.createFromPath(trayIconPath()))
+  tray.on('click', focusMainWindow)
+  refreshTray()
+}
+
+/** Once: the window went to the tray, the call goes on, quitting is in the tray's menu. */
+function trayHintOnce(): void {
+  if (!tray || settings.get().tray.hintShown || !Notification.isSupported()) return
+  settings.update({ tray: { hintShown: true } })
+  new Notification({
+    title: 'Tolki работает в трее',
+    body: 'Окно скрыто, звонок и комната продолжаются. Выйти — через значок в трее.',
+  }).show()
+}
+
 function focusMainWindow(): void {
   const win = BrowserWindow.getAllWindows()[0]
   if (!win) return
@@ -392,6 +459,16 @@ function createMainWindow(): BrowserWindow {
   )
   win.webContents.on('did-start-loading', () => {
     inviteLinks.rendererGone()
+  })
+  // The window's cross hides it: the call and the room go on (PLAN #44). On macOS always, as Mac
+  // apps do (the Dock brings it back); elsewhere to the tray, unless turned off in its menu.
+  win.on('close', (event) => {
+    if (quitting) return
+    const hide = process.platform === 'darwin' || (tray !== null && settings.get().tray.closeToTray)
+    if (!hide) return
+    event.preventDefault()
+    win.hide()
+    trayHintOnce()
   })
   // The window's console goes to renderer.log: the call's events and warnings (#106).
   win.webContents.on('console-message', ({ level, message }) => {
@@ -628,6 +705,11 @@ registerIpcHandlers(
       logs.main.info(`global hotkeys: mute ${status.mute}, deafen ${status.deafen}`)
       return status
     },
+    'tray:update': (state) => {
+      trayCall = state
+      refreshTray()
+      return null
+    },
     'ptt:open-permission-settings': async () => {
       if (process.platform === 'darwin') await shell.openExternal(ACCESSIBILITY_SETTINGS)
       return null
@@ -696,8 +778,12 @@ void app.whenReady().then(() => {
 
   createMainWindow()
 
+  createTray()
+
+  // The Dock icon (macOS) brings the hidden window back.
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
+    else focusMainWindow()
   })
 })
 
@@ -707,6 +793,7 @@ app.on('window-all-closed', () => {
 
 // Stop the host process before quitting so it can release ports and mappings.
 app.on('before-quit', (event) => {
+  quitting = true
   pushToTalk.close()
   hotkeys.close()
   if (host.state.status === 'stopped') logs.main.info('quit')

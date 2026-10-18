@@ -83,6 +83,10 @@ const api: TolkiApi = {
     openPermissionSettings: () => invoke('ptt:open-permission-settings'),
     onKey: (listener) => subscribe('ptt:key', listener),
   },
+  tray: {
+    update: (state) => invoke('tray:update', state),
+    onCommand: (listener) => subscribe('tray:command', listener),
+  },
   hotkeys: {
     configure: (request) => invoke('hotkeys:configure', request),
     onPressed: (listener) => subscribe('hotkeys:pressed', listener),

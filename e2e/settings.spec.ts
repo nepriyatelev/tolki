@@ -10,6 +10,7 @@ test('settings default to the speed test being on and survive a restart', async 
       audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: {} },
       pushToTalk: { enabled: false, key: 'Backquote' },
       sounds: { enabled: true },
+      tray: { closeToTray: true, hintShown: false },
       globalHotkeys: { mute: '', deafen: '' },
     })
     expect(
@@ -22,6 +23,7 @@ test('settings default to the speed test being on and survive a restart', async 
       audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: {} },
       pushToTalk: { enabled: false, key: 'Backquote' },
       sounds: { enabled: true },
+      tray: { closeToTray: true, hintShown: false },
       globalHotkeys: { mute: '', deafen: '' },
     })
     // A friend's volume is remembered by name (PLAN #23).
@@ -40,6 +42,7 @@ test('settings default to the speed test being on and survive a restart', async 
       audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: { катя: 150 } },
       pushToTalk: { enabled: false, key: 'Backquote' },
       sounds: { enabled: true },
+      tray: { closeToTray: true, hintShown: false },
       globalHotkeys: { mute: '', deafen: '' },
     })
   } finally {

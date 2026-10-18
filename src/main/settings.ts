@@ -43,6 +43,14 @@ export class SettingsStore {
           }
         : {}),
       ...(patch.sounds ? { sounds: { ...this.#settings.sounds, ...patch.sounds } } : {}),
+      ...(patch.tray
+        ? {
+            tray: {
+              closeToTray: patch.tray.closeToTray ?? this.#settings.tray.closeToTray,
+              hintShown: patch.tray.hintShown ?? this.#settings.tray.hintShown,
+            },
+          }
+        : {}),
       ...(patch.globalHotkeys
         ? {
             globalHotkeys: {
