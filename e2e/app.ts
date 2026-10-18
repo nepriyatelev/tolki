@@ -16,22 +16,22 @@ export interface LaunchedApp {
 function appEnv(userDataDir: string): Record<string, string> {
   return {
     ...process.env,
-    RATATOSK_USER_DATA: userDataDir,
-    RATATOSK_PORT_MAPPING: 'off',
-    RATATOSK_SPEED_TEST: 'off',
-    RATATOSK_UPDATE_CHECK: 'off',
+    TOLKI_USER_DATA: userDataDir,
+    TOLKI_PORT_MAPPING: 'off',
+    TOLKI_SPEED_TEST: 'off',
+    TOLKI_UPDATE_CHECK: 'off',
   }
 }
 
 /**
  * Launches the app from `out/` by default. Set E2E_EXECUTABLE to a packaged binary
- * (e.g. release/mac-arm64/Ratatosk.app/Contents/MacOS/Ratatosk) to test an installer build.
+ * (e.g. release/mac-arm64/Tolki.app/Contents/MacOS/Tolki) to test an installer build.
  * Every launch gets a fresh userData directory unless one is passed in.
  */
 export async function launchApp(
   options: { userDataDir?: string; args?: string[]; env?: Record<string, string> } = {},
 ): Promise<LaunchedApp> {
-  const userDataDir = options.userDataDir ?? mkdtempSync(join(tmpdir(), 'ratatosk-e2e-'))
+  const userDataDir = options.userDataDir ?? mkdtempSync(join(tmpdir(), 'tolki-e2e-'))
   const env = { ...appEnv(userDataDir), ...options.env }
   const executablePath = process.env['E2E_EXECUTABLE']
   const extra = options.args ?? []

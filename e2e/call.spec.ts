@@ -93,7 +93,7 @@ test('two app instances on one machine hear each other through the host', async 
     const port = await freePort()
     const state = await host.page.evaluate(
       (p) =>
-        window.ratatosk.host.start({
+        window.tolki.host.start({
           port: p,
           portMapping: false,
           roomName: 'Созвон',
@@ -102,7 +102,7 @@ test('two app instances on one machine hear each other through the host', async 
       port,
     )
     if (state.status !== 'running') throw new Error('host did not start')
-    const link = `ratatosk://join?v=1&h=127.0.0.1&p=${port}&r=call&fp=${state.fingerprint}`
+    const link = `tolki://join?v=1&h=127.0.0.1&p=${port}&r=call&fp=${state.fingerprint}`
 
     const katya = await launchApp({ args: [FAKE_MEDIA, link] })
     try {

@@ -18,7 +18,7 @@ let certificate: HostCertificate
 let server: SignalingServer | null = null
 
 beforeAll(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'ratatosk-server-'))
+  dir = await mkdtemp(join(tmpdir(), 'tolki-server-'))
   certificate = await loadOrCreateCertificate(dir)
 })
 

@@ -3,7 +3,7 @@ import { launchApp, launchSecondInstance } from './app'
 
 const FP = '2_SqXt3l45Ay59VWqBcvcLmeh7BmqvL0m-UwbNw3EiE'
 const link = (host: string, room: string) =>
-  `ratatosk://join?v=1&h=${host}&p=47000&r=${room}&fp=${FP}&k=secret`
+  `tolki://join?v=1&h=${host}&p=47000&r=${room}&fp=${FP}&k=secret`
 
 test('a link that starts the app opens "Вход по ссылке" with its data', async () => {
   const { app, page } = await launchApp({ args: [link('203.0.113.5', 'vecherniy')] })
@@ -21,7 +21,7 @@ test('a link that starts the app opens "Вход по ссылке" with its dat
 test('a second launch with a link quits and hands the link to the running app', async () => {
   const { app, page, userDataDir } = await launchApp()
   try {
-    await expect(page.getByRole('heading', { name: 'Ratatosk' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Tolki' })).toBeVisible()
 
     const exitCode = await launchSecondInstance(userDataDir, [
       link('%5B2a02%3A6b8%3A%3A1%5D', 'kino'),
@@ -37,12 +37,12 @@ test('a second launch with a link quits and hands the link to the running app', 
 })
 
 test('a link from a newer version asks to update the app', async () => {
-  const { app, page } = await launchApp({ args: ['ratatosk://join?v=9'] })
+  const { app, page } = await launchApp({ args: ['tolki://join?v=9'] })
   try {
     await expect(page.getByRole('heading', { name: 'Нужна новая версия' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Скачать новую версию' })).toBeVisible()
     await page.getByRole('button', { name: 'На главный экран' }).click()
-    await expect(page.getByRole('heading', { name: 'Ratatosk' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Tolki' })).toBeVisible()
   } finally {
     await app.close()
   }

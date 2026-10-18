@@ -7,11 +7,11 @@ async function startRoom(host: Page, password: string): Promise<string> {
   const port = await freePort()
   const state = await host.evaluate(
     ({ p, pw }) =>
-      window.ratatosk.host.start({ port: p, portMapping: false, roomName: 'Тест', password: pw }),
+      window.tolki.host.start({ port: p, portMapping: false, roomName: 'Тест', password: pw }),
     { p: port, pw: password },
   )
   if (state.status !== 'running') throw new Error(`host did not start: ${JSON.stringify(state)}`)
-  return `ratatosk://join?v=1&h=127.0.0.1&p=${port}&r=test&fp=${state.fingerprint}`
+  return `tolki://join?v=1&h=127.0.0.1&p=${port}&r=test&fp=${state.fingerprint}`
 }
 
 async function tryJoin(page: Page, password: string): Promise<void> {

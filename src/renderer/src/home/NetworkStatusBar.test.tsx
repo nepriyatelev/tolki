@@ -2,13 +2,13 @@ import { render, screen } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import type { NetworkCheckResult } from '@shared/network'
-import { installRatatoskMock, PUBLIC_IPV4_CHECK } from '../../../test/ratatosk-mock'
+import { installTolkiMock, PUBLIC_IPV4_CHECK } from '../../../test/tolki-mock'
 import { NetworkStatusBar } from './NetworkStatusBar'
 
 describe('NetworkStatusBar', () => {
   it('shows progress, then the verdict with details', async () => {
     let resolve: (value: NetworkCheckResult) => void = () => undefined
-    installRatatoskMock({
+    installTolkiMock({
       check: () =>
         new Promise((r) => {
           resolve = r
@@ -27,7 +27,7 @@ describe('NetworkStatusBar', () => {
 
   it('first asks for a possibly cached check, then forces a new one on retry', async () => {
     const user = userEvent.setup()
-    const api = installRatatoskMock()
+    const api = installTolkiMock()
     render(() => <NetworkStatusBar />)
 
     await user.click(await screen.findByRole('button', { name: 'Проверить снова' }))
@@ -36,7 +36,7 @@ describe('NetworkStatusBar', () => {
   })
 
   it('shows a plain message if the check itself fails', async () => {
-    installRatatoskMock({ check: () => Promise.reject(new Error('boom')) })
+    installTolkiMock({ check: () => Promise.reject(new Error('boom')) })
     render(() => <NetworkStatusBar />)
 
     expect(await screen.findByText('Не удалось проверить сеть')).toBeTruthy()
@@ -44,7 +44,7 @@ describe('NetworkStatusBar', () => {
   })
 
   it('announces updates politely to screen readers', () => {
-    installRatatoskMock()
+    installTolkiMock()
     const { container } = render(() => <NetworkStatusBar />)
 
     expect(container.querySelector('footer')?.getAttribute('aria-live')).toBe('polite')

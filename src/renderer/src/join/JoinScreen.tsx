@@ -12,7 +12,7 @@ import {
   type InviteParseResult,
 } from '@shared/invite'
 import type { JoinError, RoomPreview } from '@shared/room'
-import logo from '../assets/logo.svg'
+import logo from '../assets/icon.png'
 import { Button, Card, Chip, Input } from '../ui'
 import type { ErrorKind } from '../errors/error-content'
 import { describeJoinError, errorScreenFor } from './join-errors'
@@ -70,7 +70,7 @@ export function JoinScreen(props: JoinScreenProps): JSX.Element {
   // A light check before joining: room name, number of people, password needed, certificate.
   const [preview] = createResource(invite, (inv) =>
     // The embedded password is not needed for the check and stays out of it.
-    window.ratatosk.room.preview({
+    window.tolki.room.preview({
       host: inv.host,
       hostKind: inv.hostKind,
       port: inv.port,
@@ -216,7 +216,7 @@ function JoinForm(props: {
     setStatus({ kind: 'joining' })
     // Subscribe before joining: the host announces who is already talking right after welcome.
     const events = collectRoomEvents()
-    const result = await window.ratatosk.room.join({
+    const result = await window.tolki.room.join({
       invite: props.invite,
       name: name().trim(),
       ...(askPassword() ? { password: password() } : {}),

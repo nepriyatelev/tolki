@@ -1,8 +1,8 @@
 # Installers: `pnpm dist` builds for the current OS into release/.
 # appId must never change after the first release (NSIS registry key, macOS bundle id).
-appId: io.github.nepriyatelev.ratatosk
-productName: Ratatosk
-copyright: Copyright © 2026 Ratatosk contributors
+appId: io.github.nepriyatelev.tolki
+productName: Tolki
+copyright: Copyright © 2026 Tolki contributors
 
 directories:
   output: release
@@ -22,15 +22,18 @@ extraResources:
   - from: build/licenses
     to: licenses
   # Icon for the user-level .desktop entry an AppImage writes on first start.
-  - from: build/icons/ratatosk-256.png
-    to: icons/ratatosk.png
+  - from: build/icons/256x256.png
+    to: icons/tolki.png
+  # Window icon on Linux (Windows and macOS take it from the build).
+  - from: build/icons/512x512.png
+    to: icons/tolki-512.png
 
-# ratatosk:// invite links: Info.plist on macOS, MimeType in .desktop on Linux.
+# tolki:// invite links: Info.plist on macOS, MimeType in .desktop on Linux.
 # Windows registers at runtime (app.setAsDefaultProtocolClient), NSIS does not.
 protocols:
-  - name: Ratatosk invite
+  - name: Tolki invite
     schemes:
-      - ratatosk
+      - tolki
 
 # Only the UI languages we ship; trims ~40 MB of Chromium locales.
 electronLanguages:
@@ -41,37 +44,41 @@ artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 
 mac:
   target: dmg
-  icon: build/icons/ratatosk-1024.png
+  # Already padded to Apple's icon grid: same size in the Dock as other apps.
+  icon: build/icon.icns
   category: public.app-category.social-networking
   # Ad-hoc signature: required on Apple Silicon, no Developer ID yet (PLAN.md §8).
   identity: '-'
   hardenedRuntime: false
   extendInfo:
-    NSMicrophoneUsageDescription: Ratatosk использует микрофон для голосовых звонков.
+    NSMicrophoneUsageDescription: Tolki использует микрофон для голосовых звонков.
 
 dmg:
   title: ${productName} ${version}
 
 win:
   target: nsis
-  icon: build/icons/ratatosk-256.png
+  icon: build/icon.ico
 
 nsis:
   oneClick: true
   perMachine: false
   createDesktopShortcut: true
-  shortcutName: Ratatosk
+  shortcutName: Tolki
 
 linux:
+  # Lower case, as Linux binaries are; on macOS and Windows it stays Tolki.app / Tolki.exe.
+  executableName: tolki
   target:
     - AppImage
     - deb
-  icon: build/icons/ratatosk-512.png
+  # 16–48 px show the letter «t», from 64 px the word «tolki» — on purpose.
+  icon: build/icons
   category: Network
   # Window ↔ .desktop association (app_id / WM_CLASS), also needed for deep links.
   syncDesktopName: true
   synopsis: Голосовые звонки и демонстрация экрана
-  maintainer: Ratatosk contributors
+  maintainer: Tolki contributors
 
 deb:
   packageCategory: net

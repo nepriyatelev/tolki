@@ -13,17 +13,17 @@ export class ScreenCaptureError extends Error {
 }
 
 export const browserScreen: ScreenAccess = {
-  listSources: () => window.ratatosk.screen.listSources(),
+  listSources: () => window.tolki.screen.listSources(),
 
   async capture(sourceId) {
     // Main hands exactly this source to getDisplayMedia(); see setDisplayMediaRequestHandler.
-    if (sourceId !== null && !(await window.ratatosk.screen.select(sourceId))) {
+    if (sourceId !== null && !(await window.tolki.screen.select(sourceId))) {
       throw new ScreenCaptureError('the source is gone')
     }
     return navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
   },
 
   async openPermissionSettings() {
-    await window.ratatosk.screen.openPermissionSettings()
+    await window.tolki.screen.openPermissionSettings()
   },
 }

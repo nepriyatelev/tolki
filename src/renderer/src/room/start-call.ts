@@ -42,7 +42,7 @@ export interface StartCallOptions {
 
 /** Opens the chosen microphone and starts the call; the microphone stops when the call does. */
 export async function startCall(options: StartCallOptions): Promise<CallHandle> {
-  const { audio } = await window.ratatosk.settings.get()
+  const { audio } = await window.tolki.settings.get()
   let microphone = await openMicrophoneTrack(audio.inputDeviceId).catch((error: unknown) => {
     console.warn('[call] no microphone, joining to listen only:', error)
     return null

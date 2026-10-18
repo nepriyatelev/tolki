@@ -25,12 +25,9 @@
 }
 
 .app-logo {
-  border-radius: var(--radius-sm);
-}
-
-.app-name {
-  font-size: var(--text-lg);
-  font-weight: 700;
+  display: block;
+  height: 28px;
+  width: auto;
 }
 
 .home {
@@ -84,7 +81,7 @@
 
 .home-card-icon--accent {
   background: var(--color-accent-soft);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .home-link-form {

@@ -1,6 +1,6 @@
 name: Release
 
-# Tag vX.Y.Z → installers for every OS → GitHub release in the public ratatosk-releases repo.
+# Tag vX.Y.Z → installers for every OS → GitHub release in the public tolki-releases repo.
 # The version comes from the tag; package.json keeps 0.0.0 for development builds.
 on:
   push:
@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RELEASES_REPO: nepriyatelev/ratatosk-releases
+  RELEASES_REPO: nepriyatelev/tolki-releases
 
 jobs:
   build:
@@ -28,19 +28,19 @@ jobs:
           - name: windows-x64
             os: windows-latest
             builder: --win nsis --x64
-            app: release/win-unpacked/Ratatosk.exe
+            app: release/win-unpacked/Tolki.exe
           - name: macos-arm64
             os: macos-26
             builder: --mac dmg --arm64
-            app: release/mac-arm64/Ratatosk.app/Contents/MacOS/Ratatosk
+            app: release/mac-arm64/Tolki.app/Contents/MacOS/Tolki
           - name: macos-x64
             os: macos-26-intel
             builder: --mac dmg --x64
-            app: release/mac/Ratatosk.app/Contents/MacOS/Ratatosk
+            app: release/mac/Tolki.app/Contents/MacOS/Tolki
           - name: linux-x64
             os: ubuntu-latest
             builder: --linux AppImage deb --x64
-            app: release/linux-unpacked/ratatosk
+            app: release/linux-unpacked/tolki
     env:
       # No Developer ID yet: ad-hoc signing only (electron-builder.yml), no keychain lookup.
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -87,7 +87,7 @@ jobs:
           retention-days: 7
 
   publish:
-    name: publish to ratatosk-releases
+    name: publish to tolki-releases
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -117,7 +117,7 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" dist/* \
             --repo "$RELEASES_REPO" \
-            --title "Ratatosk ${GITHUB_REF_NAME#v}" \
+            --title "Tolki ${GITHUB_REF_NAME#v}" \
             --notes-file notes.md
 
       # The install guide (docs/INSTALL.md) is the releases repository's README, kept in step

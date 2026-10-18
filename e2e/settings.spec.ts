@@ -4,14 +4,14 @@ import { launchApp } from './app'
 test('settings default to the speed test being on and survive a restart', async () => {
   const first = await launchApp()
   try {
-    expect(await first.page.evaluate(() => window.ratatosk.settings.get())).toEqual({
+    expect(await first.page.evaluate(() => window.tolki.settings.get())).toEqual({
       speedTest: { enabled: true },
       profile: { name: '' },
       audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: {} },
     })
     expect(
       await first.page.evaluate(() =>
-        window.ratatosk.settings.update({ speedTest: { enabled: false } }),
+        window.tolki.settings.update({ speedTest: { enabled: false } }),
       ),
     ).toEqual({
       speedTest: { enabled: false },
@@ -20,7 +20,7 @@ test('settings default to the speed test being on and survive a restart', async 
     })
     // A friend's volume is remembered by name (PLAN #23).
     await first.page.evaluate(() =>
-      window.ratatosk.settings.update({ audio: { peerVolumes: { Катя: 150 } } }),
+      window.tolki.settings.update({ audio: { peerVolumes: { Катя: 150 } } }),
     )
   } finally {
     await first.app.close()
@@ -28,7 +28,7 @@ test('settings default to the speed test being on and survive a restart', async 
 
   const second = await launchApp({ userDataDir: first.userDataDir })
   try {
-    expect(await second.page.evaluate(() => window.ratatosk.settings.get())).toEqual({
+    expect(await second.page.evaluate(() => window.tolki.settings.get())).toEqual({
       speedTest: { enabled: false },
       profile: { name: '' },
       audio: { inputDeviceId: '', outputDeviceId: '', peerVolumes: { катя: 150 } },
@@ -42,7 +42,7 @@ test('unknown settings are rejected by IPC validation', async () => {
   const { app, page } = await launchApp()
   try {
     const error = await page.evaluate(() =>
-      window.ratatosk.settings.update({ telemetry: true } as never).then(
+      window.tolki.settings.update({ telemetry: true } as never).then(
         () => null,
         (e: unknown) => String(e),
       ),
@@ -54,12 +54,10 @@ test('unknown settings are rejected by IPC validation', async () => {
   }
 })
 
-test('the speed test never runs in e2e (RATATOSK_SPEED_TEST=off)', async () => {
+test('the speed test never runs in e2e (TOLKI_SPEED_TEST=off)', async () => {
   const { app, page } = await launchApp()
   try {
-    expect(
-      await page.evaluate(() => window.ratatosk.network.measureUpload({ force: true })),
-    ).toEqual({
+    expect(await page.evaluate(() => window.tolki.network.measureUpload({ force: true }))).toEqual({
       status: 'disabled',
     })
   } finally {

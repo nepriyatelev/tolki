@@ -22,7 +22,7 @@ export interface InvokeContract {
   'app:copy-text': { args: [text: string]; result: null }
   /** Opens the installers page in the browser (fixed URL; the renderer cannot pass one). */
   'app:open-download-page': { args: []; result: null }
-  /** A newer release in ratatosk-releases, if any (PLAN #36); asked once per run. */
+  /** A newer release in tolki-releases, if any (PLAN #36); asked once per run. */
   'app:check-update': { args: []; result: { version: string } | null }
   /** Never throws for expected failures: returns `stopped` with `lastError` instead. */
   'host:start': { args: [options: HostStartRequest]; result: HostState }
@@ -87,7 +87,7 @@ export interface HostStartRequest {
 /** Main → renderer events (`webContents.send`). */
 export interface EventContract {
   'host:state': HostState
-  /** The user opened a ratatosk:// link (already parsed strictly in main). */
+  /** The user opened a tolki:// link (already parsed strictly in main). */
   'invite:opened': InviteParseResult
   /** The joined room ended without the user leaving: the host closed it or the link dropped. */
   'room:closed': RoomClosedEvent
@@ -158,8 +158,8 @@ export const invokeArgsSchemas: {
   'screen:open-permission-settings': z.tuple([]),
 }
 
-/** The API the preload script exposes to the renderer as `window.ratatosk`. */
-export interface RatatoskApi {
+/** The API the preload script exposes to the renderer as `window.tolki`. */
+export interface TolkiApi {
   app: {
     getInfo(): Promise<AppInfo>
     copyText(text: string): Promise<null>

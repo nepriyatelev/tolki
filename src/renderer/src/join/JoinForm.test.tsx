@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { buildInvite, parseInvite, type Invite } from '@shared/invite'
 import type { JoinResult } from '@shared/room'
-import { installRatatoskMock } from '../../../test/ratatosk-mock'
+import { installTolkiMock } from '../../../test/tolki-mock'
 import type { startCall as realStartCall } from '../room/start-call'
 import { JoinScreen } from './JoinScreen'
 
@@ -18,7 +18,7 @@ const INVITE: Invite = {
 }
 
 function setup(invite: Invite, result: JoinResult, startCall?: StartCall) {
-  const api = installRatatoskMock({ join: () => Promise.resolve(result) })
+  const api = installTolkiMock({ join: () => Promise.resolve(result) })
   const onError = vi.fn()
   render(() => (
     <JoinScreen
@@ -139,7 +139,7 @@ describe('join form', () => {
   })
 
   it('prefills the remembered name', () => {
-    installRatatoskMock()
+    installTolkiMock()
     render(() => (
       <JoinScreen
         result={parseInvite(buildInvite(INVITE))}
@@ -153,7 +153,7 @@ describe('join form', () => {
 
   it('uses the saved password of a recent room, and asks again if the host rejects it', async () => {
     const user = userEvent.setup()
-    const api = installRatatoskMock({
+    const api = installTolkiMock({
       join: () => Promise.resolve({ ok: false, error: 'WRONG_PASSWORD' }),
     })
     render(() => (

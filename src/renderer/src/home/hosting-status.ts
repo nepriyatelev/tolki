@@ -33,7 +33,7 @@ function advice(problem: HostingProblem, port: number): string {
     case 'no-gateway':
       return 'Если включён VPN, его стоит выключить на время созвона'
     case 'vpn':
-      return 'Выключить VPN на время созвона или добавить Ratatosk в исключения VPN (split tunneling)'
+      return 'Выключить VPN на время созвона или добавить Tolki в исключения VPN (split tunneling)'
     case 'unsupported':
       return `Поможет UPnP в настройках роутера или проброс порта ${port} вручную`
     case 'refused':

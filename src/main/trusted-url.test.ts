@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { isTrustedRendererOrigin, isTrustedRendererUrl } from './trusted-url'
 
 const indexFileUrl =
-  'file:///Applications/Ratatosk.app/Contents/Resources/app.asar/out/renderer/index.html'
+  'file:///Applications/Tolki.app/Contents/Resources/app.asar/out/renderer/index.html'
 
 describe('isTrustedRendererUrl', () => {
   describe('production (bundled index.html)', () => {

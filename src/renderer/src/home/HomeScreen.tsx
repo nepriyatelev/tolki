@@ -39,7 +39,7 @@ export function HomeScreen(props: HomeScreenProps): JSX.Element {
   return (
     <>
       <main class="home">
-        <h1 class="visually-hidden">Ratatosk</h1>
+        <h1 class="visually-hidden">Tolki</h1>
         <UpdateBanner />
         <div class="home-cards">
           <Card as="section" aria-labelledby="create-title">
@@ -70,7 +70,7 @@ export function HomeScreen(props: HomeScreenProps): JSX.Element {
               <Input
                 label="Ссылка-приглашение"
                 mono
-                placeholder="ratatosk://join?h=…"
+                placeholder="tolki://join?h=…"
                 autocomplete="off"
                 spellcheck={false}
                 value={link()}

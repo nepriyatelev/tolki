@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { HostState } from '@shared/host-protocol'
 import { parseInvite } from '@shared/invite'
 import type { NetworkCheckResult } from '@shared/network'
-import { MOCK_FINGERPRINT, PUBLIC_IPV4_CHECK } from '../../../test/ratatosk-mock'
+import { MOCK_FINGERPRINT, PUBLIC_IPV4_CHECK } from '../../../test/tolki-mock'
 import { createInviteLink, linkAddress } from './invite-link'
 
 const STOPPED: HostState = { status: 'stopped' }

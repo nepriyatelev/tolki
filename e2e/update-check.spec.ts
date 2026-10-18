@@ -25,7 +25,7 @@ async function stub(
 test('a newer release shows «Доступна версия X» on the home screen', async () => {
   const github = await stub('v99.0.0')
   const { app, page } = await launchApp({
-    env: { RATATOSK_UPDATE_CHECK: 'on', RATATOSK_UPDATE_API: github.url },
+    env: { TOLKI_UPDATE_CHECK: 'on', TOLKI_UPDATE_API: github.url },
   })
   try {
     await expect(page.getByText('Доступна версия 99.0.0')).toBeVisible()
@@ -49,7 +49,7 @@ test('a newer release shows «Доступна версия X» on the home scre
 test('the same version: no banner', async () => {
   const github = await stub('v0.0.0')
   const { app, page } = await launchApp({
-    env: { RATATOSK_UPDATE_CHECK: 'on', RATATOSK_UPDATE_API: github.url },
+    env: { TOLKI_UPDATE_CHECK: 'on', TOLKI_UPDATE_API: github.url },
   })
   try {
     await expect.poll(() => github.requests.length).toBe(1)

@@ -102,7 +102,7 @@ export function createEventBuffer(
 /** Subscribes to main's room events now; they wait in a buffer until someone listens. */
 export function collectRoomEvents(
   subscribe: (listener: (event: RoomEvent) => void) => () => void = (listener) =>
-    window.ratatosk.room.onEvent(listener),
+    window.tolki.room.onEvent(listener),
 ): RoomEventSource {
   let unsubscribe = (): void => undefined
   const source = createEventBuffer(() => {
@@ -559,7 +559,7 @@ export class Call {
   async #request<M extends MediaRequest['method']>(
     request: Extract<MediaRequest, { method: M }>,
   ): Promise<MediaResults[M]> {
-    const send = this.options.request ?? ((r) => window.ratatosk.room.request(r))
+    const send = this.options.request ?? ((r) => window.tolki.room.request(r))
     const response = await send(request)
     if (!response.ok) throw new CallError(`${request.method}: ${response.error}`)
     return response.data as MediaResults[M]

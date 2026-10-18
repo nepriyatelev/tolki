@@ -1,6 +1,6 @@
 import { vi, type Mock } from 'vitest'
 import type { InviteParseResult } from '@shared/invite'
-import type { RatatoskApi } from '@shared/ipc'
+import type { TolkiApi } from '@shared/ipc'
 import type { NetworkCheckResult } from '@shared/network'
 import type { RecentRoom, RecentStatus } from '@shared/recent'
 import type { JoinResult, RoomClosedEvent, RoomEvent, RoomPreview } from '@shared/room'
@@ -29,37 +29,37 @@ export const PUBLIC_IPV4_CHECK: NetworkCheckResult = {
   },
 }
 
-export interface RatatoskMock {
+export interface TolkiMock {
   app: {
-    copyText: Mock<RatatoskApi['app']['copyText']>
-    openDownloadPage: Mock<RatatoskApi['app']['openDownloadPage']>
-    checkUpdate: Mock<RatatoskApi['app']['checkUpdate']>
+    copyText: Mock<TolkiApi['app']['copyText']>
+    openDownloadPage: Mock<TolkiApi['app']['openDownloadPage']>
+    checkUpdate: Mock<TolkiApi['app']['checkUpdate']>
   }
   host: {
-    start: Mock<RatatoskApi['host']['start']>
-    stop: Mock<RatatoskApi['host']['stop']>
+    start: Mock<TolkiApi['host']['start']>
+    stop: Mock<TolkiApi['host']['stop']>
   }
   network: {
-    check: Mock<RatatoskApi['network']['check']>
-    measureUpload: Mock<RatatoskApi['network']['measureUpload']>
+    check: Mock<TolkiApi['network']['check']>
+    measureUpload: Mock<TolkiApi['network']['measureUpload']>
   }
   settings: {
-    get: Mock<RatatoskApi['settings']['get']>
-    update: Mock<RatatoskApi['settings']['update']>
+    get: Mock<TolkiApi['settings']['get']>
+    update: Mock<TolkiApi['settings']['update']>
   }
   recent: {
-    list: Mock<RatatoskApi['recent']['list']>
-    probe: Mock<RatatoskApi['recent']['probe']>
-    remove: Mock<RatatoskApi['recent']['remove']>
+    list: Mock<TolkiApi['recent']['list']>
+    probe: Mock<TolkiApi['recent']['probe']>
+    remove: Mock<TolkiApi['recent']['remove']>
   }
   room: {
-    preview: Mock<RatatoskApi['room']['preview']>
+    preview: Mock<TolkiApi['room']['preview']>
     /** Simulates main reporting that the joined room ended. */
     emitClosed(event: RoomClosedEvent): void
-    join: Mock<RatatoskApi['room']['join']>
-    leave: Mock<RatatoskApi['room']['leave']>
-    request: Mock<RatatoskApi['room']['request']>
-    onEvent: Mock<RatatoskApi['room']['onEvent']>
+    join: Mock<TolkiApi['room']['join']>
+    leave: Mock<TolkiApi['room']['leave']>
+    request: Mock<TolkiApi['room']['request']>
+    onEvent: Mock<TolkiApi['room']['onEvent']>
     /** Simulates an event of the joined room. */
     emitEvent(event: RoomEvent): void
     /** Simulates main reconnecting, then being back with a new join result. */
@@ -67,24 +67,24 @@ export interface RatatoskMock {
     emitReconnected(result: Extract<JoinResult, { ok: true }>): void
   }
   invite: {
-    takePending: Mock<RatatoskApi['invite']['takePending']>
+    takePending: Mock<TolkiApi['invite']['takePending']>
     /** Simulates main delivering a link while the app is open. */
     emit(result: InviteParseResult): void
   }
 }
 
-export interface RatatoskMockOptions extends Partial<RatatoskApi['network']> {
+export interface TolkiMockOptions extends Partial<TolkiApi['network']> {
   /** A newer release main found (PLAN #36). */
   update?: { version: string }
   /** A link that "started the app". */
   pendingInvite?: InviteParseResult
-  join?: RatatoskApi['room']['join']
+  join?: TolkiApi['room']['join']
   /** Remembered volumes by name (settings.audio.peerVolumes). */
   peerVolumes?: Record<string, number>
   recentRooms?: RecentRoom[]
   recentStatuses?: Record<string, RecentStatus>
   profileName?: string
-  hostStart?: RatatoskApi['host']['start']
+  hostStart?: TolkiApi['host']['start']
   preview?: RoomPreview
 }
 
@@ -94,7 +94,7 @@ export const LIVE_PREVIEW: RoomPreview = {
 }
 
 /** Installs a fake preload bridge on window for renderer tests. */
-export function installRatatoskMock(options: RatatoskMockOptions = {}): RatatoskMock {
+export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
   const inviteListeners = new Set<(result: InviteParseResult) => void>()
   const closedListeners = new Set<(event: RoomClosedEvent) => void>()
   const eventListeners = new Set<(event: RoomEvent) => void>()
@@ -103,17 +103,15 @@ export function installRatatoskMock(options: RatatoskMockOptions = {}): Ratatosk
   let recent = options.recentRooms ?? []
   const api = {
     app: {
-      getInfo: vi.fn(() =>
-        Promise.resolve({ name: 'Ratatosk', version: '0.0.0', platform: 'test' }),
-      ),
-      copyText: vi.fn<RatatoskApi['app']['copyText']>(() => Promise.resolve(null)),
-      openDownloadPage: vi.fn<RatatoskApi['app']['openDownloadPage']>(() => Promise.resolve(null)),
-      checkUpdate: vi.fn<RatatoskApi['app']['checkUpdate']>(() =>
+      getInfo: vi.fn(() => Promise.resolve({ name: 'Tolki', version: '0.0.0', platform: 'test' })),
+      copyText: vi.fn<TolkiApi['app']['copyText']>(() => Promise.resolve(null)),
+      openDownloadPage: vi.fn<TolkiApi['app']['openDownloadPage']>(() => Promise.resolve(null)),
+      checkUpdate: vi.fn<TolkiApi['app']['checkUpdate']>(() =>
         Promise.resolve(options.update ?? null),
       ),
     },
     host: {
-      start: vi.fn<RatatoskApi['host']['start']>(
+      start: vi.fn<TolkiApi['host']['start']>(
         options.hostStart ??
           (() =>
             Promise.resolve({
@@ -123,41 +121,41 @@ export function installRatatoskMock(options: RatatoskMockOptions = {}): Ratatosk
               portMapping: { status: 'pending' },
             })),
       ),
-      stop: vi.fn<RatatoskApi['host']['stop']>(() => Promise.resolve({ status: 'stopped' })),
+      stop: vi.fn<TolkiApi['host']['stop']>(() => Promise.resolve({ status: 'stopped' })),
       getState: vi.fn(() => Promise.resolve({ status: 'stopped' as const })),
       onState: vi.fn(() => () => undefined),
       getFingerprint: vi.fn(() => Promise.resolve(MOCK_FINGERPRINT)),
     },
     network: {
-      check: vi.fn<RatatoskApi['network']['check']>(
+      check: vi.fn<TolkiApi['network']['check']>(
         options.check ?? (() => Promise.resolve(PUBLIC_IPV4_CHECK)),
       ),
-      measureUpload: vi.fn<RatatoskApi['network']['measureUpload']>(
+      measureUpload: vi.fn<TolkiApi['network']['measureUpload']>(
         options.measureUpload ?? (() => Promise.resolve({ status: 'disabled' })),
       ),
     },
     recent: {
-      list: vi.fn<RatatoskApi['recent']['list']>(() => Promise.resolve(recent)),
-      probe: vi.fn<RatatoskApi['recent']['probe']>(() =>
+      list: vi.fn<TolkiApi['recent']['list']>(() => Promise.resolve(recent)),
+      probe: vi.fn<TolkiApi['recent']['probe']>(() =>
         Promise.resolve(options.recentStatuses ?? {}),
       ),
-      remove: vi.fn<RatatoskApi['recent']['remove']>((id) => {
+      remove: vi.fn<TolkiApi['recent']['remove']>((id) => {
         recent = recent.filter((r) => r.id !== id)
         return Promise.resolve(recent)
       }),
     },
     settings: {
-      get: vi.fn<RatatoskApi['settings']['get']>(() =>
+      get: vi.fn<TolkiApi['settings']['get']>(() =>
         Promise.resolve({
           ...DEFAULT_SETTINGS,
           profile: { name: options.profileName ?? '' },
           audio: { ...DEFAULT_SETTINGS.audio, peerVolumes: options.peerVolumes ?? {} },
         }),
       ),
-      update: vi.fn<RatatoskApi['settings']['update']>(() => Promise.resolve(DEFAULT_SETTINGS)),
+      update: vi.fn<TolkiApi['settings']['update']>(() => Promise.resolve(DEFAULT_SETTINGS)),
     },
     room: {
-      preview: vi.fn<RatatoskApi['room']['preview']>(() =>
+      preview: vi.fn<TolkiApi['room']['preview']>(() =>
         Promise.resolve(options.preview ?? LIVE_PREVIEW),
       ),
       onClosed: (listener: (event: RoomClosedEvent) => void) => {
@@ -167,7 +165,7 @@ export function installRatatoskMock(options: RatatoskMockOptions = {}): Ratatosk
       emitClosed: (event: RoomClosedEvent) => {
         for (const listener of closedListeners) listener(event)
       },
-      join: vi.fn<RatatoskApi['room']['join']>(
+      join: vi.fn<TolkiApi['room']['join']>(
         options.join ??
           (() =>
             Promise.resolve({
@@ -181,22 +179,22 @@ export function installRatatoskMock(options: RatatoskMockOptions = {}): Ratatosk
               sharerId: null,
             })),
       ),
-      leave: vi.fn<RatatoskApi['room']['leave']>(() => Promise.resolve(null)),
-      request: vi.fn<RatatoskApi['room']['request']>(() =>
+      leave: vi.fn<TolkiApi['room']['leave']>(() => Promise.resolve(null)),
+      request: vi.fn<TolkiApi['room']['request']>(() =>
         Promise.resolve({ ok: false, error: 'no host in tests' }),
       ),
-      onEvent: vi.fn<RatatoskApi['room']['onEvent']>((listener) => {
+      onEvent: vi.fn<TolkiApi['room']['onEvent']>((listener) => {
         eventListeners.add(listener)
         return () => eventListeners.delete(listener)
       }),
       emitEvent: (event: RoomEvent) => {
         for (const listener of eventListeners) listener(event)
       },
-      onReconnecting: vi.fn<RatatoskApi['room']['onReconnecting']>((listener) => {
+      onReconnecting: vi.fn<TolkiApi['room']['onReconnecting']>((listener) => {
         reconnectingListeners.add(listener)
         return () => reconnectingListeners.delete(listener)
       }),
-      onReconnected: vi.fn<RatatoskApi['room']['onReconnected']>((listener) => {
+      onReconnected: vi.fn<TolkiApi['room']['onReconnected']>((listener) => {
         reconnectedListeners.add(listener)
         return () => reconnectedListeners.delete(listener)
       }),
@@ -208,7 +206,7 @@ export function installRatatoskMock(options: RatatoskMockOptions = {}): Ratatosk
       },
     },
     invite: {
-      takePending: vi.fn<RatatoskApi['invite']['takePending']>(() =>
+      takePending: vi.fn<TolkiApi['invite']['takePending']>(() =>
         Promise.resolve(options.pendingInvite ?? null),
       ),
       onOpened: (listener: (result: InviteParseResult) => void) => {
@@ -220,6 +218,6 @@ export function installRatatoskMock(options: RatatoskMockOptions = {}): Ratatosk
       },
     },
   }
-  Object.defineProperty(window, 'ratatosk', { value: api, configurable: true })
+  Object.defineProperty(window, 'tolki', { value: api, configurable: true })
   return api
 }

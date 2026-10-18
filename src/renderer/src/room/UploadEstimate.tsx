@@ -6,7 +6,7 @@ import { describeUpload } from './upload-estimate'
  * Renders nothing when the speed test is off or failed.
  */
 export function UploadEstimate(props: { class?: string }): JSX.Element {
-  const [measurement] = createResource(() => window.ratatosk.network.measureUpload())
+  const [measurement] = createResource(() => window.tolki.network.measureUpload())
   const text = () => {
     const value = measurement.latest
     return value ? describeUpload(value) : null

@@ -5,9 +5,9 @@ import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
 
-export const DESKTOP_FILE = 'ratatosk.desktop'
-const ICON_NAME = 'ratatosk'
-const SCHEME_MIME = 'x-scheme-handler/ratatosk'
+export const DESKTOP_FILE = 'tolki.desktop'
+const ICON_NAME = 'tolki'
+const SCHEME_MIME = 'x-scheme-handler/tolki'
 
 /** Quotes a path for the Exec key (Desktop Entry spec, "Exec variables"). */
 export function quoteExec(path: string): string {
@@ -18,7 +18,7 @@ export function desktopEntry(appImagePath: string): string {
   return [
     '[Desktop Entry]',
     'Type=Application',
-    'Name=Ratatosk',
+    'Name=Tolki',
     'Comment=Голосовые звонки и демонстрация экрана',
     `Exec=${quoteExec(appImagePath)} %u`,
     `Icon=${ICON_NAME}`,
@@ -26,7 +26,7 @@ export function desktopEntry(appImagePath: string): string {
     'Categories=Network;',
     `MimeType=${SCHEME_MIME};`,
     // Matches desktopName in package.json, so windows group under this entry.
-    'StartupWMClass=ratatosk',
+    'StartupWMClass=tolki',
     '',
   ].join('\n')
 }
@@ -41,7 +41,7 @@ export interface AppImageIntegrationOptions {
 }
 
 /**
- * AppImages are not installed, so nothing registers ratatosk:// links for them. On start we
+ * AppImages are not installed, so nothing registers tolki:// links for them. On start we
  * write a user-level .desktop entry pointing at the current AppImage path and make it the
  * handler for the scheme. Rewritten only when the file moved. Never throws.
  */

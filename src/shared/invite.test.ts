@@ -16,7 +16,7 @@ const BASE: Invite = {
   roomId: 'vecherniy',
   fingerprint: FP,
 }
-const LINK = `ratatosk://join?v=1&h=203.0.113.5&p=47000&r=vecherniy&fp=${FP}`
+const LINK = `tolki://join?v=1&h=203.0.113.5&p=47000&r=vecherniy&fp=${FP}`
 
 function error(link: string): InviteError | null {
   const result = parseInvite(link)
@@ -91,17 +91,17 @@ describe('parseInvite', () => {
   it('tolerates surrounding whitespace, a trailing slash and an upper-case scheme', () => {
     expect(parseInvite(`  ${LINK}\n`).ok).toBe(true)
     expect(parseInvite(LINK.replace('join?', 'join/?')).ok).toBe(true)
-    expect(parseInvite(LINK.replace('ratatosk://join', 'RATATOSK://JOIN')).ok).toBe(true)
+    expect(parseInvite(LINK.replace('tolki://join', 'TOLKI://JOIN')).ok).toBe(true)
   })
 
   describe('rejects links that are not invites', () => {
     it.each([
       '',
       'hello',
-      'https://ratatosk.app/join?v=1',
-      'ratatosk://room?v=1',
-      'ratatosk://join/extra?v=1',
-      'ratatosk://user:pw@join?v=1',
+      'https://tolki.app/join?v=1',
+      'tolki://room?v=1',
+      'tolki://join/extra?v=1',
+      'tolki://user:pw@join?v=1',
       `${LINK}#fragment`,
       `${LINK}&k=${'x'.repeat(2100)}`,
     ])('%s', (link) => {
@@ -114,12 +114,12 @@ describe('parseInvite', () => {
   })
 
   it('checks the version before other parameters a newer app might add', () => {
-    expect(error('ratatosk://join?v=3&x=new')).toEqual({ code: 'unknown-param', param: 'x' })
-    expect(error('ratatosk://join?v=3')).toEqual({ code: 'unsupported-version', param: 'v' })
+    expect(error('tolki://join?v=3&x=new')).toEqual({ code: 'unknown-param', param: 'x' })
+    expect(error('tolki://join?v=3')).toEqual({ code: 'unsupported-version', param: 'v' })
   })
 
   it.each([
-    ['v', 'ratatosk://join?h=1.2.3.4'],
+    ['v', 'tolki://join?h=1.2.3.4'],
     ['h', LINK.replace('h=203.0.113.5&', '')],
     ['p', LINK.replace('p=47000&', '')],
     ['r', LINK.replace('r=vecherniy&', '')],
@@ -215,9 +215,7 @@ describe('inviteErrorMessage', () => {
   })
 
   it('explains links that are not invites', () => {
-    expect(inviteErrorMessage({ code: 'not-an-invite' })).toBe(
-      'Это не ссылка-приглашение Ratatosk.',
-    )
+    expect(inviteErrorMessage({ code: 'not-an-invite' })).toBe('Это не ссылка-приглашение Tolki.')
   })
 
   it('asks for a fresh link when it is damaged', () => {

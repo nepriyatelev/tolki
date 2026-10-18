@@ -3,11 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { parseInvite } from '@shared/invite'
 import type { NetworkCheckResult } from '@shared/network'
-import {
-  installRatatoskMock,
-  MOCK_FINGERPRINT,
-  PUBLIC_IPV4_CHECK,
-} from '../../../test/ratatosk-mock'
+import { installTolkiMock, MOCK_FINGERPRINT, PUBLIC_IPV4_CHECK } from '../../../test/tolki-mock'
 import { CreateRoomScreen } from './CreateRoomScreen'
 
 /** The real call needs WebRTC; the call screen only needs a handle. */
@@ -28,14 +24,14 @@ const startCall = vi.fn(() =>
   }),
 )
 
-function show(options: Parameters<typeof installRatatoskMock>[0] = {}, profileName = 'Алексей') {
-  const api = installRatatoskMock(options)
+function show(options: Parameters<typeof installTolkiMock>[0] = {}, profileName = 'Алексей') {
+  const api = installTolkiMock(options)
   const onBack = vi.fn()
   render(() => <CreateRoomScreen profileName={profileName} onBack={onBack} startCall={startCall} />)
   return { api, onBack, user: userEvent.setup() }
 }
 
-const linkText = async () => (await screen.findByText(/^ratatosk:\/\/join/)).textContent
+const linkText = async () => (await screen.findByText(/^tolki:\/\/join/)).textContent
 
 describe('CreateRoomScreen', () => {
   it('shows the network check with the upload estimate and a ready link', async () => {

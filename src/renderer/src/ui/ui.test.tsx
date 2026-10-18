@@ -239,6 +239,6 @@ describe('Avatar', () => {
 
   it('handles empty names and emoji', () => {
     expect(avatarInitial('   ')).toBe('?')
-    expect(avatarInitial('🐿️ Рататоск')).toBe('🐿')
+    expect(avatarInitial('🐿️ Толки')).toBe('🐿')
   })
 })

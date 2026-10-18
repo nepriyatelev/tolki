@@ -1,8 +1,8 @@
-import type { RatatoskApi } from '@shared/ipc'
+import type { TolkiApi } from '@shared/ipc'
 
 declare global {
   interface Window {
-    readonly ratatosk: RatatoskApi
+    readonly tolki: TolkiApi
   }
 
   // Chromium has AudioContext.setSinkId (output device) since 110; TypeScript's DOM types not yet.

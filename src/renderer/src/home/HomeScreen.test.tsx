@@ -2,11 +2,11 @@ import { render, screen, within } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { RecentRoom } from '@shared/recent'
-import { installRatatoskMock } from '../../../test/ratatosk-mock'
+import { installTolkiMock } from '../../../test/tolki-mock'
 import { HomeScreen } from './HomeScreen'
 
 const FP = '2_SqXt3l45Ay59VWqBcvcLmeh7BmqvL0m-UwbNw3EiE'
-const LINK = `ratatosk://join?v=1&h=203.0.113.5&p=47000&r=vecherniy&fp=${FP}`
+const LINK = `tolki://join?v=1&h=203.0.113.5&p=47000&r=vecherniy&fp=${FP}`
 const room = (id: string, roomName: string, passwordSaved = false): RecentRoom => ({
   id,
   invite: { host: '203.0.113.5', hostKind: 'ipv4', port: 47000, roomId: id, fingerprint: FP },
@@ -15,8 +15,8 @@ const room = (id: string, roomName: string, passwordSaved = false): RecentRoom =
   passwordSaved,
 })
 
-function show(options: Parameters<typeof installRatatoskMock>[0] = {}, profileName = '') {
-  const api = installRatatoskMock(options)
+function show(options: Parameters<typeof installTolkiMock>[0] = {}, profileName = '') {
+  const api = installTolkiMock(options)
   const onOpenInvite = vi.fn()
   const onOpenRecent = vi.fn()
   const onCreateRoom = vi.fn()
@@ -37,7 +37,7 @@ describe('HomeScreen', () => {
 
     expect(screen.queryByText(/Привет/)).toBeNull()
     expect(screen.queryByText(/созвонимся/)).toBeNull()
-    expect(screen.getByRole('heading', { level: 1, name: 'Ratatosk' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 1, name: 'Tolki' })).toBeTruthy()
   })
 
   it('goes to room creation', async () => {
@@ -69,7 +69,7 @@ describe('HomeScreen', () => {
 
     await user.type(screen.getByLabelText('Ссылка-приглашение'), 'https://example.com')
     await user.click(screen.getByRole('button', { name: 'Войти' }))
-    expect(screen.getByText('Это не ссылка-приглашение Ratatosk.')).toBeTruthy()
+    expect(screen.getByText('Это не ссылка-приглашение Tolki.')).toBeTruthy()
     expect(onOpenInvite).not.toHaveBeenCalled()
   })
 

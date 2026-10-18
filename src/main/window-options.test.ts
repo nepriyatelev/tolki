@@ -17,4 +17,9 @@ describe('mainWindowOptions', () => {
       webviewTag: false,
     })
   })
+
+  it('sets the window icon only when given one (Linux)', () => {
+    expect(mainWindowOptions('/p.js').icon).toBeUndefined()
+    expect(mainWindowOptions('/p.js', '/icons/tolki-512.png').icon).toBe('/icons/tolki-512.png')
+  })
 })

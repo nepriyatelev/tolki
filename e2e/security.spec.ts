@@ -28,9 +28,9 @@ test('renderer has no Node APIs, only the typed bridge', async () => {
         process: typeof w['process'],
         module: typeof w['module'],
         Buffer: typeof w['Buffer'],
-        bridge: Object.keys(window.ratatosk).sort(),
-        hostApi: Object.keys(window.ratatosk.host).sort(),
-        screenApi: Object.keys(window.ratatosk.screen).sort(),
+        bridge: Object.keys(window.tolki).sort(),
+        hostApi: Object.keys(window.tolki.host).sort(),
+        screenApi: Object.keys(window.tolki.screen).sort(),
       }
     })
 
@@ -44,8 +44,8 @@ test('renderer has no Node APIs, only the typed bridge', async () => {
       screenApi: ['listSources', 'openPermissionSettings', 'select'],
     })
 
-    const info = await page.evaluate(() => window.ratatosk.app.getInfo())
-    expect(info.name).toBe('Ratatosk')
+    const info = await page.evaluate(() => window.tolki.app.getInfo())
+    expect(info.name).toBe('Tolki')
   } finally {
     await app.close()
   }

@@ -42,7 +42,7 @@ describe('errorContent', () => {
     expect(content.text).toContain('VPN')
     expect(content.tips.map((t) => t.title)).toEqual([
       'Выключить VPN',
-      'Или добавить Ratatosk в исключения VPN',
+      'Или добавить Tolki в исключения VPN',
     ])
     expect(JSON.stringify(content)).not.toContain('Tailscale')
   })

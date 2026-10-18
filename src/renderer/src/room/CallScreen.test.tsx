@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { JoinResult } from '@shared/room'
-import { installRatatoskMock } from '../../../test/ratatosk-mock'
+import { installTolkiMock } from '../../../test/tolki-mock'
 import type { ScreenMode, ScreenSourcesResult } from '@shared/screen'
 import type { MicrophoneAccess } from '../audio/microphone'
 import {
@@ -84,7 +84,7 @@ function setup(
     sharerId?: string | null
   } = {},
 ) {
-  const api = installRatatoskMock({ peerVolumes: options.peerVolumes ?? {} })
+  const api = installTolkiMock({ peerVolumes: options.peerVolumes ?? {} })
   const close = vi.fn()
   const setMuted = vi.fn<(muted: boolean) => Promise<void>>(() => Promise.resolve())
   const setInputDevice = vi.fn<(deviceId: string) => Promise<void>>(() => Promise.resolve())

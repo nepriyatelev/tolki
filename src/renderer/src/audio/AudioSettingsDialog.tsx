@@ -51,7 +51,7 @@ export function AudioSettingsDialog(props: {
 
   const chooseOutput = (deviceId: string): void => {
     props.onOutputChange(deviceId)
-    void window.ratatosk.settings.update({ audio: { outputDeviceId: deviceId } })
+    void window.tolki.settings.update({ audio: { outputDeviceId: deviceId } })
   }
 
   const test = async (): Promise<void> => {

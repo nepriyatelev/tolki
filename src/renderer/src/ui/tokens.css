@@ -1,5 +1,5 @@
 /*
- * Design tokens (PLAN.md §7, values measured from docs/design/ratatosk-screens.html).
+ * Design tokens (PLAN.md §7, values measured from docs/design/tolki-screens.html).
  * Text/background pairs are checked for WCAG contrast in tokens.test.ts — keep it in sync.
  */
 :root {
@@ -24,13 +24,14 @@
   --color-text-muted: #9aa3ad;
   --color-text-placeholder: #848d98;
 
-  /* Accent (mint) */
-  --color-accent: #7fd1ae;
-  --color-accent-hover: #93dbbc;
-  --color-on-accent: #0e1f18;
-  --color-accent-soft: #1f3a30;
-  --color-accent-soft-text: #a6e3c8;
-  --color-accent-selected: #1b2a25;
+  /* Accent (Tolki blue, docs/RENAME.md): fills with white text; a lighter blue for text */
+  --color-accent: #3d63f0;
+  --color-accent-hover: #3358e0;
+  --color-on-accent: #ffffff;
+  --color-accent-text: #8ea6ff;
+  --color-accent-soft: #1c2a55;
+  --color-accent-soft-text: #b8c6ff;
+  --color-accent-selected: #18203a;
 
   /* Danger */
   --color-danger: #d9363e;
@@ -43,7 +44,8 @@
   --color-warning-soft: #3a3020;
   --color-warning-text: #f0c66b;
 
-  --color-focus: var(--color-accent);
+  /* The light blue: the fill blue is under 3:1 on raised surfaces. */
+  --color-focus: var(--color-accent-text);
 
   /* Avatar palette (white initials) */
   --color-avatar-1: #3b6b5a;

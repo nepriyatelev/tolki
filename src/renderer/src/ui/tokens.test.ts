@@ -35,9 +35,9 @@ const textPairs: [fg: string, bg: string][] = [
   ['color-text-placeholder', 'color-surface'],
   ['color-on-accent', 'color-accent'],
   ['color-on-accent', 'color-accent-hover'],
-  ['color-accent', 'color-bg'],
-  ['color-accent', 'color-surface'],
-  ['color-accent', 'color-accent-soft'],
+  ['color-accent-text', 'color-bg'],
+  ['color-accent-text', 'color-surface'],
+  ['color-accent-text', 'color-accent-soft'],
   ['color-accent-soft-text', 'color-accent-soft'],
   ['color-text', 'color-accent-selected'],
   ['color-on-danger', 'color-danger'],
@@ -57,14 +57,14 @@ describe('design tokens', () => {
   })
 
   // --color-focus is var(--color-accent); WCAG 1.4.11 asks for 3:1 against adjacent colours.
-  it('focus ring is an alias of the accent colour', () => {
-    expect(css).toMatch(/--color-focus:\s*var\(--color-accent\)/)
+  it('focus ring is an alias of the accent text colour', () => {
+    expect(css).toMatch(/--color-focus:\s*var\(--color-accent-text\)/)
   })
 
   it.each(['color-bg', 'color-surface', 'color-panel', 'color-raised'])(
     'focus ring is visible (3:1) on %s',
     (bg) => {
-      expect(contrast(color('color-accent'), color(bg))).toBeGreaterThanOrEqual(3)
+      expect(contrast(color('color-accent-text'), color(bg))).toBeGreaterThanOrEqual(3)
     },
   )
 })

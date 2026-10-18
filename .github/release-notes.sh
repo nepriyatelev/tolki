@@ -23,17 +23,17 @@ cat <<EOF
 
 | Система | Файл |
 |---|---|
-| Windows 10/11 (x64) | \`Ratatosk-${version}-win-x64.exe\` |
-| macOS, Apple Silicon (M1 и новее) | \`Ratatosk-${version}-mac-arm64.dmg\` |
-| macOS, Intel | \`Ratatosk-${version}-mac-x64.dmg\` |
-| Linux (x64), любой дистрибутив | \`Ratatosk-${version}-linux-x86_64.AppImage\` |
-| Debian, Ubuntu, Mint (x64) | \`Ratatosk-${version}-linux-amd64.deb\` |
+| Windows 10/11 (x64) | \`Tolki-${version}-win-x64.exe\` |
+| macOS, Apple Silicon (M1 и новее) | \`Tolki-${version}-mac-arm64.dmg\` |
+| macOS, Intel | \`Tolki-${version}-mac-x64.dmg\` |
+| Linux (x64), любой дистрибутив | \`Tolki-${version}-linux-x86_64.AppImage\` |
+| Debian, Ubuntu, Mint (x64) | \`Tolki-${version}-linux-amd64.deb\` |
 
 Приложение не подписано платным сертификатом, поэтому при первом запуске система предупредит:
 
 - **Windows:** «Windows защитила ваш компьютер» → «Подробнее» → «Выполнить в любом случае».
 - **macOS:** «Системные настройки» → «Конфиденциальность и безопасность» → «Всё равно открыть».
-- **Linux (AppImage):** \`chmod +x Ratatosk-*.AppImage\`, затем запустить файл.
+- **Linux (AppImage):** \`chmod +x Tolki-*.AppImage\`, затем запустить файл.
 
 Проверить, что файл не повреждён: сравните его SHA-256 со строкой в \`SHA256SUMS.txt\`.
 

@@ -98,9 +98,9 @@ export function ScreenSourceDialog(props: {
           <Match when={sources.latest?.picker === 'denied'}>
             <div class="screen-picker-denied" role="alert">
               <p>
-                Нет разрешения на запись экрана. Его можно включить для Ratatosk в «Системные
-                настройки → Конфиденциальность и безопасность → Запись экрана»; после этого нужен
-                перезапуск приложения.
+                Нет разрешения на запись экрана. Его можно включить для Tolki в «Системные настройки
+                → Конфиденциальность и безопасность → Запись экрана»; после этого нужен перезапуск
+                приложения.
               </p>
               <Button onClick={() => void access().openPermissionSettings()}>
                 Открыть настройки

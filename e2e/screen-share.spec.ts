@@ -14,7 +14,7 @@ test('getDisplayMedia gets nothing unless the user picked a source in our dialog
     )
     expect(error).not.toBe('granted')
     // A source that was never listed cannot be selected either.
-    expect(await page.evaluate(() => window.ratatosk.screen.select('screen:0:0'))).toBe(false)
+    expect(await page.evaluate(() => window.tolki.screen.select('screen:0:0'))).toBe(false)
   } finally {
     await app.close()
   }
@@ -27,7 +27,7 @@ test('the user picks a screen and sees what they are showing', async () => {
     const port = await freePort()
     const state = await host.page.evaluate(
       (p) =>
-        window.ratatosk.host.start({
+        window.tolki.host.start({
           port: p,
           portMapping: false,
           roomName: 'Кино',
@@ -38,14 +38,14 @@ test('the user picks a screen and sees what they are showing', async () => {
     )
     if (state.status !== 'running') throw new Error('host did not start')
     const client = await launchApp({
-      args: [`ratatosk://join?v=1&h=127.0.0.1&p=${port}&r=kino&fp=${state.fingerprint}`],
+      args: [`tolki://join?v=1&h=127.0.0.1&p=${port}&r=kino&fp=${state.fingerprint}`],
     })
     try {
       const page = client.page
       // Right after start the display may not be listed yet (seen under xvfb): ask a few times.
       let hasScreen = false
       for (let attempt = 0; attempt < 20 && !hasScreen; attempt++) {
-        const sources = await page.evaluate(() => window.ratatosk.screen.listSources())
+        const sources = await page.evaluate(() => window.tolki.screen.listSources())
         hasScreen = sources.picker === 'app' && sources.sources.some((s) => s.kind === 'screen')
         if (!hasScreen) await page.waitForTimeout(500)
       }
@@ -121,17 +121,17 @@ test('others see the shared screen at a layer that fits, and nothing while hidde
     const port = await freePort()
     const state = await host.page.evaluate(
       (p) =>
-        window.ratatosk.host.start({ port: p, portMapping: false, roomName: 'Кино', password: '' }),
+        window.tolki.host.start({ port: p, portMapping: false, roomName: 'Кино', password: '' }),
       port,
     )
     if (state.status !== 'running') throw new Error('host did not start')
-    const link = `ratatosk://join?v=1&h=127.0.0.1&p=${port}&r=kino&fp=${state.fingerprint}`
+    const link = `tolki://join?v=1&h=127.0.0.1&p=${port}&r=kino&fp=${state.fingerprint}`
     const katya = await launchApp({ args: [link] })
     const misha = await launchApp({ args: [link] })
     try {
       let hasScreen = false
       for (let attempt = 0; attempt < 20 && !hasScreen; attempt++) {
-        const sources = await katya.page.evaluate(() => window.ratatosk.screen.listSources())
+        const sources = await katya.page.evaluate(() => window.tolki.screen.listSources())
         hasScreen = sources.picker === 'app' && sources.sources.some((s) => s.kind === 'screen')
         if (!hasScreen) await katya.page.waitForTimeout(500)
       }
@@ -257,17 +257,17 @@ test('one screen at a time: «Показать свой» goes to the sharer, wh
     const port = await freePort()
     const state = await host.page.evaluate(
       (p) =>
-        window.ratatosk.host.start({ port: p, portMapping: false, roomName: 'Кино', password: '' }),
+        window.tolki.host.start({ port: p, portMapping: false, roomName: 'Кино', password: '' }),
       port,
     )
     if (state.status !== 'running') throw new Error('host did not start')
-    const link = `ratatosk://join?v=1&h=127.0.0.1&p=${port}&r=kino&fp=${state.fingerprint}`
+    const link = `tolki://join?v=1&h=127.0.0.1&p=${port}&r=kino&fp=${state.fingerprint}`
     const katya = await launchApp({ args: [link] })
     const misha = await launchApp({ args: [link] })
     try {
       let hasScreen = false
       for (let attempt = 0; attempt < 20 && !hasScreen; attempt++) {
-        const sources = await katya.page.evaluate(() => window.ratatosk.screen.listSources())
+        const sources = await katya.page.evaluate(() => window.tolki.screen.listSources())
         hasScreen = sources.picker === 'app' && sources.sources.some((s) => s.kind === 'screen')
         if (!hasScreen) await katya.page.waitForTimeout(500)
       }

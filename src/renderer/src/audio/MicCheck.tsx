@@ -35,7 +35,7 @@ export function MicCheck(props: {
   const [problem, setProblem] = createSignal<MicrophoneProblem | undefined>(undefined)
 
   onMount(() => {
-    void window.ratatosk.settings.get().then((s) => setDeviceId(s.audio.inputDeviceId))
+    void window.tolki.settings.get().then((s) => setDeviceId(s.audio.inputDeviceId))
   })
 
   // (Re)open the meter whenever the chosen device changes.
@@ -68,7 +68,7 @@ export function MicCheck(props: {
 
   const choose = (id: string): void => {
     setDeviceId(id)
-    void window.ratatosk.settings.update({ audio: { inputDeviceId: id } })
+    void window.tolki.settings.update({ audio: { inputDeviceId: id } })
     props.onDeviceChange?.(id)
   }
 

@@ -10,7 +10,7 @@ const shared = resolve(__dirname, 'src/shared')
 function csp(): Plugin {
   let mode: 'development' | 'production' = 'production'
   return {
-    name: 'ratatosk-csp',
+    name: 'tolki-csp',
     configResolved(config) {
       mode = config.command === 'serve' ? 'development' : 'production'
     },

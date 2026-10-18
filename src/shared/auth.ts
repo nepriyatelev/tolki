@@ -8,7 +8,7 @@
  */
 
 const encoder = new TextEncoder()
-const CONTEXT = 'ratatosk-auth-v1'
+const CONTEXT = 'tolki-auth-v1'
 
 export function newNonce(): string {
   return toBase64Url(crypto.getRandomValues(new Uint8Array(32)))

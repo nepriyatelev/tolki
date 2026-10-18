@@ -9,7 +9,7 @@ import './UpdateBanner.css'
  * until the next launch.
  */
 export function UpdateBanner(): JSX.Element {
-  const [update] = createResource(() => window.ratatosk.app.checkUpdate().catch(() => null))
+  const [update] = createResource(() => window.tolki.app.checkUpdate().catch(() => null))
   const [hidden, setHidden] = createSignal(false)
   return (
     <Show when={!hidden() && update()}>
@@ -20,7 +20,7 @@ export function UpdateBanner(): JSX.Element {
             <Button
               variant="primary"
               icon={<Download />}
-              onClick={() => void window.ratatosk.app.openDownloadPage()}
+              onClick={() => void window.tolki.app.openDownloadPage()}
             >
               Скачать
             </Button>

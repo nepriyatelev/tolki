@@ -1,7 +1,7 @@
 import type { UploadMeasurement } from '@shared/upload-capacity'
 
 export interface UploadEstimatorOptions {
-  /** False when the user turned the speed test off (or RATATOSK_SPEED_TEST=off). */
+  /** False when the user turned the speed test off (or TOLKI_SPEED_TEST=off). */
   isEnabled: () => boolean
   measure: () => Promise<{ mbps: number }>
   /** A result is reused for this long: the test uploads tens of megabytes. */

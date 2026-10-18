@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { HostingVerdict, NetworkCheckResult } from '@shared/network'
-import { PUBLIC_IPV4_CHECK } from '../../../test/ratatosk-mock'
+import { PUBLIC_IPV4_CHECK } from '../../../test/tolki-mock'
 import { describeHosting } from './hosting-status'
 
 function withVerdict(
