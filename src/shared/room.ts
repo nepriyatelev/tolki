@@ -76,6 +76,7 @@ export type RoomEvent = Extract<
       | 'approval-changed'
       | 'chat'
       | 'screen-budget'
+      | 'host-stats'
   }
 >
 

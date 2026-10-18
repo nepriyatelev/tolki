@@ -423,6 +423,9 @@ function logRoomEvent(event: RoomEvent): void {
     case 'approval-changed':
       logs.main.info(`entry by approval: ${event.enabled ? 'on' : 'off'}`)
       return
+    case 'host-stats':
+      // Every few seconds when it changes: not worth a line each time.
+      return
     case 'screen-budget':
       logs.main.info(`screen ceiling from the organizer: ${event.height}p`)
       return

@@ -1357,3 +1357,51 @@ describe('the chat (#45)', () => {
     expect((field as HTMLTextAreaElement).value).toBe('быстро')
   })
 })
+
+describe('the organizer in the call (#87)', () => {
+  it('marks the organizer’s tile, the user’s own too when they are the organizer', async () => {
+    const ctx = setup({ organizer: true })
+    await screen.findByText('Звук подключён')
+    ctx.api.room.emitEvent({ type: 'peer-joined', peer: { id: 'olya', name: 'Оля' } })
+    await vi.waitFor(() => {
+      expect(ctx.labels()).toEqual(['Дима', 'Оля', 'Алексей (я), организатор'])
+    })
+  })
+
+  it('marks someone else as the organizer', async () => {
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    ctx.api.room.emitEvent({
+      type: 'peer-joined',
+      peer: { id: 'org', name: 'Организатор', organizer: true },
+    })
+    await vi.waitFor(() => {
+      expect(ctx.labels()).toContain('Организатор, организатор')
+    })
+    expect(screen.getAllByText('организатор')).toHaveLength(1)
+  })
+
+  it('shows the organizer’s upload, and warns when it is short of the call', async () => {
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    ctx.api.room.emitEvent({
+      type: 'host-stats',
+      uploadMbps: 39.4,
+      participants: 15,
+      screen: '720p',
+      measured: true,
+    })
+    const upload = await screen.findByText('Отдача организатора 39 Мбит/с')
+    expect(upload.getAttribute('title')).toBe('Хватит на 15 человек и экран в 720p')
+    expect(screen.queryByText(/не хватает скорости отдачи/)).toBeNull()
+
+    ctx.api.room.emitEvent({
+      type: 'host-stats',
+      uploadMbps: 0.2,
+      participants: 1,
+      screen: null,
+      measured: true,
+    })
+    expect(await screen.findByText(/Организатору не хватает скорости отдачи на всех/)).toBeTruthy()
+  })
+})

@@ -35,7 +35,12 @@ export const peerNameSchema = z
   .max(32)
   .refine((name) => !CONTROL_CHARS.test(name), 'control characters')
 
-export const peerSchema = z.object({ id: z.string(), name: z.string() })
+export const peerSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  /** The organizer's own app (#87): marked on their tile. */
+  organizer: z.boolean().optional(),
+})
 export type Peer = z.infer<typeof peerSchema>
 
 /** What the host tells anyone who connects, before authentication: no participant names. */
@@ -232,6 +237,17 @@ export const hostMessageSchema = z.discriminatedUnion('type', [
     screenLayer: screenLayerSchema.optional(),
     /** Audio: the sharer's computer sound, played with the screen (#41). */
     screenAudio: z.boolean().optional(),
+  }),
+  /**
+   * To everyone (#87): the organizer's upload and what it carries. `measured`: from the speed
+   * test before the call; otherwise only what the call's statistics show, a lower bound.
+   */
+  z.object({
+    type: z.literal('host-stats'),
+    uploadMbps: z.number().min(0),
+    participants: z.number().int().min(1),
+    screen: z.enum(['1080p', '720p', '360p']).nullable(),
+    measured: z.boolean(),
   }),
   /** To the sharer: what the host's upload carries of the big screen stream (#86). */
   z.object({
