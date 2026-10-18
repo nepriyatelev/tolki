@@ -1,10 +1,12 @@
-import { homedir } from 'node:os'
+import { writeFile } from 'node:fs/promises'
+import { cpus, homedir, release, totalmem } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import {
   app,
   BrowserWindow,
   clipboard,
+  Menu,
   net,
   safeStorage,
   session,
@@ -17,8 +19,10 @@ import Store from 'electron-store'
 import { APP_NAME, DOWNLOAD_PAGE } from '@shared/app'
 import { DEFAULT_HOST_PORT } from '@shared/host-protocol'
 import type { RecentStatus } from '@shared/recent'
+import type { RoomEvent } from '@shared/room'
 import { buildInvite, parseInvite } from '@shared/invite'
 import { loadOrCreateCertificate } from '../host/certificate'
+import { appMenuTemplate } from './app-menu'
 import { integrateAppImage } from './appimage-integration'
 import { HostProcess, HostStartError } from './host-process'
 import { findInviteLink, InviteLinks } from './invite-links'
@@ -34,10 +38,46 @@ import { registerIpcHandlers } from './ipc'
 import { isTrustedRendererOrigin, isTrustedRendererUrl } from './trusted-url'
 import { ScreenCapture } from './screen-capture'
 import { mainWindowOptions } from './window-options'
+import { LogPrivacy, logText, peerAlias, roomAlias } from './log-privacy'
+import { createLoggers, lineWriter, mergeLogs, readLogs, savedLogName } from './logging'
+import { networkCheckLine, uploadLine } from './log-events'
 
 // Lets e2e tests isolate the certificate and settings from the real profile.
 const userDataOverride = process.env['TOLKI_USER_DATA']
 if (userDataOverride) app.setPath('userData', userDataOverride)
+
+// Logs (#106): always on, in userData/logs, with personal data redacted on the way in.
+const logDir = join(app.getPath('userData'), 'logs')
+const privacy = new LogPrivacy({ home: homedir() })
+const logs = createLoggers({ dir: logDir, privacy, console: !app.isPackaged })
+/** Terminal colours Node adds to stack traces: not for a text file. */
+// eslint-disable-next-line no-control-regex -- the escape character is exactly what goes
+const ANSI_COLOURS = /\x1b\[[0-9;]*m/g
+// The room and the network check report through their stdout/stderr.
+const hostLog = (prefix: string, child: Electron.UtilityProcess): Electron.UtilityProcess => {
+  child.stdout?.on(
+    'data',
+    lineWriter((line) => {
+      logs.host.info(`${prefix}${line.replace(ANSI_COLOURS, '')}`)
+    }),
+  )
+  child.stderr?.on(
+    'data',
+    lineWriter((line) => {
+      logs.host.warn(`${prefix}${line.replace(ANSI_COLOURS, '')}`)
+    }),
+  )
+  return child
+}
+// Errors nobody caught still end up in main.log.
+process.on('uncaughtException', (error) => {
+  logs.main.error(`uncaught: ${logText(error)}`)
+})
+process.on('unhandledRejection', (reason) => {
+  logs.main.error(`unhandled rejection: ${logText(reason)}`)
+})
+// e2e must not open Finder / Explorer windows.
+const showSavedLogs = process.env['TOLKI_SHOW_IN_FOLDER'] !== 'off'
 
 // One app per profile: a second launch (e.g. a clicked invite link) hands its arguments to the
 // running one via 'second-instance' and quits.
@@ -82,13 +122,25 @@ const upload = new UploadEstimator({
 })
 
 const spawnHost = () =>
-  utilityProcess.fork(join(__dirname, 'host.js'), [], { serviceName: 'Tolki Host' })
+  hostLog(
+    '',
+    utilityProcess.fork(join(__dirname, 'host.js'), [], {
+      serviceName: 'Tolki Host',
+      stdio: 'pipe',
+    }),
+  )
 const host = new HostProcess({ spawn: spawnHost })
 const network = new NetworkChecker({
   host,
   portMappingEnabled,
   spawn: () =>
-    utilityProcess.fork(join(__dirname, 'host.js'), [], { serviceName: 'Tolki Network Check' }),
+    hostLog(
+      '[network-check] ',
+      utilityProcess.fork(join(__dirname, 'host.js'), [], {
+        serviceName: 'Tolki Network Check',
+        stdio: 'pipe',
+      }),
+    ),
 })
 
 const screenCapture = new ScreenCapture({
@@ -162,6 +214,69 @@ function recentRooms(): RecentRooms {
   return recentRoomsStore
 }
 
+/** Who comes and goes, mute, screens — under pseudonyms (#106). Speaking changes are too chatty. */
+function logRoomEvent(event: RoomEvent): void {
+  switch (event.type) {
+    case 'peer-joined':
+      privacy.addPeer(event.peer.id, event.peer.name)
+      logs.main.info(`${peerAlias(event.peer.id)} joined`)
+      return
+    case 'peer-left':
+      logs.main.info(`${peerAlias(event.peerId)} left`)
+      return
+    case 'peer-muted':
+      logs.main.info(`${peerAlias(event.peerId)} ${event.muted ? 'muted' : 'unmuted'}`)
+      return
+    case 'screen-share-started':
+    case 'screen-share-stopped':
+      logs.main.info(`${peerAlias(event.peerId)}: ${event.type}`)
+      return
+    case 'screen-layer':
+      logs.main.info(`screen stream for this viewer: ${event.layer === 1 ? '≈1080p' : '≈360p'}`)
+      return
+    default:
+  }
+}
+
+/** The top of a saved log: what the app runs on (no names, no addresses). */
+function systemInfo(): string {
+  const gpu = app.getGPUFeatureStatus()
+  const metrics = app
+    .getAppMetrics()
+    .map(
+      (m) =>
+        `${m.type}${m.name ? ` (${m.name})` : ''}: CPU ${m.cpu.percentCPUUsage.toFixed(1)} %, ${Math.round(m.memory.workingSetSize / 1024)} MB`,
+    )
+  const current = settings.get()
+  return [
+    `Tolki ${app.getVersion()} — saved ${new Date().toISOString()}`,
+    `OS: ${process.platform} ${release()} ${process.arch}, locale ${app.getLocale()}`,
+    `Electron ${process.versions.electron}, Chrome ${process.versions.chrome}, Node ${process.versions.node}`,
+    `CPU: ${cpus()[0]?.model ?? 'unknown'} × ${cpus().length}, RAM ${Math.round(totalmem() / 1024 ** 3)} GB`,
+    `GPU: video encode ${gpu.video_encode}, video decode ${gpu.video_decode}, compositing ${gpu.gpu_compositing}`,
+    `Settings: upload speed test ${current.speedTest.enabled ? 'on' : 'off'}, ` +
+      `microphone ${current.audio.inputDeviceId ? 'chosen' : 'system default'}, ` +
+      `output ${current.audio.outputDeviceId ? 'chosen' : 'system default'}`,
+    `Room: host ${host.state.status}${host.state.status === 'running' ? ` on port ${host.state.port}` : ''}, ${roomSession ? 'in a call' : 'not in a call'}`,
+    'Processes:',
+    ...metrics.map((line) => `  ${line}`),
+  ].join('\n')
+}
+
+/** «Помощь → Сохранить логи…» (#106): one text file in Downloads, shown in its folder. */
+async function saveLogs(): Promise<void> {
+  try {
+    const body = mergeLogs(await readLogs(logDir))
+    const text = privacy.redact(`${systemInfo()}\n\n${body}\n`)
+    const file = join(app.getPath('downloads'), savedLogName(new Date()))
+    await writeFile(file, text, 'utf8')
+    logs.main.info('logs saved for a report')
+    if (showSavedLogs) shell.showItemInFolder(file)
+  } catch (error) {
+    logs.main.error(`could not save the logs: ${logText(error)}`)
+  }
+}
+
 // The room this app is a client of (also when the host user joins their own room).
 let roomSession: RoomSession | null = null
 
@@ -199,6 +314,15 @@ function createMainWindow(): BrowserWindow {
   win.webContents.on('did-start-loading', () => {
     inviteLinks.rendererGone()
   })
+  // The window's console goes to renderer.log: the call's events and warnings (#106).
+  win.webContents.on('console-message', ({ level, message }) => {
+    if (level === 'error') logs.renderer.error(message)
+    else if (level === 'warning') logs.renderer.warn(message)
+    else if (level === 'info') logs.renderer.info(message)
+  })
+  win.webContents.on('render-process-gone', (_event, details) => {
+    logs.main.error(`window process gone: ${details.reason} (exit ${details.exitCode})`)
+  })
 
   win.once('ready-to-show', () => {
     win.show()
@@ -225,6 +349,11 @@ app.on('web-contents-created', (_event, contents) => {
 })
 
 host.onState((state) => {
+  logs.main.info(
+    `host ${state.status}` +
+      (state.status === 'running' ? ` on port ${state.port}` : '') +
+      (state.status === 'stopped' && state.lastError ? ` (${state.lastError})` : ''),
+  )
   for (const win of BrowserWindow.getAllWindows()) win.webContents.send('host:state', state)
 })
 
@@ -245,6 +374,12 @@ registerIpcHandlers(
       platform: process.platform,
     }),
     'host:start': async ({ port, portMapping, roomName, password, screenMode }) => {
+      if (roomName) privacy.addRoom('', roomName)
+      if (password) privacy.addPassword(password)
+      logs.main.info(
+        `host start: port ${port ?? DEFAULT_HOST_PORT}, port mapping ${portMapping === false || !portMappingEnabled ? 'off' : 'on'}, ` +
+          `screen mode ${screenMode ?? 'auto'}, password ${password ? 'yes' : 'no'}`,
+      )
       try {
         return await host.start({
           port: port ?? DEFAULT_HOST_PORT,
@@ -263,9 +398,16 @@ registerIpcHandlers(
     'host:get-state': () => host.state,
     'host:get-fingerprint': async () =>
       (await loadOrCreateCertificate(app.getPath('userData'))).fingerprint,
-    'network:check': ({ force, port }) =>
-      network.check(port ?? DEFAULT_HOST_PORT, { force: force ?? false }),
-    'network:measure-upload': ({ force }) => upload.measure({ force: force ?? false }),
+    'network:check': async ({ force, port }) => {
+      const result = await network.check(port ?? DEFAULT_HOST_PORT, { force: force ?? false })
+      logs.main.info(networkCheckLine(result))
+      return result
+    },
+    'network:measure-upload': async ({ force }) => {
+      const result = await upload.measure({ force: force ?? false })
+      logs.main.info(uploadLine(result))
+      return result
+    },
     'settings:get': () => settings.get(),
     'settings:update': (patch) => settings.update(patch),
     'invite:take-pending': () => inviteLinks.takePending(),
@@ -283,8 +425,27 @@ registerIpcHandlers(
         password === undefined && recentId ? recentRooms().password(recentId) : undefined
       const used = password ?? checked.invite.password ?? saved
       const joinRequest = { invite: checked.invite, name, password: used }
+      privacy.addOwnName(name)
+      if (used) privacy.addPassword(used)
+      const target = checked.invite
+      logs.main.info(
+        `room join: ${target.hostKind} ${target.host} port ${target.port}, ` +
+          `certificate ${target.fingerprint}, password ${used ? 'yes' : 'no'}`,
+      )
       const connection = await joinRoom(joinRequest)
       const { result } = connection
+      if (result.ok) {
+        privacy.addRoom(target.roomId, result.room.name)
+        privacy.addPeer(result.peerId, name, true)
+        for (const peer of result.peers) privacy.addPeer(peer.id, peer.name)
+        logs.main.info(
+          `joined ${roomAlias(target.roomId)} as ${peerAlias(result.peerId)}: ` +
+            `${result.peers.length} others, screen mode ${result.screenMode}` +
+            (result.sharerId ? `, ${peerAlias(result.sharerId)} is sharing` : ''),
+        )
+      } else {
+        logs.main.warn(`room join failed: ${result.error}`)
+      }
       if (result.ok) {
         const send = (): Electron.WebContents | undefined =>
           BrowserWindow.getAllWindows()[0]?.webContents
@@ -295,10 +456,22 @@ registerIpcHandlers(
           {
             // A session the user left is silent, so these need no extra check; the first
             // events (who already talks) arrive while the session is being created.
-            onReconnecting: () => send()?.send('room:reconnecting', null),
-            onReconnected: (rejoined) => send()?.send('room:reconnected', rejoined),
-            onEvent: (event) => send()?.send('room:event', event),
+            onReconnecting: () => {
+              logs.main.warn('room link lost, reconnecting')
+              send()?.send('room:reconnecting', null)
+            },
+            onReconnected: (rejoined) => {
+              logs.main.info(`room link back as ${peerAlias(rejoined.peerId)}`)
+              privacy.addPeer(rejoined.peerId, name, true)
+              for (const peer of rejoined.peers) privacy.addPeer(peer.id, peer.name)
+              send()?.send('room:reconnected', rejoined)
+            },
+            onEvent: (event) => {
+              logRoomEvent(event)
+              send()?.send('room:event', event)
+            },
             onClosed: (reason) => {
+              logs.main.info(`room session ended: ${reason}`)
               if (roomSession !== session) return
               roomSession = null
               send()?.send('room:closed', { reason, roomName: result.room.name })
@@ -350,6 +523,15 @@ registerIpcHandlers(
 
 void app.whenReady().then(() => {
   if (!isPrimaryInstance) return
+  logs.main.info(
+    `start: Tolki ${app.getVersion()}, ${process.platform} ${release()} ${process.arch}, ` +
+      `Electron ${process.versions.electron}${app.isPackaged ? '' : ' (development)'}`,
+  )
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate(
+      appMenuTemplate({ platform: process.platform, onSaveLogs: () => void saveLogs() }),
+    ),
+  )
   registerInviteScheme()
 
   // Only our own window may use the microphone; every other permission stays denied.
@@ -395,6 +577,7 @@ app.on('window-all-closed', () => {
 
 // Stop the host process before quitting so it can release ports and mappings.
 app.on('before-quit', (event) => {
+  if (host.state.status === 'stopped') logs.main.info('quit')
   leaveRoom()
   if (host.state.status === 'stopped') return
   event.preventDefault()

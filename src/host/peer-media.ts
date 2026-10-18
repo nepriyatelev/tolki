@@ -237,8 +237,13 @@ export class PeerMedia {
         ? this.events.isForwarded(consumer.producerId)
         : producer !== undefined && screenLayerOf(producer) === this.#sentLayer)
     if (consumer.closed) return
-    if (run && consumer.paused) await consumer.resume()
-    else if (!run && !consumer.paused) await consumer.pause()
+    try {
+      if (run && consumer.paused) await consumer.resume()
+      else if (!run && !consumer.paused) await consumer.pause()
+    } catch (error) {
+      // It closed meanwhile (its owner left): nothing to pause any more.
+      if (!isClosed(consumer)) throw error
+    }
   }
 
   /** Closing the transports closes every producer and consumer on them. */
@@ -256,4 +261,9 @@ export class PeerMedia {
     }
     return transport
   }
+}
+
+/** Read again after an await: the narrowing from before it no longer holds. */
+function isClosed(consumer: types.Consumer): boolean {
+  return consumer.closed
 }
