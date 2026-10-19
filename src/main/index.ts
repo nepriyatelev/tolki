@@ -369,7 +369,7 @@ function trayHintOnce(): void {
   settings.update({ tray: { hintShown: true } })
   new Notification({
     title: 'Tolki работает в трее',
-    body: 'Окно скрыто, звонок и комната продолжаются. Выйти — через значок в трее.',
+    body: 'Окно скрыто, звонок продолжается. Выйти — через значок в трее.',
   }).show()
 }
 
