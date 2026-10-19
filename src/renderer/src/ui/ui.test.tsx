@@ -272,6 +272,29 @@ describe('Tooltip (#110)', () => {
     }
   })
 
+  it('right after one tooltip, the next one comes at once', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const user = userEvent.setup({ advanceTimers: (ms) => vi.advanceTimersByTime(ms) })
+      render(() => (
+        <>
+          <Tooltip text="Микрофон · Ctrl+Shift+M">
+            {() => <button type="button">Микрофон</button>}
+          </Tooltip>
+          <Tooltip text="Звук · Ctrl+Shift+D">{() => <button type="button">Звук</button>}</Tooltip>
+        </>
+      ))
+      await user.hover(screen.getByRole('button', { name: 'Микрофон' }))
+      await vi.advanceTimersByTimeAsync(TOOLTIP_DELAY_MS)
+      await user.unhover(screen.getByRole('button', { name: 'Микрофон' }))
+      await user.hover(screen.getByRole('button', { name: 'Звук' }))
+      await vi.advanceTimersByTimeAsync(1)
+      expect(screen.getByRole('tooltip').textContent).toBe('Звук · Ctrl+Shift+D')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('shows at once on keyboard focus and hides on Esc', async () => {
     const user = userEvent.setup()
     render(() => (

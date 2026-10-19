@@ -15,19 +15,23 @@
   white-space: nowrap;
   pointer-events: none;
   transform: translateX(-50%);
+  /* Arrives from its control, as a material: scale and opacity together. */
   animation: rt-tooltip-in var(--duration-fast) var(--ease-out);
 }
 
 .rt-tooltip--top {
   bottom: calc(100% + var(--space-2));
+  transform-origin: 50% 100%;
 }
 
 .rt-tooltip--bottom {
   top: calc(100% + var(--space-2));
+  transform-origin: 50% 0;
 }
 
 @keyframes rt-tooltip-in {
   from {
     opacity: 0;
+    transform: translateX(-50%) scale(0.96);
   }
 }

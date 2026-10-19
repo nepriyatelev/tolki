@@ -3,6 +3,9 @@ import './Tooltip.css'
 
 /** Hover waits this long, as in other apps: a tooltip should not flash past the pointer. */
 export const TOOLTIP_DELAY_MS = 500
+/** Right after one tooltip, the next comes at once: moving along the bar should not wait. */
+const WARM_MS = 800
+let lastHidden = 0
 
 export interface TooltipProps {
   /** What the control does, and its key if it has one: «Выключить микрофон · Ctrl+Shift+M». */
@@ -23,10 +26,12 @@ export function Tooltip(props: TooltipProps): JSX.Element {
   let timer: ReturnType<typeof setTimeout> | undefined
   const show = (delay: number): void => {
     clearTimeout(timer)
-    timer = setTimeout(() => setShown(true), delay)
+    const warm = Date.now() - lastHidden < WARM_MS
+    timer = setTimeout(() => setShown(true), warm ? 0 : delay)
   }
   const hide = (): void => {
     clearTimeout(timer)
+    if (shown()) lastHidden = Date.now()
     setShown(false)
   }
   onCleanup(() => {
@@ -54,7 +59,7 @@ export function Tooltip(props: TooltipProps): JSX.Element {
         <span
           id={id}
           role="tooltip"
-          class={`rt-tooltip rt-glass rt-tooltip--${props.placement ?? 'top'}`}
+          class={`rt-tooltip rt-glass rt-glass--sm rt-tooltip--${props.placement ?? 'top'}`}
         >
           {props.text}
         </span>
