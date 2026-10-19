@@ -62,10 +62,8 @@ export function MicCheck(props: {
     const id = deviceId()
     const state = permission()
     if (id === undefined || state === undefined || state === 'not-asked') return
-    if (state === 'denied') {
-      setProblem('denied')
-      return
-    }
+    // The OS's word is a hint, not the last word (Windows may say «denied» where the browser
+    // still gets a microphone): the meter is tried anyway, and a refusal says the rest.
     let stop: (() => void) | undefined
     let cancelled = false
     setProblem(undefined)

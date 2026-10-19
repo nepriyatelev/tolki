@@ -147,6 +147,8 @@ const autoUpdate = new AutoUpdate({
 
 function createUpdater(): Updater | null {
   if (process.env['TOLKI_UPDATE_CHECK'] === 'off' || !(app.isPackaged || updateConfig)) return null
+  // An e2e stub for the banner (TOLKI_UPDATE_API): electron-updater would ask the real GitHub.
+  if (updateApi && !updateConfig) return null
   const updater =
     process.platform === 'win32' && !updateConfig
       ? new electronUpdater.NsisUpdater()
