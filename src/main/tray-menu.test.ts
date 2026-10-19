@@ -33,10 +33,10 @@ describe('tray menu (#44)', () => {
     expect(labels({ ...idle, inCall: true, roomName: 'Кино', muted: true })).toEqual([
       'Открыть Tolki',
       'separator',
-      'В звонке: Кино',
+      'В комнате: Кино',
       'Включить микрофон',
       'Выключить звук',
-      'Выйти из звонка',
+      'Выйти из комнаты',
       'separator',
       'Сворачивать в трей при закрытии',
       'Выйти из Tolki',
@@ -50,7 +50,7 @@ describe('tray menu (#44)', () => {
       ;(menu.find((m) => m.label === label)?.click as unknown as (i: object) => void)(item)
     }
     click('Выключить микрофон')
-    click('Выйти из звонка')
+    click('Выйти из комнаты')
     click('Сворачивать в трей при закрытии', { checked: false })
     click('Выйти из Tolki')
     expect(a.toggleMute).toHaveBeenCalled()
@@ -60,7 +60,7 @@ describe('tray menu (#44)', () => {
   })
 
   it('names the call in the tooltip', () => {
-    expect(trayTooltip({ inCall: true, roomName: 'Кино' })).toBe('Tolki — в звонке: Кино')
+    expect(trayTooltip({ inCall: true, roomName: 'Кино' })).toBe('Tolki — в комнате: Кино')
     expect(trayTooltip({ inCall: false, roomName: '' })).toBe('Tolki')
   })
 })

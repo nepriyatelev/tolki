@@ -139,7 +139,7 @@ export function ParticipantTile(props: {
                 props.onOpenSettings()
               }}
             >
-              Настройки звука
+              Настройки
             </Button>
           }
         >

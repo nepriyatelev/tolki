@@ -110,7 +110,7 @@ export function CallScreen(props: {
   onLeft: () => void
   /** Tests replace the real call (mediasoup needs WebRTC). */
   startCall?: typeof startRealCall
-  /** Tests replace devices and the test sound in «Настройки звука». */
+  /** Tests replace devices and the test sound in «Настройки». */
   microphone?: MicrophoneAccess
   playTestSound?: (outputDeviceId: string) => Promise<void>
   /** Tests replace screen capture. */
@@ -565,7 +565,7 @@ export function CallScreen(props: {
     mute: 'none',
     deafen: 'none',
   })
-  /** While a combination is being typed in «Настройки звука», nothing is registered. */
+  /** While a combination is being typed in «Настройки», nothing is registered. */
   let capturingHotkey = false
   const configureHotkeys = (): void => {
     void window.tolki.hotkeys
@@ -1303,7 +1303,8 @@ export function CallScreen(props: {
               </button>
             )}
           </Tooltip>
-          <Tooltip text="Выйти из комнаты">
+          {/* The room lives on the organizer's computer: their leaving closes it for all. */}
+          <Tooltip text={isOrganizer() ? 'Выйти и закрыть комнату' : 'Выйти из комнаты'}>
             {(tip) => (
               <button
                 aria-describedby={tip}
