@@ -91,7 +91,7 @@ a:hover {
 
 @supports (backdrop-filter: blur(1px)) {
   .rt-glass {
-    background: var(--glass-bg);
+    background: var(--glass-sheen), var(--glass-bg);
     backdrop-filter: var(--glass-blur);
   }
 
@@ -107,10 +107,45 @@ a:hover {
   }
 }
 
+/* Key surfaces (the call's bar, the room menu): the edge is a gradient drawn with a masked
+   pseudo-element, so it follows the radius and leaves the inside clear. */
+.rt-glass--edge {
+  border-color: transparent;
+}
+
+/* Zero specificity: a component that positions itself (a popover) keeps its own position. */
+:where(.rt-glass--edge) {
+  position: relative;
+}
+
+.rt-glass--edge::before {
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--glass-edge);
+  content: '';
+  pointer-events: none;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+
+/* Muted text is too dim on glass over moving video: soft text at least (glass-dark-ui). */
+.rt-glass .rt-checkbox__description,
+.rt-glass .muted {
+  color: var(--color-text-soft);
+}
+
 @media (prefers-contrast: more) {
   .rt-glass {
     border-color: var(--glass-border-strong);
     background: var(--glass-solid);
     backdrop-filter: none;
+  }
+
+  .rt-glass--edge::before {
+    display: none;
   }
 }
