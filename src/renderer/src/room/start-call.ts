@@ -1,6 +1,6 @@
 import type { ScreenMode } from '@shared/screen'
 import type { ScreenBudget } from '@shared/upload-capacity'
-import { openMicrophoneTrack } from '../audio/microphone'
+import { meterTrack, openMicrophoneTrack } from '../audio/microphone'
 import {
   Call,
   type RemoteAudio,
@@ -39,6 +39,11 @@ export interface CallHandle {
   /** The link to the organizer now (PLAN #32). */
   connectionSample(): Promise<ConnectionSample | null>
   answerScreenRequest(fromPeerId: string, accept: boolean): Promise<void>
+  /**
+   * The user's own voice level (0..1), muted or not, following a switch of microphone (#110).
+   * Returns the stop function. Absent where there is nothing to measure.
+   */
+  meterMicrophone?(onLevel: (level: number) => void): () => void
   close(): void
 }
 
@@ -57,6 +62,8 @@ export async function startCall(options: StartCallOptions): Promise<CallHandle> 
     console.warn('[call] no microphone, joining to listen only:', error)
     return null
   })
+  /** Level listeners: the meter moves to a new microphone with them. */
+  const meters = new Map<(level: number) => void, () => void>()
   try {
     const call = await Call.start({ ...options, microphone })
     return {
@@ -85,8 +92,21 @@ export async function startCall(options: StartCallOptions): Promise<CallHandle> 
         }
         microphone?.stop()
         microphone = track
+        for (const [onLevel, stop] of meters) {
+          stop()
+          meters.set(onLevel, meterTrack(track, onLevel))
+        }
+      },
+      meterMicrophone: (onLevel) => {
+        meters.set(onLevel, meterTrack(microphone, onLevel))
+        return () => {
+          meters.get(onLevel)?.()
+          meters.delete(onLevel)
+        }
       },
       close: () => {
+        for (const stop of meters.values()) stop()
+        meters.clear()
         call.close()
         microphone?.stop()
       },

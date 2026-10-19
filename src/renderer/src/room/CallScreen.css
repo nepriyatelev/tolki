@@ -265,6 +265,25 @@
   anchor-name: var(--tile-anchor);
 }
 
+/* «⋯» shows on hover or keyboard focus, as in Meet; stays while its menu is open (#110). */
+.call-tile .call-tile-menu-button.rt-icon-button {
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+
+.call-tile:hover .call-tile-menu-button.rt-icon-button,
+.call-tile:focus-within .call-tile-menu-button.rt-icon-button,
+.call-tile .call-tile-menu-button--open.rt-icon-button {
+  opacity: 1;
+}
+
+/* No hover on a touch screen: «⋯» always there. */
+@media (hover: none) {
+  .call-tile .call-tile-menu-button.rt-icon-button {
+    opacity: 1;
+  }
+}
+
 .call-tile-menu-button--open.rt-icon-button {
   background: var(--color-raised);
   color: var(--color-text);
@@ -436,6 +455,12 @@
   cursor: pointer;
 }
 
+/* The voice going out: a ring around the microphone that grows with it (#110). */
+.call-control--mic .call-control-icon {
+  box-shadow: 0 0 0 calc(var(--mic-level, 0) * 5px) rgb(142 166 255 / 55%);
+  transition: box-shadow 80ms linear;
+}
+
 .call-control:disabled {
   cursor: not-allowed;
   opacity: 0.5;
@@ -582,4 +607,9 @@
   flex: 0 0 var(--tile-width);
   height: auto;
   aspect-ratio: 16 / 10;
+}
+
+/* «Сбросить до 100 %» when there is nothing to reset: dimmed, still readable (#110). */
+.call-tile-menu .rt-button:disabled {
+  opacity: 0.75;
 }
