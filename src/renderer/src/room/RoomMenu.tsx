@@ -50,7 +50,12 @@ export function RoomMenu(props: {
         onClick={() => setOpen((value) => !value)}
       />
       <Show when={open()}>
-        <div id={id} class="room-menu-panel rt-glass" role="dialog" aria-label="Комната">
+        <div
+          id={id}
+          class="room-menu-panel rt-glass rt-glass--edge"
+          role="dialog"
+          aria-label="Комната"
+        >
           <Checkbox
             label="Подтверждать вход"
             description="Вошедший по ссылке ждёт, пока организатор нажмёт «Впустить»."

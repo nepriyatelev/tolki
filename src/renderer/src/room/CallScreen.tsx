@@ -1125,7 +1125,11 @@ export function CallScreen(props: {
             </p>
           </Show>
         </div>
-        <div class="call-controls rt-glass" role="toolbar" aria-label="Управление звонком">
+        <div
+          class="call-controls rt-glass rt-glass--edge"
+          role="toolbar"
+          aria-label="Управление звонком"
+        >
           <Tooltip text={micTip()}>
             {(tip) => (
               <button
