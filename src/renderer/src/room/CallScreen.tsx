@@ -39,7 +39,7 @@ import { AudioSettingsDialog } from '../audio/AudioSettingsDialog'
 import type { MicrophoneAccess } from '../audio/microphone'
 import { ScreenSourceDialog } from '../screen/ScreenSourceDialog'
 import { browserScreen, type ScreenAccess } from '../screen/screen-share'
-import { Avatar, Button, IconButton } from '../ui'
+import { Avatar, Button, IconButton, Tooltip } from '../ui'
 import {
   createEventBuffer,
   type ConnectionSample,
@@ -58,7 +58,9 @@ import {
   type HostStats,
 } from './upload-estimate'
 import { formatCallTime } from './call-timer'
+import { callKeyLabel, callKeyOf, isMac } from './call-keys'
 import { ConnectionIndicator } from './ConnectionIndicator'
+import { ShortcutsDialog } from './ShortcutsDialog'
 import { ParticipantTile } from './ParticipantTile'
 import { ScreenStage } from './ScreenStage'
 import { RemoteAudio } from './RemoteAudio'
@@ -128,6 +130,11 @@ export function CallScreen(props: {
   /** Whether the microphone was on before deafening: undeafening turns it back on. */
   let mutedBeforeDeafen = false
   const [settingsOpen, setSettingsOpen] = createSignal(false)
+  /** The list of keys (#110), by Ctrl+/ (⌘/). */
+  const [shortcutsOpen, setShortcutsOpen] = createSignal(false)
+  /** Once, in the first call: where the keys are. */
+  const [keysHint, setKeysHint] = createSignal(false)
+  const mac = isMac()
   const [pickerOpen, setPickerOpen] = createSignal(false)
   /** What this user is showing (PLAN #26); sending it to the others comes with #27. */
   const [myScreen, setMyScreen] = createSignal<MediaStream | null>(null)
@@ -460,6 +467,11 @@ export function CallScreen(props: {
       setSoundsOn(settings.sounds.enabled)
       if (settings.pushToTalk.enabled) changePtt(settings.pushToTalk, false)
       setHotkeyKeys(settings.globalHotkeys)
+      // Once ever: the keys are in a list now, not on a line at the bottom (#110).
+      if (!settings.hints.keys) {
+        setKeysHint(true)
+        void window.tolki.settings.update({ hints: { keys: true } }).catch(() => undefined)
+      }
       setPickedMode(settings.screen.mode)
       if (settings.globalHotkeys.mute || settings.globalHotkeys.deafen) configureHotkeys()
     })
@@ -588,13 +600,19 @@ export function CallScreen(props: {
       }
       return
     }
-    if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return
-    if (isTyping(event.target) || settingsOpen() || pickerOpen()) return
-    // event.code: the same physical keys on the Russian layout (Ь and В).
-    if (event.code === 'KeyM') toggleMic()
-    else if (event.code === 'KeyD') toggleSound()
-    else return
+    // While a key is being set in the settings, keys belong to that field.
+    if (settingsOpen()) return
+    const key = callKeyOf(event, mac)
+    if (key === null) return
     event.preventDefault()
+    // With a modifier, so they work while typing in the chat too.
+    if (key === 'shortcuts') {
+      setShortcutsOpen((open) => !open)
+      setKeysHint(false)
+    } else if (!pickerOpen() && !shortcutsOpen()) {
+      if (key === 'mic') toggleMic()
+      else toggleSound()
+    }
   }
   const onKeyUp = (event: KeyboardEvent): void => {
     if (ptt().enabled && event.code === ptt().key) setPttPressed(false)
@@ -613,7 +631,7 @@ export function CallScreen(props: {
     window.addEventListener('blur', onBlur)
     window.addEventListener('focus', onFocus)
     const stopGlobalKey = window.tolki.ptt.onKey(({ pressed }) => setPttPressed(pressed))
-    // The tray's menu (PLAN #44): the same as the buttons and M / D.
+    // The tray's menu (PLAN #44): the same as the buttons and Ctrl+Shift+M / D.
     const stopTray = window.tolki.tray.onCommand(({ command }) => {
       untrack(() => {
         if (command === 'mute') toggleMic()
@@ -699,6 +717,11 @@ export function CallScreen(props: {
     }
   }
 
+  /** The microphone button's tooltip, with its key (#110). */
+  const micTip = (): string =>
+    ptt().enabled
+      ? `Говорить, пока нажата ${pushToTalkKeyLabel(ptt().key)}`
+      : `${muted() ? 'Включить микрофон' : 'Выключить микрофон'} · ${callKeyLabel('mic', mac)}`
   const screenButton = (): { label: string; text: string } => {
     if (myScreen()) return { label: 'Остановить показ экрана', text: 'Остановить' }
     if (askingToShare()) return { label: 'Ожидание ответа на запрос показа', text: 'Ожидание…' }
@@ -1055,93 +1078,122 @@ export function CallScreen(props: {
           </p>
         </Show>
         <div class="call-controls" role="toolbar" aria-label="Управление звонком">
-          <button
-            type="button"
-            class="call-control"
-            classList={{ 'call-control--off': ptt().enabled ? !transmitting() : muted() }}
-            aria-pressed={ptt().enabled ? undefined : muted()}
-            aria-label={
-              ptt().enabled
-                ? `Микрофон по клавише ${pushToTalkKeyLabel(ptt().key)}`
-                : muted()
-                  ? 'Включить микрофон'
-                  : 'Выключить микрофон'
-            }
-            disabled={!canSpeak() || ptt().enabled}
-            onClick={toggleMic}
-          >
-            <span class="call-control-icon">
-              {(ptt().enabled ? transmitting() : !muted()) ? <Mic /> : <MicOff />}
-            </span>
-            {ptt().enabled
-              ? transmitting()
-                ? 'Говорите'
-                : 'По клавише'
-              : muted()
-                ? 'Выкл.'
-                : 'Микрофон'}
-          </button>
-          <button
-            type="button"
-            class="call-control"
-            classList={{ 'call-control--off': deafened() }}
-            aria-pressed={deafened()}
-            aria-label={deafened() ? 'Включить звук' : 'Выключить звук'}
-            onClick={toggleSound}
-          >
-            <span class="call-control-icon">{deafened() ? <HeadphoneOff /> : <Headphones />}</span>
-            {deafened() ? 'Звук выкл.' : 'Звук'}
-          </button>
-          <button
-            type="button"
-            class="call-control"
-            classList={{ 'call-control--active': myScreen() !== null }}
-            aria-pressed={myScreen() !== null}
-            aria-label={screenButton().label}
-            disabled={askingToShare()}
-            onClick={() => {
-              if (myScreen()) stopScreen()
-              else if (someoneElseShares()) void askToShare()
-              else setPickerOpen(true)
-            }}
-          >
-            <span class="call-control-icon">
-              {myScreen() ? <ScreenShareOff /> : <ScreenShare />}
-            </span>
-            {screenButton().text}
-          </button>
-          <button
-            type="button"
-            class="call-control"
-            classList={{ 'call-control--active': chatOpen() }}
-            aria-pressed={chatOpen()}
-            aria-label={unread() > 0 ? `Чат, новых сообщений: ${unread()}` : 'Чат'}
-            onClick={() => {
-              setChatOpen((open) => !open)
-              setUnread(0)
-            }}
-          >
-            <span class="call-control-icon">
-              <MessageSquare />
-              <Show when={unread() > 0}>
-                <span class="call-control-badge" aria-hidden="true">
-                  {unread() > 99 ? '99+' : unread()}
+          <Tooltip text={micTip()}>
+            {(tip) => (
+              <button
+                aria-describedby={tip}
+                type="button"
+                class="call-control"
+                classList={{ 'call-control--off': ptt().enabled ? !transmitting() : muted() }}
+                aria-pressed={ptt().enabled ? undefined : muted()}
+                aria-label={
+                  ptt().enabled
+                    ? `Микрофон по клавише ${pushToTalkKeyLabel(ptt().key)}`
+                    : muted()
+                      ? 'Включить микрофон'
+                      : 'Выключить микрофон'
+                }
+                disabled={!canSpeak() || ptt().enabled}
+                onClick={toggleMic}
+              >
+                <span class="call-control-icon">
+                  {(ptt().enabled ? transmitting() : !muted()) ? <Mic /> : <MicOff />}
                 </span>
-              </Show>
-            </span>
-            Чат
-          </button>
-          <button
-            type="button"
-            class="call-control"
-            aria-haspopup="dialog"
-            onClick={() => setSettingsOpen(true)}
+                {ptt().enabled
+                  ? transmitting()
+                    ? 'Говорите'
+                    : 'По клавише'
+                  : muted()
+                    ? 'Выкл.'
+                    : 'Микрофон'}
+              </button>
+            )}
+          </Tooltip>
+          <Tooltip
+            text={`${deafened() ? 'Включить звук' : 'Выключить звук'} · ${callKeyLabel('sound', mac)}`}
           >
-            <span class="call-control-icon">
-              <Settings />
-            </span>
-            Настройки
-          </button>
+            {(tip) => (
+              <button
+                aria-describedby={tip}
+                type="button"
+                class="call-control"
+                classList={{ 'call-control--off': deafened() }}
+                aria-pressed={deafened()}
+                aria-label={deafened() ? 'Включить звук' : 'Выключить звук'}
+                onClick={toggleSound}
+              >
+                <span class="call-control-icon">
+                  {deafened() ? <HeadphoneOff /> : <Headphones />}
+                </span>
+                {deafened() ? 'Звук выкл.' : 'Звук'}
+              </button>
+            )}
+          </Tooltip>
+          <Tooltip text={screenButton().label}>
+            {(tip) => (
+              <button
+                aria-describedby={tip}
+                type="button"
+                class="call-control"
+                classList={{ 'call-control--active': myScreen() !== null }}
+                aria-pressed={myScreen() !== null}
+                aria-label={screenButton().label}
+                disabled={askingToShare()}
+                onClick={() => {
+                  if (myScreen()) stopScreen()
+                  else if (someoneElseShares()) void askToShare()
+                  else setPickerOpen(true)
+                }}
+              >
+                <span class="call-control-icon">
+                  {myScreen() ? <ScreenShareOff /> : <ScreenShare />}
+                </span>
+                {screenButton().text}
+              </button>
+            )}
+          </Tooltip>
+          <Tooltip text={'Чат'}>
+            {(tip) => (
+              <button
+                aria-describedby={tip}
+                type="button"
+                class="call-control"
+                classList={{ 'call-control--active': chatOpen() }}
+                aria-pressed={chatOpen()}
+                aria-label={unread() > 0 ? `Чат, новых сообщений: ${unread()}` : 'Чат'}
+                onClick={() => {
+                  setChatOpen((open) => !open)
+                  setUnread(0)
+                }}
+              >
+                <span class="call-control-icon">
+                  <MessageSquare />
+                  <Show when={unread() > 0}>
+                    <span class="call-control-badge" aria-hidden="true">
+                      {unread() > 99 ? '99+' : unread()}
+                    </span>
+                  </Show>
+                </span>
+                Чат
+              </button>
+            )}
+          </Tooltip>
+          <Tooltip text={'Настройки'}>
+            {(tip) => (
+              <button
+                aria-describedby={tip}
+                type="button"
+                class="call-control"
+                aria-haspopup="dialog"
+                onClick={() => setSettingsOpen(true)}
+              >
+                <span class="call-control-icon">
+                  <Settings />
+                </span>
+                Настройки
+              </button>
+            )}
+          </Tooltip>
         </div>
         <ScreenSourceDialog
           open={pickerOpen()}
@@ -1174,18 +1226,23 @@ export function CallScreen(props: {
           {...(props.microphone ? { access: props.microphone } : {})}
           {...(props.playTestSound ? { playTestSound: props.playTestSound } : {})}
         />
-        <p class="call-hotkeys">
-          <Show
-            when={ptt().enabled}
-            fallback={
-              <>
-                <kbd>M</kbd> — микрофон · <kbd>D</kbd> — звук
-              </>
-            }
-          >
-            <kbd>{pushToTalkKeyLabel(ptt().key)}</kbd> — говорить · <kbd>D</kbd> — звук
-          </Show>
-        </p>
+        <Show when={keysHint()}>
+          <p class="call-keys-hint rt-glass" role="status">
+            <span>
+              Клавиши звонка — <kbd>{callKeyLabel('shortcuts', mac)}</kbd>
+            </span>
+            <button type="button" class="call-keys-hint-close" onClick={() => setKeysHint(false)}>
+              Понятно
+            </button>
+          </p>
+        </Show>
+        <ShortcutsDialog
+          open={shortcutsOpen()}
+          onClose={() => setShortcutsOpen(false)}
+          mac={mac}
+          pushToTalkKey={ptt().enabled ? ptt().key : null}
+          globalHotkeys={hotkeyKeys()}
+        />
       </footer>
       <RemoteAudio
         voices={voices()}

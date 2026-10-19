@@ -10,17 +10,15 @@ import {
   untrack,
   type JSX,
 } from 'solid-js'
-import { APP_NAME } from '@shared/app'
 import type { InviteParseResult } from '@shared/invite'
 import type { RecentRoom } from '@shared/recent'
-import logo from './assets/logo/tolki-logo-white.png'
 import { CreateRoomScreen } from './create/CreateRoomScreen'
 import type { ErrorKind } from './errors/error-content'
 import { ErrorScreen } from './errors/ErrorScreen'
 import { RetryButton } from './errors/RetryButton'
 import { HomeScreen } from './home/HomeScreen'
 import { JoinScreen, type RecentContext } from './join/JoinScreen'
-import { Avatar, Button } from './ui'
+import { Button } from './ui'
 import './App.css'
 
 type JoinRoute = { screen: 'join'; result: InviteParseResult; recent?: RecentContext }
@@ -94,18 +92,6 @@ export function App(): JSX.Element {
 
   return (
     <div class="app">
-      <header class="app-header">
-        {/* The wordmark is a picture (Nunito Black); the interface stays on Onest. */}
-        <img class="app-logo" src={logo} alt={APP_NAME} width="76" height="28" />
-        <Show when={profileName()}>
-          {(name) => (
-            <span class="app-user">
-              <Avatar name={name()} size="sm" />
-              {name()}
-            </span>
-          )}
-        </Show>
-      </header>
       <Switch
         fallback={
           <HomeScreen

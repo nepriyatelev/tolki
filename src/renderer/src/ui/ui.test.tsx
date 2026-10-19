@@ -8,6 +8,7 @@ import { Avatar, avatarColorIndex, avatarInitial } from './Avatar'
 import { Button, IconButton } from './Button'
 import { Card } from './Card'
 import { Checkbox } from './Checkbox'
+import { Tooltip, TOOLTIP_DELAY_MS } from './Tooltip'
 import { Chip } from './Chip'
 import { Input } from './Input'
 import { RadioPillGroup } from './RadioPillGroup'
@@ -240,5 +241,45 @@ describe('Avatar', () => {
   it('handles empty names and emoji', () => {
     expect(avatarInitial('   ')).toBe('?')
     expect(avatarInitial('🐿️ Толки')).toBe('🐿')
+  })
+})
+
+describe('Tooltip (#110)', () => {
+  it('shows after a short hover, describes the control, and hides on leave', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const user = userEvent.setup({ advanceTimers: (ms) => vi.advanceTimersByTime(ms) })
+      render(() => (
+        <Tooltip text="Выключить микрофон · Ctrl+Shift+M">
+          {(id) => (
+            <button type="button" aria-describedby={id}>
+              Микрофон
+            </button>
+          )}
+        </Tooltip>
+      ))
+      const button = screen.getByRole('button', { name: 'Микрофон' })
+      await user.hover(button)
+      expect(screen.queryByRole('tooltip')).toBeNull()
+      await vi.advanceTimersByTimeAsync(TOOLTIP_DELAY_MS)
+      const tip = screen.getByRole('tooltip')
+      expect(tip.textContent).toBe('Выключить микрофон · Ctrl+Shift+M')
+      expect(button.getAttribute('aria-describedby')).toBe(tip.id)
+      await user.unhover(button)
+      expect(screen.queryByRole('tooltip')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows at once on keyboard focus and hides on Esc', async () => {
+    const user = userEvent.setup()
+    render(() => (
+      <Tooltip text="Звук · Ctrl+Shift+D">{() => <button type="button">Звук</button>}</Tooltip>
+    ))
+    await user.tab()
+    expect(await screen.findByRole('tooltip')).toBeTruthy()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('tooltip')).toBeNull()
   })
 })

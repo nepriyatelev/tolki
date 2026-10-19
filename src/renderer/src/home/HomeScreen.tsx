@@ -4,6 +4,8 @@ import Plus from 'lucide-solid/icons/plus'
 import { createSignal, type JSX } from 'solid-js'
 import { inviteErrorMessage, parseInvite, type InviteParseResult } from '@shared/invite'
 import type { RecentRoom } from '@shared/recent'
+import { APP_NAME } from '@shared/app'
+import logo from '../assets/logo/tolki-logo-white.png'
 import { Button, Card, Input } from '../ui'
 import { NetworkStatusBar } from './NetworkStatusBar'
 import { RecentRooms } from './RecentRooms'
@@ -39,7 +41,10 @@ export function HomeScreen(props: HomeScreenProps): JSX.Element {
   return (
     <>
       <main class="home">
-        <h1 class="visually-hidden">Tolki</h1>
+        {/* No app bar (#110): the wordmark only here, the name where it is typed. */}
+        <h1 class="home-logo">
+          <img src={logo} alt={APP_NAME} width="76" height="28" />
+        </h1>
         <UpdateBanner />
         <div class="home-cards">
           <Card as="section" aria-labelledby="create-title">

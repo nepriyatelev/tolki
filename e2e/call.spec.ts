@@ -159,8 +159,8 @@ test.describe.serial('a call between two app instances through the organizer', (
     await expect.poll(() => heardLevel(misha.page), { timeout: 15_000 }).toBeGreaterThan(0.01)
   })
 
-  test('M turns the microphone off: the other one sees it and hears silence (#22)', async () => {
-    await katya.page.keyboard.press('m')
+  test('Ctrl+Shift+M (⌘⇧M) turns the microphone off: the other one sees it and hears silence (#22, #110)', async () => {
+    await katya.page.keyboard.press('ControlOrMeta+Shift+KeyM')
     await expect(katya.page.getByRole('button', { name: 'Включить микрофон' })).toBeVisible()
     await expect(
       misha.page.getByRole('listitem', { name: 'Катя' }).getByRole('img', {
@@ -169,15 +169,15 @@ test.describe.serial('a call between two app instances through the organizer', (
     ).toBeVisible()
     await expect.poll(() => heardLevel(misha.page), { timeout: 15_000 }).toBeLessThan(0.001)
     // Back as it was for the next test.
-    await katya.page.keyboard.press('m')
+    await katya.page.keyboard.press('ControlOrMeta+Shift+KeyM')
     await expect(katya.page.getByRole('button', { name: 'Выключить микрофон' })).toBeVisible()
   })
 
-  test('D turns the sound off and the microphone with it (#22)', async () => {
-    await misha.page.keyboard.press('d')
+  test('Ctrl+Shift+D (⌘⇧D) turns the sound off and the microphone with it (#22, #110)', async () => {
+    await misha.page.keyboard.press('ControlOrMeta+Shift+KeyD')
     await expect(misha.page.getByRole('button', { name: 'Включить звук' })).toBeVisible()
     await expect(misha.page.getByRole('button', { name: 'Включить микрофон' })).toBeVisible()
-    await misha.page.keyboard.press('d')
+    await misha.page.keyboard.press('ControlOrMeta+Shift+KeyD')
     await expect(misha.page.getByRole('button', { name: 'Выключить звук' })).toBeVisible()
   })
 

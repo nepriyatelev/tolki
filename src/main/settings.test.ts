@@ -40,6 +40,7 @@ describe('SettingsStore', () => {
         tray: { closeToTray: true, hintShown: false },
         globalHotkeys: { mute: '', deafen: '' },
         screen: { mode: null },
+        hints: { keys: false },
       },
     ])
   })
@@ -56,6 +57,7 @@ describe('SettingsStore', () => {
       tray: { closeToTray: true, hintShown: false },
       globalHotkeys: { mute: '', deafen: '' },
       screen: { mode: null },
+      hints: { keys: false },
     })
   })
 
