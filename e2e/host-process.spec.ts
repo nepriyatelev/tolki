@@ -126,9 +126,11 @@ test('the certificate is created once per installation and kept in userData', as
 
   const second = await launchApp({ userDataDir: first.userDataDir })
   try {
+    // A fresh port: the first app's host may still be letting go of its port (seen on CI).
+    // The certificate is what this test is about.
     const state = await second.page.evaluate(
       (p) => window.tolki.host.start({ port: p, portMapping: false }),
-      port,
+      await freePort(),
     )
     expect(state).toMatchObject({ status: 'running', fingerprint })
   } finally {
