@@ -585,8 +585,9 @@ describe('volume of each participant: the «⋯» menu (#23, #77)', () => {
     const { user } = setup()
     await screen.findByText('Звук подключён')
     await user.click(screen.getByRole('button', { name: 'Меню: Алексей' }))
-    await user.click(screen.getByRole('button', { name: 'Настройки звука' }))
-    expect(screen.getByRole('dialog', { name: 'Настройки звука' })).toBeTruthy()
+    const menu = screen.getByRole('dialog', { name: 'Мой звук' })
+    await user.click(within(menu).getByRole('button', { name: 'Настройки' }))
+    expect(screen.getByRole('dialog', { name: 'Настройки' })).toBeTruthy()
   })
 
   it('counts the people in the header', () => {
@@ -604,12 +605,12 @@ describe('volume of each participant: the «⋯» menu (#23, #77)', () => {
   })
 })
 
-describe('«Настройки звука» during a call (#24)', () => {
+describe('«Настройки» during a call (#24)', () => {
   async function openSettings() {
     const ctx = setup()
     await screen.findByText('Звук подключён')
     await ctx.user.click(screen.getByRole('button', { name: 'Настройки' }))
-    const dialog = screen.getByRole('dialog', { name: 'Настройки звука' })
+    const dialog = screen.getByRole('dialog', { name: 'Настройки' })
     return { ...ctx, dialog }
   }
 
@@ -1190,11 +1191,11 @@ describe('push-to-talk (#39)', () => {
     expect(ctx.setTransmitting).toHaveBeenLastCalledWith(false)
   })
 
-  it('turns on from «Настройки звука», asking macOS for its permission, and picks a key', async () => {
+  it('turns on from «Настройки», asking macOS for its permission, and picks a key', async () => {
     const ctx = setup({ pushToTalkMode: 'needs-permission' })
     await screen.findByText('Звук подключён')
     await ctx.user.click(screen.getByRole('button', { name: 'Настройки' }))
-    const dialog = screen.getByRole('dialog', { name: 'Настройки звука' })
+    const dialog = screen.getByRole('dialog', { name: 'Настройки' })
 
     await ctx.user.click(
       within(dialog).getByRole('checkbox', { name: 'Говорить, только пока нажата клавиша' }),
@@ -1267,11 +1268,11 @@ describe('global hotkeys (#40)', () => {
     })
   })
 
-  it('sets a combination in «Настройки звука», steps the others aside meanwhile, and clears it', async () => {
+  it('sets a combination in «Настройки», steps the others aside meanwhile, and clears it', async () => {
     const ctx = setup({ globalHotkeys: { mute: '', deafen: 'Alt+F9' } })
     await screen.findByText('Звук подключён')
     await ctx.user.click(screen.getByRole('button', { name: 'Настройки' }))
-    const dialog = screen.getByRole('dialog', { name: 'Настройки звука' })
+    const dialog = screen.getByRole('dialog', { name: 'Настройки' })
 
     await ctx.user.click(within(dialog).getByRole('button', { name: 'Микрофон: не задано' }))
     expect(ctx.api.hotkeys.configure).toHaveBeenLastCalledWith(
@@ -1388,7 +1389,7 @@ describe('cues when people come and go (#43)', () => {
     await ctx.user.keyboard('{Control>}{Shift>}d{/Shift}{/Control}')
 
     await ctx.user.click(screen.getByRole('button', { name: 'Настройки' }))
-    const dialog = screen.getByRole('dialog', { name: 'Настройки звука' })
+    const dialog = screen.getByRole('dialog', { name: 'Настройки' })
     await ctx.user.click(within(dialog).getByRole('checkbox', { name: 'Звуки входа и выхода' }))
     expect(ctx.api.settings.update).toHaveBeenLastCalledWith({ sounds: { enabled: false } })
     ctx.api.room.emitEvent({ type: 'peer-left', peerId: 'katya' })
