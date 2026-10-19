@@ -431,6 +431,16 @@ describe('microphone and sound (#22)', () => {
     expect(screen.queryByText(/— микрофон/)).toBeNull()
   })
 
+  it('tells the organizer that leaving closes the room (#110)', async () => {
+    const { user } = setup({ organizer: true })
+    await screen.findByText('Звук подключён')
+
+    await user.hover(screen.getByRole('button', { name: 'Выйти' }))
+    expect((await screen.findByRole('tooltip', {}, { timeout: 2000 })).textContent).toBe(
+      'Выйти и закрыть комнату',
+    )
+  })
+
   it('says once, in the first call, where the keys are (#110)', async () => {
     const { api, user } = setup({ keysHint: true })
     expect(await screen.findByText(/Клавиши звонка —/)).toBeTruthy()

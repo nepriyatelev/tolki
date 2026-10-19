@@ -1303,7 +1303,8 @@ export function CallScreen(props: {
               </button>
             )}
           </Tooltip>
-          <Tooltip text="Выйти из комнаты">
+          {/* The room lives on the organizer's computer: their leaving closes it for all. */}
+          <Tooltip text={isOrganizer() ? 'Выйти и закрыть комнату' : 'Выйти из комнаты'}>
             {(tip) => (
               <button
                 aria-describedby={tip}
