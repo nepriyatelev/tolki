@@ -184,9 +184,14 @@ test('others see the shared screen at a layer that fits, and nothing while hidde
       await misha.page.screenshot({ path: 'test-results/screen-stage.png' })
 
       // Misha sees it, big: the ≈1080p stream — once Katya's browser encodes it (a CI runner
-      // encoding in software may lag). Its height is not checked: a runner without a hardware
-      // encoder may scale it down under load (WebRTC's own adaptation), it was 256 once.
+      // encoding in software may lag). A runner's display may be small (the macOS one gives a
+      // 1280×648 window whatever is asked, a stage ≈250 px tall that rightly asks for ≈360p),
+      // so the stage itself is made big enough for ≈1080p (HIGH_LAYER_MIN_HEIGHT, 540 px).
       await expect(misha.page.getByRole('region', { name: 'Экран: Катя' })).toBeVisible()
+      await misha.page.evaluate(() => {
+        const video = document.querySelector<HTMLVideoElement>('.screen-stage-video')
+        if (video) video.style.height = `${Math.ceil(700 / window.devicePixelRatio)}px`
+      })
       const highLayerOn = await expect
         .poll(
           async () => {
