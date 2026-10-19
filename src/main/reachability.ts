@@ -1,7 +1,10 @@
 import { createServer, type Server } from 'node:net'
 
-/** Whether the port answers from the internet (#128). */
-export type Reachability = 'reachable' | 'closed' | 'unknown'
+/**
+ * Whether the port answers from the internet (#128). `busy`: another program holds the port,
+ * so there is nothing of ours to knock on.
+ */
+export type Reachability = 'reachable' | 'closed' | 'unknown' | 'busy'
 
 /** A public port checker (owner's choice, #128): it learns only our address and the port. */
 export const PORT_CHECK_API = 'https://ifconfig.co'
@@ -15,6 +18,8 @@ export interface ReachabilityOptions {
   timeoutMs?: number
   /** Tests pass their own listener. */
   listen?: (port: number) => Promise<Server>
+  /** Why the check went the way it did, for the logs; never this computer's address. */
+  log?: (line: string) => void
 }
 
 /**
@@ -23,19 +28,45 @@ export interface ReachabilityOptions {
  * Never throws: any failure is `unknown`.
  */
 export async function checkReachability(options: ReachabilityOptions): Promise<Reachability> {
+  const log = options.log ?? (() => undefined)
   let server: Server | null = null
-  try {
-    if (!options.roomListening) {
+  if (!options.roomListening) {
+    try {
       server = await (options.listen ?? listenOn)(options.port)
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code ?? 'error'
+      log(`port check: cannot listen on port ${options.port} (${code})`)
+      return code === 'EADDRINUSE' ? 'busy' : 'unknown'
     }
+  }
+  try {
     const response = await options.fetch(`${options.api ?? PORT_CHECK_API}/port/${options.port}`, {
       headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
     })
-    if (!response.ok) return 'unknown'
+    if (!response.ok) {
+      log(`port check: the service answered HTTP ${response.status}`)
+      return 'unknown'
+    }
     const { reachable } = (await response.json()) as { reachable?: unknown }
-    return reachable === true ? 'reachable' : reachable === false ? 'closed' : 'unknown'
-  } catch {
+    const result: Reachability =
+      reachable === true ? 'reachable' : reachable === false ? 'closed' : 'unknown'
+    log(
+      result === 'unknown'
+        ? 'port check: the service answered without «reachable»'
+        : `port check: port ${options.port} ${result} from outside`,
+    )
+    return result
+  } catch (error) {
+    // The service's answer carries our address; its errors do not. Chromium's own code
+    // (net::ERR_NAME_NOT_RESOLVED and the like) says the most.
+    const name = error instanceof Error ? error.name : 'error'
+    const code = error instanceof Error ? /net::ERR_[A-Z_]+/.exec(error.message)?.[0] : undefined
+    log(
+      name === 'TimeoutError' || name === 'AbortError'
+        ? 'port check: the service did not answer in time'
+        : `port check: the service is unreachable (${code ?? name})`,
+    )
     return 'unknown'
   } finally {
     server?.close()

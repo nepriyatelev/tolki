@@ -19,7 +19,9 @@ export function networkCheckLine(result: NetworkCheckResult): string {
     : `cannot host: ${v.problem}`
   return (
     `network check: port ${result.port}, mapping ${mapping}, ` +
-    `local ${result.localAddress ?? 'unknown'}, IPv6 ${result.ipv6Address ?? 'none'} → ${verdict}`
+    `local ${result.localAddress ?? 'unknown'}, IPv6 ${result.ipv6Address ?? 'none'}, ` +
+    `router ${result.gateway ?? 'unknown'}, seen from outside ${result.stunAddress ?? 'unknown'}, ` +
+    `port check ${result.reachability} → ${verdict}`
   )
 }
 

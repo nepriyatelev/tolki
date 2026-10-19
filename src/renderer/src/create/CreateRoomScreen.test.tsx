@@ -125,6 +125,19 @@ describe('CreateRoomScreen', () => {
     expect(api.network.openRouter).toHaveBeenCalledTimes(2)
   })
 
+  it('says the port is held by another program instead of «could not check» (#128)', async () => {
+    const busy: NetworkCheckResult = {
+      ...PUBLIC_IPV4_CHECK,
+      portMapping: { status: 'failed', reason: 'unsupported', detail: '' },
+      reachability: 'busy',
+      verdict: { canHost: false, problem: 'unsupported' },
+    }
+    show({ check: () => Promise.resolve(busy) })
+    expect(
+      await screen.findByText('Порт 47000 занят другой программой — проверить снаружи нельзя'),
+    ).toBeTruthy()
+  })
+
   it('explains when there is no link to make', async () => {
     const cannot: NetworkCheckResult = {
       ...PUBLIC_IPV4_CHECK,

@@ -38,9 +38,9 @@ function advice(problem: HostingProblem, port: number): string {
     case 'vpn':
       return 'Выключить VPN на время созвона или добавить Tolki в исключения VPN (split tunneling)'
     case 'unsupported':
-      return `Поможет UPnP в настройках роутера или проброс порта ${port} вручную`
+      return `Поможет UPnP в настройках роутера или проброс порта ${port} вручную — если у провайдера не общий адрес (CGNAT)`
     case 'refused':
-      return `Поможет проброс порта ${port} вручную или другой организатор`
+      return `Поможет проброс порта ${port} вручную — если у провайдера не общий адрес (CGNAT) — или другой организатор`
     case 'bad-address':
     case 'mapping-disabled':
       return `Порт ${port} должен быть проброшен на роутере`
