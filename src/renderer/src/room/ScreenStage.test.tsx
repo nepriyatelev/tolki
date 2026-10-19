@@ -1,8 +1,9 @@
-import { render, screen } from '@solidjs/testing-library'
+import { fireEvent, render, screen } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ScreenSample } from './call'
 import {
+  CHROME_HIDE_MS,
   HIGH_LAYER_MIN_HEIGHT,
   layerForHeight,
   ScreenStage,
@@ -83,5 +84,32 @@ describe('ScreenStage', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'На весь экран' }))
 
     expect(requestFullscreen).toHaveBeenCalledOnce()
+  })
+
+  it('goes full screen on a double click on the picture', () => {
+    const requestFullscreen = vi.fn(() => Promise.resolve())
+    Object.assign(HTMLElement.prototype, { requestFullscreen })
+    const { view } = show()
+
+    const video = view.container.querySelector('video')
+    if (!video) throw new Error('no video')
+    fireEvent.dblClick(video)
+
+    expect(requestFullscreen).toHaveBeenCalledOnce()
+  })
+
+  it('hides the chips and the cursor when the mouse rests, and shows them on a move', () => {
+    vi.useFakeTimers()
+    show()
+    const stage = screen.getByRole('region', { name: 'Экран: Дима' })
+    expect(stage.classList.contains('screen-stage--idle')).toBe(false)
+
+    vi.advanceTimersByTime(CHROME_HIDE_MS)
+    expect(stage.classList.contains('screen-stage--idle')).toBe(true)
+
+    fireEvent.pointerMove(stage)
+    expect(stage.classList.contains('screen-stage--idle')).toBe(false)
+    vi.advanceTimersByTime(CHROME_HIDE_MS - 1)
+    expect(stage.classList.contains('screen-stage--idle')).toBe(false)
   })
 })

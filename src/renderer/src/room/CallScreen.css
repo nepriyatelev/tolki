@@ -88,20 +88,24 @@
   flex: 1;
 }
 
-/* A shared screen fills the middle; people go to a strip under it. */
+/* A shared screen takes the whole height; people go to a strip beside it (#110). */
 .call-stage {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 14px;
   min-height: 0;
 }
 
 .call-strip {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
+  width: 200px;
+  min-height: 0;
   margin: 0;
   padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   list-style: none;
 }
 
@@ -109,6 +113,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  flex: none;
   height: 40px;
   padding: 0 14px 0 6px;
   border: 1px solid var(--color-border);
@@ -123,6 +128,7 @@
 }
 
 .call-strip-name {
+  min-width: 0;
   max-width: 16ch;
   overflow: hidden;
   text-overflow: ellipsis;
