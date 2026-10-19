@@ -27,13 +27,13 @@ export function trayMenuTemplate(
   const call: MenuItemConstructorOptions[] = state.inCall
     ? [
         { type: 'separator' },
-        { label: `В звонке: ${state.roomName}`, enabled: false },
+        { label: `В комнате: ${state.roomName}`, enabled: false },
         {
           label: state.muted ? 'Включить микрофон' : 'Выключить микрофон',
           click: actions.toggleMute,
         },
         { label: state.deafened ? 'Включить звук' : 'Выключить звук', click: actions.toggleDeafen },
-        { label: 'Выйти из звонка', click: actions.leaveCall },
+        { label: 'Выйти из комнаты', click: actions.leaveCall },
       ]
     : []
   return [
@@ -52,7 +52,7 @@ export function trayMenuTemplate(
   ]
 }
 
-/** «Tolki — в звонке: Кино», for the tray icon's tooltip. */
+/** «Tolki — в комнате: Кино», for the tray icon's tooltip. */
 export function trayTooltip(state: Pick<TrayState, 'inCall' | 'roomName'>): string {
-  return state.inCall ? `Tolki — в звонке: ${state.roomName}` : 'Tolki'
+  return state.inCall ? `Tolki — в комнате: ${state.roomName}` : 'Tolki'
 }
