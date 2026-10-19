@@ -56,7 +56,7 @@ jobs:
           TMPDIR: ${{ github.workspace }}/test-results/tmp
         run: |
           mkdir -p "$TMPDIR"
-          pnpm exec playwright test e2e/zz-screen-diag.spec.ts e2e/screen-share.spec.ts:23 \
+          pnpm exec playwright test e2e/zz-screen-diag.spec.ts \
             --trace retain-on-failure --timeout 60000
 
       - if: always()
