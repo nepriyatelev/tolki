@@ -50,6 +50,27 @@ test('the user picks a screen and sees what they are showing', async () => {
         hasScreen = sources.picker === 'app' && sources.sources.some((s) => s.kind === 'screen')
         if (!hasScreen) await page.waitForTimeout(500)
       }
+      // #123: what the app sees before capturing, on the diagnostics workflow only.
+      if (process.env['E2E_SCREEN_DIAG']) {
+        const permission = await client.app.evaluate(({ systemPreferences }) =>
+          systemPreferences.getMediaAccessStatus('screen'),
+        )
+        const listed = await page.evaluate(() => window.tolki.screen.listSources())
+        console.log(
+          '[diag] screen permission:',
+          permission,
+          'sources:',
+          JSON.stringify(
+            listed.picker === 'app'
+              ? listed.sources.map((x) => ({
+                  kind: x.kind,
+                  name: x.name,
+                  thumb: x.thumbnail.length,
+                }))
+              : listed,
+          ),
+        )
+      }
       // Linux CI has a screen (xvfb) and must run this; a developer's Mac may lack the permission.
       const mustRun = Boolean(process.env['CI']) && process.platform === 'linux'
       if (mustRun) expect(hasScreen).toBe(true)
@@ -72,6 +93,25 @@ test('the user picks a screen and sees what they are showing', async () => {
       }
       await firstSource.click()
       await dialog.getByRole('button', { name: 'Показать' }).click()
+      const shareStarted = Date.now()
+      if (process.env['E2E_SCREEN_DIAG']) {
+        // Every few seconds: is the capture there yet, and what does the page say.
+        void (async () => {
+          for (let i = 0; i < 10; i++) {
+            await page.waitForTimeout(3000).catch(() => undefined)
+            const state = await page
+              .evaluate(() => ({
+                preview: document.querySelector('video')?.videoWidth ?? null,
+                note: document.querySelector('.call-sound--failed')?.textContent ?? null,
+              }))
+              .catch(() => null)
+            console.log(
+              `[diag] ${Date.now() - shareStarted} ms after «Показать»:`,
+              JSON.stringify(state),
+            )
+          }
+        })()
+      }
 
       const preview = page.getByRole('region', { name: 'Мой экран' }).locator('video')
       await expect(preview).toBeVisible()
