@@ -20,9 +20,13 @@ export function layerForHeight(cssHeight: number, pixelRatio: number): ScreenLay
 /** How often the numbers in the corner refresh. */
 export const STATS_INTERVAL_MS = 1000
 
+/** Without a mouse move this long, the chips over the screen and the cursor hide (#110). */
+export const CHROME_HIDE_MS = 3000
+
 /**
- * The shared screen, big (mockup 5, PLAN #30): who shares, «1080p · 30 к/с · 2,8 Мбит/с», full
- * screen. Someone else's screen also asks for the layer that fits its size and pauses while
+ * The shared screen, big (mockup 5, PLAN #30): who shares, «1080p · 30 к/с · 2,8 Мбит/с» on
+ * hover, full screen by the button or a double click. The chips and the cursor hide when the mouse
+ * rests (#110). Someone else's screen also asks for the layer that fits its size and pauses while
  * nobody sees it (window hidden, scrolled away, stage closed — PLAN #28).
  */
 export function ScreenStage(props: {
@@ -43,6 +47,13 @@ export function ScreenStage(props: {
   let inView = true
   const [stats, setStats] = createSignal<string | null>(null)
   const [fullscreen, setFullscreen] = createSignal(false)
+  const [idle, setIdle] = createSignal(false)
+  let idleTimer: ReturnType<typeof setTimeout> | undefined
+  const wake = (): void => {
+    setIdle(false)
+    clearTimeout(idleTimer)
+    idleTimer = setTimeout(() => setIdle(true), CHROME_HIDE_MS)
+  }
 
   // Kept here, not read from props: the stage may close (and props go stale) before cleanup.
   // The effect below fills them in right away and keeps them current.
@@ -115,6 +126,11 @@ export function ScreenStage(props: {
     onCleanup(() => {
       clearInterval(timer)
     })
+
+    wake()
+    onCleanup(() => {
+      clearTimeout(idleTimer)
+    })
   })
 
   const toggleFullscreen = (): void => {
@@ -128,7 +144,15 @@ export function ScreenStage(props: {
         stage = element
       }}
       class="screen-stage"
+      classList={{ 'screen-stage--idle': idle() }}
       aria-label={props.title}
+      onPointerMove={wake}
+      onPointerDown={wake}
+      onKeyDown={wake}
+      onDblClick={(event) => {
+        // The chips have their own clicks; a double click on the picture is for full screen.
+        if (event.target === video) toggleFullscreen()
+      }}
     >
       <video
         ref={(element) => {
@@ -139,16 +163,18 @@ export function ScreenStage(props: {
         muted
         playsinline
       />
-      <span class="screen-stage-chip screen-stage-who">
+      <span class="screen-stage-chip screen-stage-who rt-glass rt-glass--sm">
         <Avatar name={props.name} size="xs" />
         {props.title}
       </span>
       <div class="screen-stage-corner">
         <Show when={stats()}>
-          {(text) => <span class="screen-stage-chip screen-stage-stats">{text()}</span>}
+          {(text) => (
+            <span class="screen-stage-chip screen-stage-stats rt-glass rt-glass--sm">{text()}</span>
+          )}
         </Show>
         <IconButton
-          class="screen-stage-fullscreen"
+          class="screen-stage-fullscreen rt-glass rt-glass--sm"
           label={fullscreen() ? 'Выйти из полноэкранного режима' : 'На весь экран'}
           icon={fullscreen() ? <Minimize /> : <Maximize />}
           pressed={fullscreen()}

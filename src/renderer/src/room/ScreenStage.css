@@ -27,9 +27,7 @@
   height: 32px;
   padding: 0 var(--space-3);
   border-radius: var(--radius-sm);
-  background: rgb(26 29 33 / 92%);
   font-size: var(--text-md);
-  font-weight: 500;
 }
 
 .screen-stage-who {
@@ -57,7 +55,35 @@
 }
 
 .screen-stage-fullscreen.rt-icon-button {
-  border-color: transparent;
-  background: rgb(26 29 33 / 92%);
   color: var(--color-text);
+}
+
+/* The chips over the picture: shown while the mouse moves, gone with the cursor when it rests,
+   kept for the keyboard (#110). The numbers only while the mouse is over the screen. */
+.screen-stage-who,
+.screen-stage-corner,
+.screen-stage-stats {
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+
+.screen-stage-stats {
+  opacity: 0;
+}
+
+.screen-stage:hover .screen-stage-stats,
+.screen-stage:focus-within .screen-stage-stats {
+  opacity: 1;
+}
+
+.screen-stage--idle:not(:focus-within) {
+  cursor: none;
+}
+
+.screen-stage--idle:not(:focus-within) :is(.screen-stage-who, .screen-stage-corner) {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.screen-stage--idle:not(:focus-within) .screen-stage-stats {
+  opacity: 0;
 }
