@@ -110,7 +110,7 @@ export function CallScreen(props: {
   onLeft: () => void
   /** Tests replace the real call (mediasoup needs WebRTC). */
   startCall?: typeof startRealCall
-  /** Tests replace devices and the test sound in «Настройки звука». */
+  /** Tests replace devices and the test sound in «Настройки». */
   microphone?: MicrophoneAccess
   playTestSound?: (outputDeviceId: string) => Promise<void>
   /** Tests replace screen capture. */
@@ -565,7 +565,7 @@ export function CallScreen(props: {
     mute: 'none',
     deafen: 'none',
   })
-  /** While a combination is being typed in «Настройки звука», nothing is registered. */
+  /** While a combination is being typed in «Настройки», nothing is registered. */
   let capturingHotkey = false
   const configureHotkeys = (): void => {
     void window.tolki.hotkeys

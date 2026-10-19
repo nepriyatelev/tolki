@@ -34,9 +34,9 @@ test('push-to-talk: heard only while the key is held', async () => {
       await expect(misha.page.locator('audio[data-peer-id]')).toHaveCount(1, { timeout: 15_000 })
       await expect.poll(() => heardLevel(misha.page), { timeout: 15_000 }).toBeGreaterThan(0.01)
 
-      // Katya turns it on in «Настройки звука» and picks V.
+      // Katya turns it on in «Настройки» and picks V.
       await katya.page.getByRole('button', { name: 'Настройки' }).click()
-      const dialog = katya.page.getByRole('dialog', { name: 'Настройки звука' })
+      const dialog = katya.page.getByRole('dialog', { name: 'Настройки' })
       await dialog.getByText('Говорить, только пока нажата клавиша').click()
       await expect(dialog.getByText('Работает, только когда окно Tolki активно.')).toBeVisible()
       await dialog.getByRole('button', { name: 'Клавиша для разговора: Ё (`)' }).click()
