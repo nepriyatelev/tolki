@@ -16,16 +16,13 @@
   }
 }
 
-.app-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-8);
-  border-bottom: 1px solid var(--color-border);
+/* The wordmark (Nunito Black, a picture), the interface stays on Onest. */
+.home-logo {
+  margin-bottom: var(--space-8);
+  line-height: 0;
 }
 
-.app-logo {
-  display: block;
+.home-logo img {
   height: 28px;
   width: auto;
 }
@@ -96,16 +93,4 @@
 .home-link-form > .rt-button {
   margin-top: calc(var(--text-md) * 1.45 + var(--space-2));
   min-height: var(--control-height-lg);
-}
-
-.app-user {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-left: auto;
-  padding: var(--space-1) var(--space-4) var(--space-1) var(--space-1);
-  border: 1px solid var(--color-border-control);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  font-size: var(--text-base);
 }

@@ -108,6 +108,7 @@ function setup(
     permissions?: Partial<Record<PermissionKind, PermissionState>>
     screenMode?: ScreenMode
     roomScreenMode?: ScreenMode
+    keysHint?: boolean
     pushToTalk?: { enabled: boolean; key: string }
     pushToTalkMode?: PushToTalkMode
     globalHotkeys?: { mute: string; deafen: string }
@@ -125,6 +126,7 @@ function setup(
     ...(options.takenHotkeys ? { takenHotkeys: options.takenHotkeys } : {}),
     ...(options.permissions ? { permissions: options.permissions } : {}),
     ...(options.screenMode ? { screenMode: options.screenMode } : {}),
+    ...(options.keysHint ? { keysHint: true } : {}),
   })
   const close = vi.fn()
   const setMuted = vi.fn<(muted: boolean) => Promise<void>>(() => Promise.resolve())
@@ -370,30 +372,56 @@ describe('microphone and sound (#22)', () => {
     expect(screen.getByRole('button', { name: 'Выключить звук' })).toBeTruthy()
   })
 
-  it('answers the M and D keys, also on the Russian layout, but not while typing', async () => {
+  it('answers Ctrl+Shift+M and Ctrl+Shift+D (#110), also on the Russian layout and while typing', async () => {
     const { setMuted, user } = setup()
     await screen.findByText('Звук подключён')
 
+    // A single letter does nothing any more: too easy to press by accident.
     await user.keyboard('m')
+    expect(setMuted).not.toHaveBeenCalled()
+    await user.keyboard('{Control>}{Shift>}m{/Shift}{/Control}')
     expect(setMuted).toHaveBeenLastCalledWith(true)
-    // The Russian layout: the same key types «ь».
-    fireEvent.keyDown(window, { key: 'ь', code: 'KeyM' })
+    // The Russian layout: the same key types «Ь».
+    fireEvent.keyDown(window, { key: 'Ь', code: 'KeyM', ctrlKey: true, shiftKey: true })
     expect(setMuted).toHaveBeenLastCalledWith(false)
-    await user.keyboard('d')
+    await user.keyboard('{Control>}{Shift>}d{/Shift}{/Control}')
     expect(sound().getAttribute('aria-pressed')).toBe('true')
 
+    // With a modifier they work while typing too (the chat, as in Discord).
     const input = document.createElement('input')
     document.body.append(input)
     input.focus()
     await user.keyboard('d')
     expect(sound().getAttribute('aria-pressed')).toBe('true')
-    input.remove()
-
-    // A focused volume slider does not swallow the hotkeys.
-    await user.click(screen.getByRole('button', { name: 'Меню: Дима' }))
-    screen.getByRole('slider', { name: 'Громкость: Дима' }).focus()
-    await user.keyboard('d')
+    await user.keyboard('{Control>}{Shift>}d{/Shift}{/Control}')
     expect(sound().getAttribute('aria-pressed')).toBe('false')
+    input.remove()
+  })
+
+  it('lists the keys by Ctrl+/ and puts them in the buttons’ tooltips (#110)', async () => {
+    const { user } = setup()
+    await screen.findByText('Звук подключён')
+    fireEvent.keyDown(window, { key: '/', code: 'Slash', ctrlKey: true })
+    const list = screen.getByRole('dialog', { name: 'Клавиши' })
+    expect(within(list).getByText('Ctrl+Shift+M')).toBeTruthy()
+    expect(within(list).getByText('Ctrl+Shift+D')).toBeTruthy()
+    // jsdom has no Esc for <dialog>: the button does the same.
+    await user.click(within(list).getByRole('button', { name: 'Закрыть' }))
+    expect(screen.queryByRole('dialog', { name: 'Клавиши' })).toBeNull()
+
+    await user.hover(screen.getByRole('button', { name: 'Выключить микрофон' }))
+    expect((await screen.findByRole('tooltip', {}, { timeout: 2000 })).textContent).toBe(
+      'Выключить микрофон · Ctrl+Shift+M',
+    )
+    expect(screen.queryByText(/— микрофон/)).toBeNull()
+  })
+
+  it('says once, in the first call, where the keys are (#110)', async () => {
+    const { api, user } = setup({ keysHint: true })
+    expect(await screen.findByText(/Клавиши звонка —/)).toBeTruthy()
+    expect(api.settings.update).toHaveBeenCalledWith({ hints: { keys: true } })
+    await user.click(screen.getByRole('button', { name: 'Понятно' }))
+    expect(screen.queryByText(/Клавиши звонка —/)).toBeNull()
   })
 
   it('cannot unmute without a microphone', async () => {
@@ -536,12 +564,12 @@ describe('«Настройки звука» during a call (#24)', () => {
   it('closes, and hotkeys stay quiet while it is open', async () => {
     const { setMuted, dialog, user } = await openSettings()
 
-    await user.keyboard('m')
+    await user.keyboard('{Control>}{Shift>}m{/Shift}{/Control}')
     expect(setMuted).not.toHaveBeenCalled()
 
     await user.click(within(dialog).getByRole('button', { name: 'Закрыть' }))
     expect(screen.queryByRole('dialog')).toBeNull()
-    await user.keyboard('m')
+    await user.keyboard('{Control>}{Shift>}m{/Shift}{/Control}')
     expect(setMuted).toHaveBeenCalledWith(true)
   })
 })
@@ -1028,7 +1056,12 @@ describe('push-to-talk (#39)', () => {
       'disabled',
       true,
     )
-    expect(screen.getByText('— говорить ·', { exact: false })).toBeTruthy()
+    // The list of keys names it (#110).
+    fireEvent.keyDown(window, { key: '/', code: 'Slash', ctrlKey: true })
+    expect(
+      within(screen.getByRole('dialog', { name: 'Клавиши' })).getByText('Говорить, пока нажата'),
+    ).toBeTruthy()
+    fireEvent.keyDown(window, { key: '/', code: 'Slash', ctrlKey: true })
 
     // The global hook in main sees the key, wherever the focus is.
     ctx.api.ptt.emitKey(true)
@@ -1065,10 +1098,10 @@ describe('push-to-talk (#39)', () => {
     })
     ctx.setMuted.mockClear()
 
-    await ctx.user.keyboard('m')
+    await ctx.user.keyboard('{Control>}{Shift>}m{/Shift}{/Control}')
     expect(ctx.setMuted).not.toHaveBeenCalled()
 
-    await ctx.user.keyboard('d')
+    await ctx.user.keyboard('{Control>}{Shift>}d{/Shift}{/Control}')
     ctx.api.ptt.emitKey(true)
     expect(ctx.setTransmitting).toHaveBeenLastCalledWith(false)
   })
@@ -1268,10 +1301,10 @@ describe('cues when people come and go (#43)', () => {
   it('stays quiet while the sound is off, and when cues are turned off in the settings', async () => {
     const ctx = setup()
     await screen.findByText('Звук подключён')
-    await ctx.user.keyboard('d')
+    await ctx.user.keyboard('{Control>}{Shift>}d{/Shift}{/Control}')
     ctx.api.room.emitEvent({ type: 'peer-joined', peer: { id: 'katya', name: 'Катя' } })
     expect(ctx.playCue).not.toHaveBeenCalled()
-    await ctx.user.keyboard('d')
+    await ctx.user.keyboard('{Control>}{Shift>}d{/Shift}{/Control}')
 
     await ctx.user.click(screen.getByRole('button', { name: 'Настройки' }))
     const dialog = screen.getByRole('dialog', { name: 'Настройки звука' })
@@ -1299,7 +1332,7 @@ describe('the tray (#44)', () => {
       muted: false,
       deafened: false,
     })
-    await ctx.user.keyboard('m')
+    await ctx.user.keyboard('{Control>}{Shift>}m{/Shift}{/Control}')
     expect(ctx.api.tray.update).toHaveBeenLastCalledWith(expect.objectContaining({ muted: true }))
   })
 

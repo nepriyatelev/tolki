@@ -112,6 +112,8 @@ export interface TolkiMock {
 export interface TolkiMockOptions extends Partial<TolkiApi['network']> {
   /** A newer release main found (PLAN #36). */
   update?: UpdateOffer
+  /** The one-time «Клавиши звонка — Ctrl+/» hint not shown yet (#110). */
+  keysHint?: boolean
   /** The screen mode last picked in «Что показать» (#86). */
   screenMode?: ScreenMode
   /** OS permissions (#85); granted when not given. */
@@ -222,6 +224,8 @@ export function installTolkiMock(options: TolkiMockOptions = {}): TolkiMock {
           pushToTalk: options.pushToTalk ?? DEFAULT_SETTINGS.pushToTalk,
           globalHotkeys: options.globalHotkeys ?? DEFAULT_SETTINGS.globalHotkeys,
           screen: { mode: options.screenMode ?? null },
+          // The one-time hints already shown, unless a test is about them.
+          hints: { keys: !options.keysHint },
         }),
       ),
       update: vi.fn<TolkiApi['settings']['update']>(() => Promise.resolve(DEFAULT_SETTINGS)),

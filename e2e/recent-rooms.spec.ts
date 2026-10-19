@@ -31,8 +31,7 @@ test('a joined room shows up in recent rooms with its live status and saved pass
     await page.getByRole('button', { name: 'Выйти' }).click()
     await page.getByRole('button', { name: 'Отмена' }).click()
 
-    // Home: the name in the header (no greeting, #88), recent room with only the number of people.
-    await expect(page.locator('.app-user')).toContainText('Алексей')
+    // Home: no app bar with the name any more (#110); recent room with only the number of people.
     const row = page.getByRole('listitem').filter({ hasText: 'Вечерний созвон' })
     await expect(row).toBeVisible()
     await expect(row.getByText('Запущена · пока никого')).toBeVisible()

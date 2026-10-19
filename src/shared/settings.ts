@@ -68,6 +68,8 @@ export const settingsSchema = z.object({
       deafen: z.string().max(48),
     })
     .default({ mute: '', deafen: '' }),
+  /** One-time hints already shown (#110). */
+  hints: z.object({ keys: z.boolean() }).default({ keys: false }),
   /** The screen mode last picked in «Что показать» (#86); null: the room's. */
   screen: z.object({ mode: z.enum(SCREEN_MODES).nullable() }).default({ mode: null }),
 })
@@ -82,6 +84,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tray: { closeToTray: true, hintShown: false },
   globalHotkeys: { mute: '', deafen: '' },
   screen: { mode: null },
+  hints: { keys: false },
 }
 
 /** Partial update from the renderer; unknown keys are rejected. */
@@ -113,5 +116,6 @@ export const settingsPatchSchema = z.strictObject({
     })
     .optional(),
   screen: z.strictObject({ mode: z.enum(SCREEN_MODES).nullable() }).optional(),
+  hints: z.strictObject({ keys: z.boolean() }).optional(),
 })
 export type SettingsPatch = z.infer<typeof settingsPatchSchema>

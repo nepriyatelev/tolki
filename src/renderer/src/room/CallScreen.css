@@ -454,15 +454,6 @@
   height: 24px;
 }
 
-.call-hotkeys {
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
-}
-
-.call-hotkeys kbd {
-  font-family: var(--font-mono);
-}
-
 @keyframes menu-in {
   from {
     opacity: 0;
@@ -479,4 +470,33 @@
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+/* Once, in the first call (#110): where the keys are now. */
+.call-keys-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  justify-self: center;
+  margin: 0 auto var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+}
+
+.call-keys-hint kbd {
+  font-family: var(--font-mono);
+}
+
+.call-keys-hint-close {
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--glass-button);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.call-keys-hint-close:hover {
+  background: var(--glass-button-hover);
 }
