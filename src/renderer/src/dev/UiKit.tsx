@@ -98,8 +98,16 @@ export default function UiKit(): JSX.Element {
               onChange={setMode}
               options={[
                 { value: 'auto', label: 'Авто', description: 'Подстраивается под сеть' },
-                { value: 'text', label: 'Чёткий текст', description: 'Код, документы · 15 к/с' },
-                { value: 'motion', label: 'Плавно', description: 'Игры, видео · 60 к/с' },
+                {
+                  value: 'text',
+                  label: 'Чёткий текст',
+                  description: 'Код, документы · 15\u00a0к/\u2060с',
+                },
+                {
+                  value: 'motion',
+                  label: 'Плавно',
+                  description: 'Игры, видео · 60\u00a0к/\u2060с',
+                },
               ]}
             />
           </div>
