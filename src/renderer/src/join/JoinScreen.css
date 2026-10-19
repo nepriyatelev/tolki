@@ -14,10 +14,6 @@
   max-width: 520px;
 }
 
-.join-logo {
-  border-radius: var(--radius-md);
-}
-
 .join-card h1 {
   font-size: var(--text-3xl);
   font-weight: 700;
@@ -59,11 +55,6 @@
   width: 16px;
   height: 16px;
   margin-top: 1px;
-}
-
-.join-note--ok {
-  background: var(--color-accent-selected);
-  color: var(--color-accent-soft-text);
 }
 
 .join-note--bad {
@@ -116,8 +107,122 @@
   gap: var(--space-3);
 }
 
-/* Entry waits for the organizer (#42). */
-.join-waiting {
+/* «Подробнее о подключении»: the address and the certificate, folded (#110). */
+.join-details {
+  width: 100%;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.join-details summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  list-style: none;
+}
+
+.join-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.join-details summary:hover {
   color: var(--color-text-soft);
+}
+
+.join-details summary:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.join-details summary svg {
+  width: 14px;
+  height: 14px;
+  transition: transform var(--duration-base) var(--ease-out);
+}
+
+.join-details[open] summary svg {
+  transform: rotate(180deg);
+}
+
+.join-details-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.join-trust {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--color-text-soft);
+}
+
+.join-trust svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  color: var(--color-accent-text);
+}
+
+/* Entry waits for the organizer (#42): a live wait, not a grey button (#110). */
+.join-waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-6) 0 var(--space-2);
+  text-align: center;
+}
+
+.join-waiting-avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  margin-bottom: var(--space-3);
+  border-radius: var(--radius-full);
+}
+
+/* A slow ring going out from the avatar: alive, not alarming. */
+.join-waiting-avatar::after {
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--color-accent);
+  border-radius: inherit;
+  animation: join-waiting-pulse 1.8s var(--ease-out) infinite;
+  content: '';
+}
+
+@keyframes join-waiting-pulse {
+  from {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .join-waiting-avatar::after {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+.join-waiting-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.join-waiting-text {
+  margin-bottom: var(--space-3);
+  color: var(--color-text-muted);
   font-size: var(--text-md);
 }
