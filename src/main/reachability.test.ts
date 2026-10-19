@@ -52,13 +52,48 @@ describe('checkReachability (#128)', () => {
     ).toBe('unknown')
   })
 
-  it('uses the open room instead of its own listener; a busy port is unknown', async () => {
+  it('uses the open room instead of its own listener; a port held by another program is busy', async () => {
     const busy = createServer()
     await new Promise<void>((resolve) => busy.listen(0, resolve))
     const { port } = busy.address() as { port: number }
     const fetch = answer({ reachable: true })
+    const log = vi.fn<(line: string) => void>()
     expect(await checkReachability({ port, roomListening: true, fetch })).toBe('reachable')
-    expect(await checkReachability({ port, roomListening: false, fetch })).toBe('unknown')
+    expect(await checkReachability({ port, roomListening: false, fetch, log })).toBe('busy')
+    expect(fetch).toHaveBeenCalledOnce()
+    expect(log).toHaveBeenCalledWith(`port check: cannot listen on port ${port} (EADDRINUSE)`)
     busy.close()
+  })
+
+  it('says in the logs why it could not tell, never the address (#128)', async () => {
+    const port = await freePort()
+    const lines: string[] = []
+    const log = (line: string) => lines.push(line)
+    await checkReachability({ port, roomListening: false, fetch: answer({}, 503), log })
+    await checkReachability({
+      port,
+      roomListening: false,
+      fetch: () => Promise.reject(new TypeError('net::ERR_NAME_NOT_RESOLVED')),
+      log,
+    })
+    await checkReachability({
+      port,
+      roomListening: false,
+      fetch: () => Promise.reject(new DOMException('timeout', 'TimeoutError')),
+      log,
+    })
+    await checkReachability({
+      port,
+      roomListening: false,
+      fetch: answer({ ip: '93.184.216.34', reachable: false }),
+      log,
+    })
+    expect(lines).toEqual([
+      'port check: the service answered HTTP 503',
+      'port check: the service is unreachable (net::ERR_NAME_NOT_RESOLVED)',
+      'port check: the service did not answer in time',
+      `port check: port ${port} closed from outside`,
+    ])
+    expect(lines.join('\n')).not.toContain('93.184')
   })
 })

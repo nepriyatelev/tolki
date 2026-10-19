@@ -8,6 +8,8 @@ export type ErrorKind =
       localAddress: string | null
       /** The router's address: «Открыть настройки роутера» (#128). */
       gateway?: string | null
+      /** This computer's address as the internet sees it (STUN), to compare with the WAN. */
+      externalAddress?: string | null
     }
   | { kind: 'host-offline' }
   | { kind: 'too-many-attempts' }
@@ -62,9 +64,18 @@ function enableUpnp(gateway: string | null): Tip {
   }
 }
 
-const CGNAT_MAYBE: Tip = {
-  title: 'Если не помогло — спросить провайдера про белый IP',
-  text: 'Бывает, что провайдер выдаёт один адрес на многих клиентов (CGNAT): тогда до компьютера не дойдёт ни одно подключение снаружи. Поможет белый IP — его обычно подключают за небольшую плату.',
+/**
+ * Without the router's answer Tolki cannot tell CGNAT from a closed port; the router's own
+ * page shows it: its WAN address (#128).
+ */
+function cgnatCheck(externalAddress: string | null): Tip {
+  const mismatch = externalAddress
+    ? `, или он не совпадает с внешним адресом этого компьютера (${externalAddress})`
+    : ''
+  return {
+    title: 'Проверить, нет ли общего адреса провайдера (CGNAT)',
+    text: `На главной странице настроек роутера — адрес WAN («Интернет»). Если он начинается с 100.64–100.127, 10., 172.16–172.31 или 192.168.${mismatch}, — провайдер выдаёт один адрес на многих клиентов или стоит ещё один роутер: UPnP и проброс порта не помогут. Поможет белый IP у провайдера (обычно за небольшую плату), другой организатор или Tailscale.`,
+  }
 }
 
 function cannotHostTips(
@@ -72,6 +83,7 @@ function cannotHostTips(
   port: number,
   localAddress: string | null,
   gateway: string | null,
+  externalAddress: string | null,
 ): Tip[] {
   switch (problem) {
     // Owner's decision (#60): for a VPN only these two tips.
@@ -122,6 +134,7 @@ function cannotHostTips(
       return [
         enableUpnp(gateway),
         manualForwarding(port, localAddress, gateway),
+        cgnatCheck(externalAddress),
         IPV6,
         ANOTHER_ORGANIZER,
         TAILSCALE,
@@ -130,7 +143,7 @@ function cannotHostTips(
       return [
         enableUpnp(gateway),
         manualForwarding(port, localAddress, gateway),
-        CGNAT_MAYBE,
+        cgnatCheck(externalAddress),
         ANOTHER_ORGANIZER,
         TAILSCALE,
       ]
@@ -160,7 +173,13 @@ export function errorContent(error: ErrorKind): ErrorContent {
         tone: 'danger',
         title: 'Этот компьютер не может быть организатором',
         text: CANNOT_HOST_TEXT[error.problem],
-        tips: cannotHostTips(error.problem, error.port, error.localAddress, error.gateway ?? null),
+        tips: cannotHostTips(
+          error.problem,
+          error.port,
+          error.localAddress,
+          error.gateway ?? null,
+          error.externalAddress ?? null,
+        ),
       }
     case 'host-offline':
       return {

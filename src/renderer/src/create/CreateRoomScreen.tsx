@@ -193,6 +193,7 @@ export function CreateRoomScreen(props: {
           port: result.port,
           localAddress: result.localAddress,
           gateway: result.gateway,
+          externalAddress: result.stunAddress,
         }
       : undefined
   }

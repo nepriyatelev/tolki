@@ -42,7 +42,12 @@ export function networkCheckItems(result: NetworkCheckResult): Item[] {
         ? { tone: 'bad', text: `Порт ${result.port} закрыт снаружи` }
         : result.reachability === 'unknown'
           ? { tone: 'neutral', text: 'Проверить порт снаружи не удалось' }
-          : null
+          : result.reachability === 'busy'
+            ? {
+                tone: 'bad',
+                text: `Порт ${result.port} занят другой программой — проверить снаружи нельзя`,
+              }
+            : null
   const ipv6: Item =
     result.ipv6Address !== null
       ? { tone: 'ok', text: 'IPv6 доступен' }

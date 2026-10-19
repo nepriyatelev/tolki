@@ -37,8 +37,11 @@ export function isGlobalIPv6(address: string): boolean {
   return true
 }
 
-/** Whether the port answered from the internet (#128); `skipped` when it was not asked. */
-export type Reachability = 'reachable' | 'closed' | 'unknown' | 'skipped'
+/**
+ * Whether the port answered from the internet (#128); `skipped` when it was not asked, `busy`
+ * when another program holds the port.
+ */
+export type Reachability = 'reachable' | 'closed' | 'unknown' | 'busy' | 'skipped'
 
 export type HostingVerdict =
   | {

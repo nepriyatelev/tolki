@@ -27,6 +27,7 @@ describe('errorContent', () => {
     expect(titles).toEqual([
       'Включить UPnP',
       'Пробросить порт вручную',
+      'Проверить, нет ли общего адреса провайдера (CGNAT)',
       'Включить IPv6',
       'Выбрать другого организатора',
       'Tailscale',
@@ -55,10 +56,24 @@ describe('errorContent', () => {
     expect(content.tips.map((t) => t.title)).toEqual([
       'Включить UPnP',
       'Пробросить порт вручную',
-      'Если не помогло — спросить провайдера про белый IP',
+      'Проверить, нет ли общего адреса провайдера (CGNAT)',
       'Выбрать другого организатора',
       'Tailscale',
     ])
+  })
+
+  it('tells how to see CGNAT on the router’s page, with the address from outside (#128)', () => {
+    const tip = errorContent({
+      kind: 'cannot-host',
+      problem: 'unsupported',
+      port: 47000,
+      localAddress: '192.168.1.42',
+      externalAddress: '109.252.129.196',
+    }).tips[2]
+    expect(tip?.text).toContain('адрес WAN')
+    expect(tip?.text).toContain('100.64–100.127')
+    expect(tip?.text).toContain('не совпадает с внешним адресом этого компьютера (109.252.129.196)')
+    expect(cannotHost('unsupported').tips[2]?.text).not.toContain('не совпадает')
   })
 
   it('gives only the owner’s two tips for a VPN (#60)', () => {

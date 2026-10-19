@@ -210,6 +210,9 @@ const network = new NetworkChecker({
             roomListening,
             api: portCheckApi,
             fetch: (url, init) => net.fetch(url, init),
+            log: (line) => {
+              logs.main.info(line)
+            },
           }),
       }
     : {}),
