@@ -7,7 +7,7 @@ import type { RecentRoom } from '@shared/recent'
 import { APP_NAME } from '@shared/app'
 import logo from '../assets/logo/tolki-logo-white.png'
 import { Button, Card, Input } from '../ui'
-import { NetworkStatusBar } from './NetworkStatusBar'
+import { createNetworkCheck, NetworkNotice, NetworkStatusBar } from './NetworkStatusBar'
 import { RecentRooms } from './RecentRooms'
 import { UpdateBanner } from './UpdateBanner'
 
@@ -22,6 +22,7 @@ export interface HomeScreenProps {
 export function HomeScreen(props: HomeScreenProps): JSX.Element {
   const [link, setLink] = createSignal('')
   const [linkError, setLinkError] = createSignal<string | undefined>(undefined)
+  const network = createNetworkCheck()
 
   const join = (event: SubmitEvent): void => {
     event.preventDefault()
@@ -46,6 +47,7 @@ export function HomeScreen(props: HomeScreenProps): JSX.Element {
           <img src={logo} alt={APP_NAME} width="76" height="28" />
         </h1>
         <UpdateBanner />
+        <NetworkNotice check={network} />
         <div class="home-cards">
           <Card as="section" aria-labelledby="create-title">
             <span class="home-card-icon home-card-icon--accent">
@@ -95,7 +97,7 @@ export function HomeScreen(props: HomeScreenProps): JSX.Element {
           }}
         />
       </main>
-      <NetworkStatusBar />
+      <NetworkStatusBar check={network} problemsAbove />
     </>
   )
 }

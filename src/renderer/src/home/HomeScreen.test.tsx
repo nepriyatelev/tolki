@@ -2,7 +2,7 @@ import { render, screen, within } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { RecentRoom } from '@shared/recent'
-import { installTolkiMock } from '../../../test/tolki-mock'
+import { installTolkiMock, PUBLIC_IPV4_CHECK } from '../../../test/tolki-mock'
 import { HomeScreen } from './HomeScreen'
 
 const FP = '2_SqXt3l45Ay59VWqBcvcLmeh7BmqvL0m-UwbNw3EiE'
@@ -150,5 +150,30 @@ describe('new version banner (#36)', () => {
       expect(api.app.checkUpdate).toHaveBeenCalled()
     })
     expect(screen.queryByText(/Доступна версия/)).toBeNull()
+  })
+
+  it('puts «cannot host» over the cards, as a warning, and not in the footer (#110)', async () => {
+    const { user, api } = show({
+      check: () =>
+        Promise.resolve({ ...PUBLIC_IPV4_CHECK, verdict: { canHost: false, problem: 'cgnat' } }),
+    })
+
+    const notice = await screen.findByRole('status', { name: 'Состояние сети' })
+    const cards = screen.getByRole('region', { name: 'Создать комнату' })
+    expect(notice.compareDocumentPosition(cards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(notice).getByText(/не может быть организатором/)).toBeTruthy()
+    expect(within(notice).getByText(/белый IP/)).toBeTruthy()
+    expect(document.querySelector('footer')?.textContent).toBe('')
+
+    await user.click(within(notice).getByRole('button', { name: 'Проверить снова' }))
+    expect(api.network.check).toHaveBeenLastCalledWith({ force: true })
+  })
+
+  it('keeps a good verdict quietly in the footer (#110)', async () => {
+    show()
+    expect(
+      await screen.findByText('Этот компьютер может быть организатором: порт открыт через UPnP'),
+    ).toBeTruthy()
+    expect(screen.queryByRole('status', { name: 'Состояние сети' })).toBeNull()
   })
 })

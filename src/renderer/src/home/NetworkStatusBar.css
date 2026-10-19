@@ -51,3 +51,43 @@
   color: var(--color-accent-hover);
   text-decoration: underline;
 }
+
+/* Cannot host: over the cards, in warning colours (#110). */
+.network-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid rgb(240 198 107 / 25%);
+  border-radius: var(--radius-lg);
+  background: var(--color-warning-soft);
+  color: var(--color-text-soft);
+  font-size: var(--text-md);
+}
+
+.network-notice__icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  color: var(--color-warning-text);
+}
+
+.network-notice__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.network-notice__text strong {
+  color: var(--color-warning-text);
+  font-weight: 600;
+}
+
+.network-notice .network-status__retry {
+  flex: none;
+  margin-left: 0;
+}
