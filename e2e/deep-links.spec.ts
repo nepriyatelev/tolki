@@ -10,6 +10,8 @@ test('a link that starts the app opens "Вход по ссылке" with its dat
   try {
     // Nobody hosts 203.0.113.5 in tests: the screen says so and still shows the link's data.
     await expect(page.getByRole('heading', { name: 'Вход по ссылке' })).toBeVisible()
+    // The address sits under «Подробнее о подключении» (#110).
+    await page.getByText('Подробнее о подключении').click()
     await expect(page.getByText('203.0.113.5:47000')).toBeVisible()
     await expect(page.getByText('Организатор сейчас не в сети')).toBeVisible()
     await expect(page.getByText('Пароль вшит в ссылку')).toBeVisible()
@@ -29,6 +31,7 @@ test('a second launch with a link quits and hands the link to the running app', 
 
     expect(exitCode).toBe(0)
     await expect(page.getByRole('heading', { name: 'Вход по ссылке' })).toBeVisible()
+    await page.getByText('Подробнее о подключении').click()
     await expect(page.getByText('[2a02:6b8::1]:47000')).toBeVisible()
     expect(app.windows()).toHaveLength(1)
   } finally {
