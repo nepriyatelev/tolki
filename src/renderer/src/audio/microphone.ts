@@ -64,6 +64,43 @@ export async function openMicrophoneTrack(deviceId: string): Promise<MediaStream
   return track
 }
 
+/**
+ * Reports the level (0..1) of a live microphone track every frame until stopped; the track stays
+ * the caller's. A paused producer keeps the track live, so it measures a muted voice too (#110).
+ */
+export function meterTrack(
+  track: MediaStreamTrack | null,
+  onLevel: (level: number) => void,
+): () => void {
+  if (!track || typeof AudioContext === 'undefined') return () => undefined
+  const context = new AudioContext()
+  const analyser = context.createAnalyser()
+  analyser.fftSize = 1024
+  context.createMediaStreamSource(new MediaStream([track])).connect(analyser)
+  const samples = new Float32Array(analyser.fftSize)
+  let level = 0
+  let frame = 0
+
+  const tick = (): void => {
+    analyser.getFloatTimeDomainData(samples)
+    let sum = 0
+    for (const s of samples) sum += s * s
+    const rms = Math.sqrt(sum / samples.length)
+    // Speech sits around 0.02–0.2 RMS; scale so a normal voice fills most of the meter.
+    const target = Math.min(1, rms * 5)
+    // Fast attack, slow release: the bar follows the voice without flickering.
+    level = target > level ? target : level * 0.85 + target * 0.15
+    onLevel(level)
+    frame = requestAnimationFrame(tick)
+  }
+  frame = requestAnimationFrame(tick)
+
+  return () => {
+    cancelAnimationFrame(frame)
+    void context.close()
+  }
+}
+
 export const browserMicrophone: MicrophoneAccess = {
   listInputs: () => listDevices('audioinput', 'Микрофон'),
   listOutputs: () => listDevices('audiooutput', 'Динамики'),
@@ -78,32 +115,10 @@ export const browserMicrophone: MicrophoneAccess = {
       throw toMicrophoneError(error)
     }
 
-    const context = new AudioContext()
-    const analyser = context.createAnalyser()
-    analyser.fftSize = 1024
-    context.createMediaStreamSource(stream).connect(analyser)
-    const samples = new Float32Array(analyser.fftSize)
-    let level = 0
-    let frame = 0
-
-    const tick = (): void => {
-      analyser.getFloatTimeDomainData(samples)
-      let sum = 0
-      for (const s of samples) sum += s * s
-      const rms = Math.sqrt(sum / samples.length)
-      // Speech sits around 0.02–0.2 RMS; scale so a normal voice fills most of the meter.
-      const target = Math.min(1, rms * 5)
-      // Fast attack, slow release: the bar follows the voice without flickering.
-      level = target > level ? target : level * 0.85 + target * 0.15
-      onLevel(level)
-      frame = requestAnimationFrame(tick)
-    }
-    frame = requestAnimationFrame(tick)
-
+    const stop = meterTrack(stream.getAudioTracks()[0] ?? null, onLevel)
     return () => {
-      cancelAnimationFrame(frame)
+      stop()
       for (const track of stream.getTracks()) track.stop()
-      void context.close()
     }
   },
 }

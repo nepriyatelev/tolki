@@ -14,7 +14,13 @@ import {
   type RemoteScreen,
   type ScreenSample,
 } from './call'
-import { CallScreen, peopleCount, SPEAKING_HOLD_MS } from './CallScreen'
+import {
+  CallScreen,
+  MUTED_SPEECH_LEVEL,
+  MUTED_SPEECH_MS,
+  peopleCount,
+  SPEAKING_HOLD_MS,
+} from './CallScreen'
 import { LIST_TIMEOUT_MS } from '../screen/ScreenSourceDialog'
 
 const RESULT: Extract<JoinResult, { ok: true }> = {
@@ -156,6 +162,11 @@ function setup(
   const connectionSample = vi.fn<() => Promise<ConnectionSample | null>>(() =>
     Promise.resolve({ rttMs: 24, protocol: 'udp', packetsReceived: 100, packetsLost: 0 }),
   )
+  let micLevel: (level: number) => void = () => undefined
+  const meterMicrophone = vi.fn((onLevel: (level: number) => void) => {
+    micLevel = onLevel
+    return () => undefined
+  })
   const onLeft = vi.fn()
   const events = collectRoomEvents()
   const playTestSound = vi.fn<(outputDeviceId: string) => Promise<void>>(() => Promise.resolve())
@@ -196,6 +207,7 @@ function setup(
           answerScreenRequest,
           screenSample,
           connectionSample,
+          meterMicrophone,
           close,
         })
       }}
@@ -222,6 +234,9 @@ function setup(
     connectionSample,
     showScreens: (screens: RemoteScreen[]) => {
       showScreens(screens)
+    },
+    micLevel: (level: number) => {
+      micLevel(level)
     },
     playTestSound,
     playCue,
@@ -440,6 +455,66 @@ describe('microphone and sound (#22)', () => {
     expect(badge()).toBeNull()
     api.room.emitEvent({ type: 'peer-muted', peerId: 'dima', muted: true })
     expect(badge()).not.toBeNull()
+  })
+})
+
+describe('the own voice level (#110)', () => {
+  const tip = () => screen.queryByText('Микрофон выключен — вас не слышно')
+
+  it('grows a ring on the microphone button while the voice goes out', async () => {
+    const { micLevel } = setup()
+    await screen.findByText('Звук подключён')
+    const button = screen.getByRole('button', { name: 'Выключить микрофон' })
+
+    micLevel(0.62)
+    expect(button.style.getPropertyValue('--mic-level')).toBe('0.6')
+
+    // Muted, nothing goes out: no ring.
+    await userEvent.setup().click(button)
+    expect(button.style.getPropertyValue('--mic-level')).toBe('0')
+  })
+
+  it('says once per call that the microphone is off when they speak muted', async () => {
+    const now = vi.spyOn(performance, 'now')
+    const { micLevel, user, setMuted } = setup({ muted: true })
+    await screen.findByText('Звук подключён')
+
+    now.mockReturnValue(1000)
+    micLevel(MUTED_SPEECH_LEVEL + 0.1)
+    now.mockReturnValue(1000 + MUTED_SPEECH_MS - 1)
+    micLevel(MUTED_SPEECH_LEVEL + 0.1)
+    expect(tip()).toBeNull()
+    now.mockReturnValue(1000 + MUTED_SPEECH_MS)
+    micLevel(MUTED_SPEECH_LEVEL + 0.1)
+    expect(tip()).not.toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Включить' }))
+    expect(setMuted).toHaveBeenLastCalledWith(false)
+    expect(tip()).toBeNull()
+
+    // Muted again and speaking: not repeated.
+    await user.click(screen.getByRole('button', { name: 'Выключить микрофон' }))
+    now.mockReturnValue(5000)
+    micLevel(1)
+    now.mockReturnValue(5000 + MUTED_SPEECH_MS * 2)
+    micLevel(1)
+    expect(tip()).toBeNull()
+    now.mockRestore()
+  })
+
+  it('stays quiet for a short sound', async () => {
+    const now = vi.spyOn(performance, 'now')
+    const { micLevel } = setup({ muted: true })
+    await screen.findByText('Звук подключён')
+
+    now.mockReturnValue(1000)
+    micLevel(0.9)
+    now.mockReturnValue(1200)
+    micLevel(0.05)
+    now.mockReturnValue(1000 + MUTED_SPEECH_MS * 2)
+    micLevel(0.9)
+    expect(tip()).toBeNull()
+    now.mockRestore()
   })
 })
 
