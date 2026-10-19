@@ -18,7 +18,7 @@ const PROBLEMS: Record<MicrophoneProblem, string> = {
   unavailable: 'Микрофон сейчас недоступен — возможно, его заняла другая программа.',
 }
 
-/** Microphone picker with a live level meter (mockup 3, «Настройки звука»). */
+/** Microphone picker with a live level meter (mockup 3, «Настройки»). */
 export function MicCheck(props: {
   /** The «join muted» checkbox, on the join screen only. */
   muted?: boolean

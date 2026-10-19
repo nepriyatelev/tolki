@@ -149,7 +149,7 @@ test.describe.serial('a call between two app instances through the organizer', (
 
   test('switching microphones mid-call keeps the voice going, nobody reconnects (#24)', async () => {
     await katya.page.getByRole('button', { name: 'Настройки' }).click()
-    const dialog = katya.page.getByRole('dialog', { name: 'Настройки звука' })
+    const dialog = katya.page.getByRole('dialog', { name: 'Настройки' })
     const mic = dialog.getByLabel('Микрофон', { exact: true })
     await expect.poll(() => mic.locator('option').count()).toBeGreaterThan(2)
     await mic.selectOption({ index: 2 })

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { launchApp } from './app'
 import { freePort } from './ports'
 
-// PLAN #40: a hotkey set in «Настройки звука» is registered system-wide only during the call.
+// PLAN #40: a hotkey set in «Настройки» is registered system-wide only during the call.
 // A real key press at the OS level cannot be made from Playwright (its keys go to the page), so
 // main's signal is sent the way main sends it, and the registration is checked in main itself.
 
@@ -33,7 +33,7 @@ test('a global hotkey is held only during the call and toggles the microphone', 
     expect(await registered()).toBe(false)
 
     await page.getByRole('button', { name: 'Настройки' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Настройки звука' })
+    const dialog = page.getByRole('dialog', { name: 'Настройки' })
     await dialog.getByRole('button', { name: 'Микрофон: не задано' }).click()
     await page.keyboard.press('Control+Alt+Shift+F12')
     await expect(dialog.getByRole('button', { name: 'Микрофон: Ctrl+Alt+Shift+F12' })).toBeVisible()

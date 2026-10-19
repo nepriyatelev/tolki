@@ -34,9 +34,9 @@ function advice(problem: HostingProblem, port: number): string {
     case 'double-nat':
       return 'Поможет режим моста на модеме провайдера или другой организатор'
     case 'no-gateway':
-      return 'Если включён VPN, его стоит выключить на время созвона'
+      return 'Если включён VPN, его стоит выключить на время звонка'
     case 'vpn':
-      return 'Выключить VPN на время созвона или добавить Tolki в исключения VPN (split tunneling)'
+      return 'Выключить VPN на время звонка или добавить Tolki в исключения VPN (split tunneling)'
     case 'unsupported':
       return `Поможет UPnP в настройках роутера или проброс порта ${port} вручную — если у провайдера не общий адрес (CGNAT)`
     case 'refused':
