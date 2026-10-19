@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { freePort } from './ports'
-import { firstScreen, launchApp, SCREEN_CAPTURE_SKIP_REASON, screenCaptureSkipped } from './app'
+import { firstScreen, launchApp } from './app'
 import { cpuPercent, receivedVideo, sentVideo, tapPeerConnections } from './media'
 
 test('getDisplayMedia gets nothing unless the user picked a source in our dialog', async () => {
@@ -21,7 +21,6 @@ test('getDisplayMedia gets nothing unless the user picked a source in our dialog
 })
 
 test('the user picks a screen and sees what they are showing', async () => {
-  test.skip(screenCaptureSkipped, SCREEN_CAPTURE_SKIP_REASON)
   test.setTimeout(60_000)
   const host = await launchApp()
   try {
@@ -50,27 +49,6 @@ test('the user picks a screen and sees what they are showing', async () => {
         hasScreen = sources.picker === 'app' && sources.sources.some((s) => s.kind === 'screen')
         if (!hasScreen) await page.waitForTimeout(500)
       }
-      // #123: what the app sees before capturing, on the diagnostics workflow only.
-      if (process.env['E2E_SCREEN_DIAG']) {
-        const permission = await client.app.evaluate(({ systemPreferences }) =>
-          systemPreferences.getMediaAccessStatus('screen'),
-        )
-        const listed = await page.evaluate(() => window.tolki.screen.listSources())
-        console.log(
-          '[diag] screen permission:',
-          permission,
-          'sources:',
-          JSON.stringify(
-            listed.picker === 'app'
-              ? listed.sources.map((x) => ({
-                  kind: x.kind,
-                  name: x.name,
-                  thumb: x.thumbnail.length,
-                }))
-              : listed,
-          ),
-        )
-      }
       // Linux CI has a screen (xvfb) and must run this; a developer's Mac may lack the permission.
       const mustRun = Boolean(process.env['CI']) && process.platform === 'linux'
       if (mustRun) expect(hasScreen).toBe(true)
@@ -93,25 +71,6 @@ test('the user picks a screen and sees what they are showing', async () => {
       }
       await firstSource.click()
       await dialog.getByRole('button', { name: 'Показать' }).click()
-      const shareStarted = Date.now()
-      if (process.env['E2E_SCREEN_DIAG']) {
-        // Every few seconds: is the capture there yet, and what does the page say.
-        void (async () => {
-          for (let i = 0; i < 10; i++) {
-            await page.waitForTimeout(3000).catch(() => undefined)
-            const state = await page
-              .evaluate(() => ({
-                preview: document.querySelector('video')?.videoWidth ?? null,
-                note: document.querySelector('.call-sound--failed')?.textContent ?? null,
-              }))
-              .catch(() => null)
-            console.log(
-              `[diag] ${Date.now() - shareStarted} ms after «Показать»:`,
-              JSON.stringify(state),
-            )
-          }
-        })()
-      }
 
       const preview = page.getByRole('region', { name: 'Мой экран' }).locator('video')
       await expect(preview).toBeVisible()
@@ -156,7 +115,6 @@ test('the user picks a screen and sees what they are showing', async () => {
 })
 
 test('others see the shared screen at a layer that fits, and nothing while hidden', async () => {
-  test.skip(screenCaptureSkipped, SCREEN_CAPTURE_SKIP_REASON)
   test.setTimeout(120_000)
   const host = await launchApp()
   try {
@@ -312,7 +270,6 @@ test('others see the shared screen at a layer that fits, and nothing while hidde
 })
 
 test('one screen at a time: «Показать свой» goes to the sharer, who gives way', async () => {
-  test.skip(screenCaptureSkipped, SCREEN_CAPTURE_SKIP_REASON)
   test.setTimeout(120_000)
   const host = await launchApp()
   try {
