@@ -41,14 +41,6 @@ function appEnv(userDataDir: string): Record<string, string> {
 }
 
 /**
- * The release run on the macOS Intel runner hangs as soon as a screen is captured (#123); the
- * tests that capture one are skipped there (E2E_SKIP_SCREEN_CAPTURE=1 in release.yml) and
- * checked by hand.
- */
-export const screenCaptureSkipped = process.env['E2E_SKIP_SCREEN_CAPTURE'] === '1'
-export const SCREEN_CAPTURE_SKIP_REASON = 'screen capture hangs on this runner (#123)'
-
-/**
  * The first screen in «Что показать». Not just the first radio: the mode buttons (#86) are
  * radios too, and with the screens listed late «Авто» would come first.
  */
