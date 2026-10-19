@@ -148,7 +148,7 @@ describe('RadioPillGroup', () => {
     { value: 'motion', label: 'Плавно' },
   ] as const
 
-  function renderGroup() {
+  function renderGroup(compact = false) {
     const onChange = vi.fn()
     render(() => {
       const [value, setValue] = createSignal<'auto' | 'text' | 'motion'>('auto')
@@ -156,6 +156,7 @@ describe('RadioPillGroup', () => {
         <RadioPillGroup
           legend="Демонстрация экрана"
           options={options}
+          compact={compact}
           value={value()}
           onChange={(v) => {
             setValue(v)
@@ -174,6 +175,20 @@ describe('RadioPillGroup', () => {
     const radios = screen.getAllByRole<HTMLInputElement>('radio')
     expect(radios.map((r) => r.checked)).toEqual([true, false, false])
     expect(new Set(radios.map((r) => r.name)).size).toBe(1)
+  })
+
+  it('compact: one line of labels, the chosen description under it (#110)', async () => {
+    const user = userEvent.setup()
+    renderGroup(true)
+
+    expect(document.querySelector('.rt-radio-pills__hint')?.textContent).toBe(
+      'Подстраивается под сеть',
+    )
+    // Still read with its option.
+    expect(screen.getByRole('radio', { name: /Подстраивается под сеть/ })).toBeTruthy()
+
+    await user.click(screen.getByRole('radio', { name: /Плавно/ }))
+    expect(document.querySelector('.rt-radio-pills__hint')).toBeNull()
   })
 
   it('changes selection by click and with arrow keys', async () => {

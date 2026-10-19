@@ -25,8 +25,10 @@ import { playTestSound as playRealTestSound } from './test-sound'
 import './AudioSettingsDialog.css'
 
 /**
- * «Настройки звука» (PLAN §7, drawn in code): microphone with a level meter, speakers or
- * headphones with a test sound. Both switch during a call without reconnecting (#24).
+ * «Настройки» (PLAN §7, drawn in code; named so since it holds more than sound — #110), in
+ * sections: «Звук» — microphone with a level meter, speakers or headphones with a test sound,
+ * both switched during a call without reconnecting (#24); «Режим микрофона»; «Клавиши в любом
+ * окне».
  */
 export function AudioSettingsDialog(props: {
   open: boolean
@@ -173,7 +175,7 @@ export function AudioSettingsDialog(props: {
     >
       <Show when={props.open}>
         <header class="audio-settings-header">
-          <h2 id="audio-settings-title">Настройки звука</h2>
+          <h2 id="audio-settings-title">Настройки</h2>
           <IconButton
             label="Закрыть"
             icon={<X />}
@@ -182,7 +184,10 @@ export function AudioSettingsDialog(props: {
             }}
           />
         </header>
-        <section class="audio-settings-section">
+        <section class="audio-settings-section" aria-labelledby="audio-settings-sound">
+          <h3 id="audio-settings-sound" class="audio-settings-subtitle">
+            Звук
+          </h3>
           <MicCheck
             hint="Меняется сразу, без переподключения к комнате."
             onDeviceChange={(id) => {
@@ -190,8 +195,6 @@ export function AudioSettingsDialog(props: {
             }}
             access={access()}
           />
-        </section>
-        <section class="audio-settings-section">
           <Select
             label="Динамики или наушники"
             value={props.outputDeviceId}
@@ -222,7 +225,10 @@ export function AudioSettingsDialog(props: {
           </Show>
         </section>
         <Show when={props.onPushToTalkChange}>
-          <section class="audio-settings-section" aria-label="Режим микрофона">
+          <section class="audio-settings-section" aria-labelledby="audio-settings-ptt">
+            <h3 id="audio-settings-ptt" class="audio-settings-subtitle">
+              Режим микрофона
+            </h3>
             <Checkbox
               label="Говорить, только пока нажата клавиша"
               checked={ptt().enabled}
@@ -254,8 +260,10 @@ export function AudioSettingsDialog(props: {
           </section>
         </Show>
         <Show when={props.onGlobalHotkeysChange}>
-          <section class="audio-settings-section" aria-label="Клавиши в любом окне">
-            <h3 class="audio-settings-subtitle">Клавиши в любом окне</h3>
+          <section class="audio-settings-section" aria-labelledby="audio-settings-keys">
+            <h3 id="audio-settings-keys" class="audio-settings-subtitle">
+              Клавиши в любом окне
+            </h3>
             <For each={HOTKEY_ROWS}>
               {(row) => (
                 <div class="audio-settings-hotkey">

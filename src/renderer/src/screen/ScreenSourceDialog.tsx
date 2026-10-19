@@ -135,9 +135,26 @@ export function ScreenSourceDialog(props: {
         </header>
         <Switch>
           <Match when={sources.loading && !sources.latest}>
-            <p class="screen-picker-note" role="status">
-              Поиск экранов и окон…
-            </p>
+            {/* Placeholders in the list's shape, so nothing jumps when it comes (#110). */}
+            <div class="screen-picker-loading" aria-busy="true">
+              <p class="visually-hidden" role="status">
+                Поиск экранов и окон…
+              </p>
+              <div class="screen-picker-skeleton-tabs" aria-hidden="true">
+                <span class="screen-picker-skeleton" />
+                <span class="screen-picker-skeleton" />
+              </div>
+              <div class="screen-picker-grid" aria-hidden="true">
+                <For each={[0, 1, 2]}>
+                  {() => (
+                    <span class="screen-picker-source screen-picker-source--skeleton">
+                      <span class="screen-picker-thumb screen-picker-skeleton" />
+                      <span class="screen-picker-skeleton screen-picker-skeleton--line" />
+                    </span>
+                  )}
+                </For>
+              </div>
+            </div>
           </Match>
           <Match when={sources.error !== undefined}>
             <p class="screen-picker-note screen-picker-note--problem" role="alert">
@@ -291,13 +308,14 @@ export function ScreenSourceDialog(props: {
               value={mode()}
               onChange={setMode}
               options={SCREEN_MODE_OPTIONS}
+              compact
             />
             <div class="screen-picker-actions">
               <Show when={soundOffered()}>
                 <Checkbox
                   class="screen-picker-sound"
                   label="Звук компьютера"
-                  description="Участники услышат то, что играет на компьютере: видео, игру, музыку."
+                  description="Видео, игра, музыка — то, что играет на компьютере"
                   checked={withSound()}
                   onChange={(e) => setWithSound(e.currentTarget.checked)}
                 />
