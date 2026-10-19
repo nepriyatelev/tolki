@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { launchApp, SCREEN_CAPTURE_SKIP_REASON, screenCaptureSkipped } from './app'
+import { firstScreen, launchApp, SCREEN_CAPTURE_SKIP_REASON, screenCaptureSkipped } from './app'
 import { heardLevel } from './media'
 import { freePort } from './ports'
 
@@ -50,7 +50,7 @@ test('the computer’s sound goes with the screen and stops with it', async () =
 
       await katya.page.getByRole('button', { name: 'Показать экран' }).click()
       const dialog = katya.page.getByRole('dialog', { name: 'Что показать' })
-      const first = dialog.getByRole('radio').first()
+      const first = firstScreen(dialog)
       await expect(first).toBeVisible({ timeout: 15_000 })
       await dialog.getByText('Звук компьютера').click()
       await first.click()

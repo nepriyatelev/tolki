@@ -58,7 +58,9 @@ async function start(message: Extract<MainToHostMessage, { type: 'start' }>): Pr
         approval: message.approval,
         organizerKey: message.organizerKey,
       },
-      { media: sfu },
+      // TOLKI_SCREEN_BY_NETWORK=off (e2e): on a CI runner the estimate measures the software
+      // encoder, not the network; the choice by window size is what the e2e checks.
+      { media: sfu, screenByNetwork: process.env['TOLKI_SCREEN_BY_NETWORK'] !== 'off' },
     )
     stopMonitor = monitorUpload(
       () => room?.transports ?? [],

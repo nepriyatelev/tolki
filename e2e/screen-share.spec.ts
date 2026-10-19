@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { freePort } from './ports'
-import { launchApp, SCREEN_CAPTURE_SKIP_REASON, screenCaptureSkipped } from './app'
+import { firstScreen, launchApp, SCREEN_CAPTURE_SKIP_REASON, screenCaptureSkipped } from './app'
 import { cpuPercent, receivedVideo, sentVideo, tapPeerConnections } from './media'
 
 test('getDisplayMedia gets nothing unless the user picked a source in our dialog', async () => {
@@ -60,7 +60,7 @@ test('the user picks a screen and sees what they are showing', async () => {
       await page.getByRole('button', { name: 'Войти в комнату' }).click()
       await page.getByRole('button', { name: 'Показать экран' }).click()
       const dialog = page.getByRole('dialog', { name: 'Что показать' })
-      const firstSource = dialog.getByRole('radio').first()
+      const firstSource = firstScreen(dialog)
       // The virtual display is sometimes listed late: refresh once, and say what was shown.
       const listed = await firstSource.waitFor({ timeout: 10_000 }).then(
         () => true,
@@ -171,7 +171,7 @@ test('others see the shared screen at a layer that fits, and nothing while hidde
 
       await katya.page.getByRole('button', { name: 'Показать экран' }).click()
       const dialog = katya.page.getByRole('dialog', { name: 'Что показать' })
-      await dialog.getByRole('radio').first().click()
+      await firstScreen(dialog).click()
       await dialog.getByRole('button', { name: 'Показать' }).click()
 
       // The stage shows what arrives: «340p · 15 к/с · 0,4 Мбит/с» (PLAN #30).
@@ -301,7 +301,7 @@ test('one screen at a time: «Показать свой» goes to the sharer, wh
       }
       const share = async (page: typeof katya.page) => {
         const dialog = page.getByRole('dialog', { name: 'Что показать' })
-        await dialog.getByRole('radio').first().click()
+        await firstScreen(dialog).click()
         await dialog.getByRole('button', { name: 'Показать' }).click()
       }
 

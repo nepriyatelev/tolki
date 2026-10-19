@@ -2,7 +2,12 @@ import { spawn } from 'node:child_process'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import {
+  _electron as electron,
+  type ElectronApplication,
+  type Locator,
+  type Page,
+} from '@playwright/test'
 import electronBinary from 'electron'
 
 export interface LaunchedApp {
@@ -27,6 +32,9 @@ function appEnv(userDataDir: string): Record<string, string> {
     TOLKI_OS_PERMISSIONS: 'skip',
     // No STUN server and no public port checker (#128).
     TOLKI_REACHABILITY: 'off',
+    // The viewer's stream follows the window size only: a runner's estimate measures its
+    // software encoder, not the network (#34; the network side is unit-tested).
+    TOLKI_SCREEN_BY_NETWORK: 'off',
     // Push-to-talk keeps to the focused window: no hook on the real keyboard, no macOS prompt.
     TOLKI_GLOBAL_KEYS: 'off',
   }
@@ -39,6 +47,14 @@ function appEnv(userDataDir: string): Record<string, string> {
  */
 export const screenCaptureSkipped = process.env['E2E_SKIP_SCREEN_CAPTURE'] === '1'
 export const SCREEN_CAPTURE_SKIP_REASON = 'screen capture hangs on this runner (#123)'
+
+/**
+ * The first screen in «Что показать». Not just the first radio: the mode buttons (#86) are
+ * radios too, and with the screens listed late «Авто» would come first.
+ */
+export function firstScreen(dialog: Locator): Locator {
+  return dialog.getByRole('radiogroup', { name: 'Экраны' }).getByRole('radio').first()
+}
 
 /**
  * Launches the app from `out/` by default. Set E2E_EXECUTABLE to a packaged binary
