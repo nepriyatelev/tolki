@@ -38,6 +38,11 @@ export interface PeerMediaEvents {
   beforeProduce: (kind: 'audio' | 'video', screenAudio: boolean) => void
   /** This viewer now gets another of the screen's streams (#34). */
   onScreenLayer: (layer: ScreenLayer) => void
+  /**
+   * Whether the viewer's bandwidth estimate may move them to ≈360p (#34); off in e2e, where a
+   * virtual machine's software encoder, not the network, keeps the estimate low.
+   */
+  screenByNetwork?: boolean
 }
 
 /** A participant's transports, producers and consumers on the host's router. */
@@ -81,7 +86,9 @@ export class PeerMedia {
         }
         const transport = await this.server.createTransport(request.direction)
         this.#transports.set(transport.id, transport)
-        if (request.direction === 'recv') this.#watchBandwidth(transport)
+        if (request.direction === 'recv' && this.events.screenByNetwork !== false) {
+          this.#watchBandwidth(transport)
+        }
         return this.server.parametersOf(transport)
       }
 

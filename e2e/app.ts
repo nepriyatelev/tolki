@@ -27,6 +27,9 @@ function appEnv(userDataDir: string): Record<string, string> {
     TOLKI_OS_PERMISSIONS: 'skip',
     // No STUN server and no public port checker (#128).
     TOLKI_REACHABILITY: 'off',
+    // The viewer's stream follows the window size only: a runner's estimate measures its
+    // software encoder, not the network (#34; the network side is unit-tested).
+    TOLKI_SCREEN_BY_NETWORK: 'off',
     // Push-to-talk keeps to the focused window: no hook on the real keyboard, no macOS prompt.
     TOLKI_GLOBAL_KEYS: 'off',
   }

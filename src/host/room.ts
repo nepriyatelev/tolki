@@ -46,6 +46,8 @@ export interface RoomOptions {
   media?: MediaServer
   /** Everyone counts, the host's own connection too (PLAN: 15, the 16th gets ROOM_FULL). */
   maxPeers?: number
+  /** A viewer's bandwidth estimate may move them to ≈360p (#34); off in e2e. */
+  screenByNetwork?: boolean
 }
 
 /** Requests a participant may have in flight; more is a bug or abuse. */
@@ -84,6 +86,7 @@ export class Room {
   readonly #handshakeTimeoutMs: number
   readonly #media: MediaServer | undefined
   readonly #maxPeers: number
+  readonly #screenByNetwork: boolean
   readonly #speakers = new SpeakerSelector()
   /** Audio producer → the participant whose voice it is. */
   readonly #voiceOwner = new Map<string, string>()
@@ -113,6 +116,7 @@ export class Room {
     this.#handshakeTimeoutMs = options.handshakeTimeoutMs ?? 10_000
     this.#media = options.media
     this.#maxPeers = options.maxPeers ?? MAX_PARTICIPANTS
+    this.#screenByNetwork = options.screenByNetwork ?? true
     this.#approval = config.approval ?? false
     const levels = this.#media?.audioLevels
     levels?.on('volumes', (volumes) => {
@@ -253,6 +257,7 @@ export class Room {
     const peer: Peer = { id: randomUUID(), name, ...(organizer ? { organizer: true } : {}) }
     const media = this.#media
       ? new PeerMedia(this.#media, {
+          screenByNetwork: this.#screenByNetwork,
           beforeProduce: (kind, screenAudio) => {
             if (kind === 'video' && this.#sharer && this.#sharer.peerId !== peer.id) {
               throw new MediaRequestError('SCREEN_BUSY')
