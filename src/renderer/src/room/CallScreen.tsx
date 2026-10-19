@@ -1,7 +1,5 @@
 import HeadphoneOff from 'lucide-solid/icons/headphone-off'
 import Headphones from 'lucide-solid/icons/headphones'
-import Lock from 'lucide-solid/icons/lock'
-import LockOpen from 'lucide-solid/icons/lock-open'
 import LogOut from 'lucide-solid/icons/log-out'
 import MessageSquare from 'lucide-solid/icons/message-square'
 import Mic from 'lucide-solid/icons/mic'
@@ -39,7 +37,7 @@ import { AudioSettingsDialog } from '../audio/AudioSettingsDialog'
 import type { MicrophoneAccess } from '../audio/microphone'
 import { ScreenSourceDialog } from '../screen/ScreenSourceDialog'
 import { browserScreen, type ScreenAccess } from '../screen/screen-share'
-import { Avatar, Button, IconButton, Tooltip } from '../ui'
+import { Avatar, Button, Tooltip } from '../ui'
 import {
   createEventBuffer,
   type ConnectionSample,
@@ -60,6 +58,8 @@ import {
 import { formatCallTime } from './call-timer'
 import { callKeyLabel, callKeyOf, isMac } from './call-keys'
 import { ConnectionIndicator } from './ConnectionIndicator'
+import { RoomMenu } from './RoomMenu'
+import { tileLayout } from './tile-layout'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { ParticipantTile } from './ParticipantTile'
 import { ScreenStage } from './ScreenStage'
@@ -68,6 +68,9 @@ import { startCall as startRealCall, type CallHandle } from './start-call'
 import './CallScreen.css'
 
 const plural = new Intl.PluralRules('ru-RU')
+
+/** px between tiles; matches .call-tiles gap. */
+const TILE_GAP = 14
 
 /** The chat keeps the latest messages of the call only, in memory (#45). */
 const MAX_CHAT_MESSAGES = 500
@@ -825,6 +828,31 @@ export function CallScreen(props: {
     ...peers().map((peer) => ({ ...peer, me: false })),
     { id: joined().peerId, name, me: true, organizer: joined().organizer },
   ]
+  // Tiles fill the space (#110): the biggest tiles for this window and this many people.
+  const [tilesBox, setTilesBox] = createSignal({ width: 0, height: 0 })
+  const observeTiles = (element: HTMLUListElement): void => {
+    if (typeof ResizeObserver === 'undefined') return
+    // The width from the container (the grid narrows itself to its rows), the height from the
+    // grid (a «Смотреть» banner may take some above it).
+    const container = element.parentElement ?? element
+    const observer = new ResizeObserver(() => {
+      // Less the grid's own 4 px padding on each side.
+      setTilesBox({ width: container.clientWidth - 8, height: element.clientHeight - 8 })
+    })
+    observer.observe(element)
+    observer.observe(container)
+    onCleanup(() => {
+      observer.disconnect()
+    })
+  }
+  const tiles = createMemo(() =>
+    tileLayout(everyone().length, tilesBox().width, tilesBox().height, TILE_GAP),
+  )
+  /** «Отдача организатора 39 Мбит/с — хватит на 15 человек и экран в 720p» for tooltips. */
+  const hostUploadDetails = (): string | undefined => {
+    const stats = hostStats()
+    return stats ? `${hostUploadText(stats)} — ${hostUploadHint(stats).toLowerCase()}` : undefined
+  }
   /** The organizer's upload in the call (#87), and a warning when it falls short. */
   const uploadWarning = (): string | null => {
     const stats = hostStats()
@@ -834,57 +862,47 @@ export function CallScreen(props: {
   return (
     <main class="call">
       <header class="call-header">
-        <h1>{joined().room.name}</h1>
-        <span class="call-count">{peopleCount(everyone().length)}</span>
-        <time class="call-timer" aria-label="Время в звонке">
-          {formatCallTime(now() - joinedAt)}
-        </time>
-        <Show when={hostStats()}>
-          {(stats) => (
-            <span
-              class="call-host-upload"
-              title={hostUploadHint(stats())}
-              aria-label={`${hostUploadText(stats())}. ${hostUploadHint(stats())}`}
+        <div class="call-title">
+          <h1>{joined().room.name}</h1>
+          <span class="call-count">{peopleCount(everyone().length)}</span>
+          <time class="call-timer" aria-label="Время в звонке">
+            {formatCallTime(now() - joinedAt)}
+          </time>
+        </div>
+        <div class="call-header-actions">
+          <Show when={stage()}>
+            <Button
+              icon={<Users />}
+              onClick={() => {
+                setView('grid')
+              }}
             >
-              {hostUploadText(stats())}
-            </span>
-          )}
-        </Show>
-        <Show when={!props.organizer}>
-          <ConnectionIndicator
-            sample={() => call?.connectionSample() ?? Promise.resolve(null)}
-            offline={reconnecting()}
-          />
-        </Show>
-        <Show when={isOrganizer()}>
-          <IconButton
-            label={approval() ? 'Подтверждать вход: включено' : 'Подтверждать вход: выключено'}
-            // The state is in the icon and the label: the pressed style means «off» elsewhere.
-            icon={approval() ? <Lock /> : <LockOpen />}
-            onClick={toggleApproval}
-          />
-        </Show>
-        <Show when={props.inviteLink}>
-          {(link) => (
-            <Button icon={<UserPlus />} onClick={() => void copyInvite(link())}>
-              {linkCopied() ? 'Ссылка скопирована' : 'Пригласить'}
+              Все участники
             </Button>
-          )}
-        </Show>
-        <Show when={stage()}>
-          <Button
-            class="call-header-switch"
-            icon={<Users />}
-            onClick={() => {
-              setView('grid')
-            }}
-          >
-            Все участники
-          </Button>
-        </Show>
-        <Button variant="danger" icon={<LogOut />} onClick={() => void leave()}>
-          Выйти
-        </Button>
+          </Show>
+          <Show when={!props.organizer}>
+            {/* The organizer's upload in its tooltip: details on hover, not a line of text (#110). */}
+            <ConnectionIndicator
+              sample={() => call?.connectionSample() ?? Promise.resolve(null)}
+              offline={reconnecting()}
+              details={hostUploadDetails()}
+            />
+          </Show>
+          <Show when={isOrganizer()}>
+            <RoomMenu
+              approval={approval()}
+              onApprovalChange={toggleApproval}
+              upload={hostUploadDetails()}
+            />
+          </Show>
+          <Show when={props.inviteLink}>
+            {(link) => (
+              <Button icon={<UserPlus />} onClick={() => void copyInvite(link())}>
+                {linkCopied() ? 'Ссылка скопирована' : 'Пригласить'}
+              </Button>
+            )}
+          </Show>
+        </div>
       </header>
       <div class="call-body">
         <div class="call-content">
@@ -907,7 +925,20 @@ export function CallScreen(props: {
                     </div>
                   )}
                 </Show>
-                <ul class="call-tiles" aria-label="Участники">
+                <ul
+                  class="call-tiles"
+                  classList={{ 'call-tiles--fit': tiles().width > 0 }}
+                  style={
+                    tiles().width > 0
+                      ? {
+                          '--tile-columns': String(tiles().columns),
+                          '--tile-width': `${tiles().width}px`,
+                        }
+                      : {}
+                  }
+                  ref={observeTiles}
+                  aria-label="Участники"
+                >
                   <For each={everyone()}>
                     {(person) => (
                       <ParticipantTile
@@ -989,95 +1020,112 @@ export function CallScreen(props: {
         </Show>
       </div>
       <footer class="call-footer">
-        <Show when={reconnecting()}>
-          <p class="call-reconnecting" role="status">
-            Переподключение…
+        {/* Over the content, above the bar: nothing below them moves when they come (#110). */}
+        <div class="call-notices">
+          <Show when={reconnecting()}>
+            <p class="call-reconnecting" role="status">
+              Переподключение…
+            </p>
+          </Show>
+          <p
+            class="call-sound"
+            hidden={reconnecting()}
+            role="status"
+            // All is well: said to screen readers, not shown (#110).
+            classList={{
+              'call-sound--failed': sound() === 'failed',
+              'visually-hidden': sound() === 'on',
+            }}
+          >
+            <Switch>
+              <Match when={sound() === 'connecting'}>Подключение звука…</Match>
+              <Match when={sound() === 'on'}>Звук подключён</Match>
+              <Match when={sound() === 'listen-only'}>
+                {micDenied()
+                  ? 'Нет доступа к микрофону — только прослушивание'
+                  : 'Микрофон недоступен — только прослушивание'}
+              </Match>
+              <Match when={sound() === 'failed'}>
+                Звук не подключился. Поможет повторный вход в комнату.
+              </Match>
+            </Switch>
           </p>
-        </Show>
-        <p
-          class="call-sound"
-          hidden={reconnecting()}
-          role="status"
-          classList={{ 'call-sound--failed': sound() === 'failed' }}
-        >
-          <Switch>
-            <Match when={sound() === 'connecting'}>Подключение звука…</Match>
-            <Match when={sound() === 'on'}>Звук подключён</Match>
-            <Match when={sound() === 'listen-only'}>
-              {micDenied()
-                ? 'Нет доступа к микрофону — только прослушивание'
-                : 'Микрофон недоступен — только прослушивание'}
-            </Match>
-            <Match when={sound() === 'failed'}>
-              Звук не подключился. Поможет повторный вход в комнату.
-            </Match>
-          </Switch>
-        </p>
-        <Show when={sound() === 'listen-only' && micDenied()}>
-          <div class="call-request">
-            <span>
-              Доступ разрешается в системных настройках, затем нужно войти в комнату снова
-            </span>
-            <Button onClick={() => void window.tolki.permissions.openSettings('microphone')}>
-              Открыть настройки
-            </Button>
-          </div>
-        </Show>
-        <For each={joinRequests().slice(0, 3)}>
-          {(request) => (
-            <div class="call-request" role="alert">
-              <span>{request.name} просит впустить</span>
-              <Button
-                onClick={() => {
-                  answerJoin(request.requestId, false)
-                }}
-              >
-                Отклонить
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => {
-                  answerJoin(request.requestId, true)
-                }}
-              >
-                Впустить
+          <Show when={sound() === 'listen-only' && micDenied()}>
+            <div class="call-request">
+              <span>
+                Доступ разрешается в системных настройках, затем нужно войти в комнату снова
+              </span>
+              <Button onClick={() => void window.tolki.permissions.openSettings('microphone')}>
+                Открыть настройки
               </Button>
             </div>
-          )}
-        </For>
-        <For each={screenRequests().slice(0, 1)}>
-          {(fromPeerId) => (
-            <div class="call-request" role="alert">
-              <span>{nameOf(fromPeerId)} просит показать свой экран</span>
-              <Button onClick={() => void answerRequest(fromPeerId, false)}>
-                Продолжить показ
-              </Button>
-              <Button variant="primary" onClick={() => void answerRequest(fromPeerId, true)}>
-                Уступить
-              </Button>
-            </div>
-          )}
-        </For>
-        <Show when={screenNote()}>
-          {(note) => (
-            <p class="call-sound" role="status">
-              {note()}
+          </Show>
+          <For each={joinRequests().slice(0, 3)}>
+            {(request) => (
+              <div class="call-request" role="alert">
+                <span>{request.name} просит впустить</span>
+                <Button
+                  onClick={() => {
+                    answerJoin(request.requestId, false)
+                  }}
+                >
+                  Отклонить
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    answerJoin(request.requestId, true)
+                  }}
+                >
+                  Впустить
+                </Button>
+              </div>
+            )}
+          </For>
+          <For each={screenRequests().slice(0, 1)}>
+            {(fromPeerId) => (
+              <div class="call-request" role="alert">
+                <span>{nameOf(fromPeerId)} просит показать свой экран</span>
+                <Button onClick={() => void answerRequest(fromPeerId, false)}>
+                  Продолжить показ
+                </Button>
+                <Button variant="primary" onClick={() => void answerRequest(fromPeerId, true)}>
+                  Уступить
+                </Button>
+              </div>
+            )}
+          </For>
+          <Show when={screenNote()}>
+            {(note) => (
+              <p class="call-sound" role="status">
+                {note()}
+              </p>
+            )}
+          </Show>
+          <Show when={uploadWarning()}>
+            {(warning) => (
+              <p class="call-sound call-sound--warning" role="status">
+                {warning()}
+              </p>
+            )}
+          </Show>
+          <Show when={screenError()}>
+            <p class="call-sound call-sound--failed" role="alert">
+              Показ экрана не начался. Можно попробовать ещё раз или выбрать другое окно.
             </p>
-          )}
-        </Show>
-        <Show when={uploadWarning()}>
-          {(warning) => (
-            <p class="call-sound call-sound--warning" role="status">
-              {warning()}
+          </Show>
+          <Show when={keysHint()}>
+            <p class="call-keys-hint rt-glass rt-glass--sm" role="status">
+              <span>
+                Клавиши звонка — <kbd>{callKeyLabel('shortcuts', mac)}</kbd>
+              </span>
+              <button type="button" class="call-keys-hint-close" onClick={() => setKeysHint(false)}>
+                Понятно
+              </button>
             </p>
-          )}
-        </Show>
-        <Show when={screenError()}>
-          <p class="call-sound call-sound--failed" role="alert">
-            Показ экрана не начался. Можно попробовать ещё раз или выбрать другое окно.
-          </p>
-        </Show>
-        <div class="call-controls" role="toolbar" aria-label="Управление звонком">
+          </Show>
+        </div>
+        <div class="call-controls rt-glass" role="toolbar" aria-label="Управление звонком">
           <Tooltip text={micTip()}>
             {(tip) => (
               <button
@@ -1194,6 +1242,21 @@ export function CallScreen(props: {
               </button>
             )}
           </Tooltip>
+          <Tooltip text="Выйти из комнаты">
+            {(tip) => (
+              <button
+                aria-describedby={tip}
+                type="button"
+                class="call-control call-control--leave"
+                onClick={() => void leave()}
+              >
+                <span class="call-control-icon">
+                  <LogOut />
+                </span>
+                Выйти
+              </button>
+            )}
+          </Tooltip>
         </div>
         <ScreenSourceDialog
           open={pickerOpen()}
@@ -1226,16 +1289,6 @@ export function CallScreen(props: {
           {...(props.microphone ? { access: props.microphone } : {})}
           {...(props.playTestSound ? { playTestSound: props.playTestSound } : {})}
         />
-        <Show when={keysHint()}>
-          <p class="call-keys-hint rt-glass rt-glass--sm" role="status">
-            <span>
-              Клавиши звонка — <kbd>{callKeyLabel('shortcuts', mac)}</kbd>
-            </span>
-            <button type="button" class="call-keys-hint-close" onClick={() => setKeysHint(false)}>
-              Понятно
-            </button>
-          </p>
-        </Show>
         <ShortcutsDialog
           open={shortcutsOpen()}
           onClose={() => setShortcutsOpen(false)}

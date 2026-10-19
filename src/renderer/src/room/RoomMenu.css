@@ -1,0 +1,32 @@
+.room-menu {
+  position: relative;
+}
+
+/* Grows from its button (apple-design §7), on glass like everything over the call. */
+.room-menu-panel {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 40;
+  display: grid;
+  gap: var(--space-3);
+  width: 300px;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  transform-origin: 100% 0;
+  animation: room-menu-in var(--duration-base) var(--ease-out);
+}
+
+.room-menu-upload {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--glass-border);
+  color: var(--color-text-soft);
+  font-size: var(--text-sm);
+}
+
+@keyframes room-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}

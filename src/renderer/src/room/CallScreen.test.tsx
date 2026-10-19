@@ -1257,12 +1257,18 @@ describe('the organizer’s rights (#42)', () => {
     expect(screen.queryByText('Миша просит впустить')).toBeNull()
   })
 
-  it('turns entry by approval on and off from the header', async () => {
+  it('turns entry by approval on and off from the room menu (#110)', async () => {
     const ctx = setup({ organizer: true })
     await screen.findByText('Звук подключён')
-    await ctx.user.click(screen.getByRole('button', { name: 'Подтверждать вход: выключено' }))
+    await ctx.user.click(screen.getByRole('button', { name: 'Меню комнаты' }))
+    const menu = screen.getByRole('dialog', { name: 'Комната' })
+    const approval = within(menu).getByRole('checkbox', { name: 'Подтверждать вход' })
+    expect(approval).toHaveProperty('checked', false)
+    await ctx.user.click(approval)
     expect(ctx.api.room.request).toHaveBeenCalledWith({ method: 'setApproval', enabled: true })
-    expect(screen.getByRole('button', { name: 'Подтверждать вход: включено' })).toBeTruthy()
+    expect(approval).toHaveProperty('checked', true)
+    await ctx.user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Комната' })).toBeNull()
   })
 
   it('removes someone from their tile, asking once more', async () => {
@@ -1279,7 +1285,7 @@ describe('the organizer’s rights (#42)', () => {
   it('offers none of it to other participants', async () => {
     const ctx = setup()
     await screen.findByText('Звук подключён')
-    expect(screen.queryByRole('button', { name: /Подтверждать вход/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Меню комнаты' })).toBeNull()
     await ctx.user.click(screen.getByRole('button', { name: 'Меню: Дима' }))
     expect(screen.queryByRole('button', { name: 'Удалить из комнаты' })).toBeNull()
   })
@@ -1443,8 +1449,13 @@ describe('the organizer in the call (#87)', () => {
       screen: '720p',
       measured: true,
     })
-    const upload = await screen.findByText('Отдача организатора 39 Мбит/с')
-    expect(upload.getAttribute('title')).toBe('Хватит на 15 человек и экран в 720p')
+    // In the link's tooltip, not a line of its own (#110).
+    expect(
+      await screen.findByRole('status', {
+        name: /Отдача организатора 39 Мбит\/с — хватит на 15 человек и экран в 720p/,
+      }),
+    ).toBeTruthy()
+    expect(screen.queryByText('Отдача организатора 39 Мбит/с')).toBeNull()
     expect(screen.queryByText(/не хватает скорости отдачи/)).toBeNull()
 
     ctx.api.room.emitEvent({

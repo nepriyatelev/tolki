@@ -21,7 +21,9 @@ test('the organizer lets a guest in, removes them, and lets them back without ap
     await page.getByLabel('Порт').blur()
     await page.getByRole('button', { name: 'Открыть комнату' }).click()
     await expect(page.getByText('Звук подключён')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Подтверждать вход: включено' })).toBeVisible()
+    await page.getByRole('button', { name: 'Меню комнаты' }).click()
+    await expect(page.getByRole('checkbox', { name: 'Подтверждать вход' })).toBeChecked()
+    await page.keyboard.press('Escape')
 
     const fingerprint = await page.evaluate(() => window.tolki.host.getFingerprint())
     const guest = await launchApp({
@@ -57,7 +59,8 @@ test('the organizer lets a guest in, removes them, and lets them back without ap
       await g.getByRole('button', { name: 'Войти в комнату' }).click()
       await expect(g.getByText('Вход подтверждает организатор — нужно подождать.')).toBeVisible()
       await expect(page.getByText('Катя просит впустить')).toBeVisible()
-      await page.getByRole('button', { name: 'Подтверждать вход: включено' }).click()
+      await page.getByRole('button', { name: 'Меню комнаты' }).click()
+      await page.getByRole('checkbox', { name: 'Подтверждать вход' }).click()
       await expect(g.getByText('Звук подключён')).toBeVisible()
       await expect(page.getByText('Катя просит впустить')).toHaveCount(0)
     } finally {

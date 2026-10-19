@@ -21,6 +21,8 @@ export function ConnectionIndicator(props: {
   sample: () => Promise<ConnectionSample | null>
   /** The link dropped and the app is reconnecting (PLAN #31). */
   offline: boolean
+  /** More for the tooltip: the organizer's upload (#87, #110). */
+  details?: string | undefined
 }): JSX.Element {
   const [quality, setQuality] = createSignal<ConnectionQuality | null>(null)
 
@@ -47,7 +49,8 @@ export function ConnectionIndicator(props: {
   const label = (): string => {
     if (props.offline) return 'Нет связи с организатором'
     const q = quality()
-    return q ? connectionLongText(q) : 'Проверка связи…'
+    const link = q ? connectionLongText(q) : 'Проверка связи…'
+    return props.details ? `${link}. ${props.details}` : link
   }
 
   return (
