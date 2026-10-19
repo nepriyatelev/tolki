@@ -107,9 +107,13 @@
   --glass-bg: rgb(26 29 33 / 58%);
   --glass-solid: #1a1d21;
   --glass-border: rgb(255 255 255 / 12%);
+  --glass-border-strong: rgb(255 255 255 / 40%);
   --glass-highlight: rgb(255 255 255 / 8%);
-  --glass-shadow: 0 8px 28px rgb(0 0 0 / 35%);
-  --glass-blur: blur(18px) saturate(160%);
+  /* Bigger surfaces read as thicker material: more blur, a deeper shadow. */
+  --glass-blur-sm: blur(12px) saturate(150%);
+  --glass-blur: blur(20px) saturate(170%);
+  --glass-shadow-sm: 0 4px 14px rgb(0 0 0 / 30%);
+  --glass-shadow: 0 10px 32px rgb(0 0 0 / 38%);
   --glass-button: rgb(255 255 255 / 8%);
   --glass-button-hover: rgb(255 255 255 / 14%);
 }

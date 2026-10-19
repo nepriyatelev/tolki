@@ -1227,7 +1227,7 @@ export function CallScreen(props: {
           {...(props.playTestSound ? { playTestSound: props.playTestSound } : {})}
         />
         <Show when={keysHint()}>
-          <p class="call-keys-hint rt-glass" role="status">
+          <p class="call-keys-hint rt-glass rt-glass--sm" role="status">
             <span>
               Клавиши звонка — <kbd>{callKeyLabel('shortcuts', mac)}</kbd>
             </span>
