@@ -4,14 +4,15 @@ import { launchApp } from './app'
 test('the home screen shows whether this computer can host', async () => {
   const { app, page } = await launchApp()
   try {
-    const footer = page.locator('footer.network-status')
+    // «Cannot host» stands over the cards, not in the footer (#110).
+    const notice = page.getByRole('status', { name: 'Состояние сети' })
 
     // With port mapping turned off (e2e), the honest answer is "cannot tell, check by hand".
-    await expect(footer).toContainText(
+    await expect(notice).toContainText(
       'Этот компьютер не может быть организатором: автоматический проброс порта выключен',
     )
-    await expect(footer).toContainText('Порт 47000 должен быть проброшен на роутере')
-    await expect(footer.getByRole('button', { name: 'Проверить снова' })).toBeVisible()
+    await expect(notice).toContainText('Порт 47000 должен быть проброшен на роутере')
+    await expect(notice.getByRole('button', { name: 'Проверить снова' })).toBeVisible()
   } finally {
     await app.close()
   }
