@@ -1,22 +1,42 @@
-/* The call fills the window: tiles scroll, the controls stay at the bottom. */
+/* The call fills the window; the controls float over it at the bottom (#110). */
 .app:has(.call) {
   height: 100vh;
 }
 
 .call {
+  /* Room the floating bar keeps clear under the content. */
+  --call-bar-space: 108px;
+
+  position: relative;
   display: grid;
   flex: 1;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: var(--space-4);
   min-height: 0;
-  padding: var(--space-5) var(--space-6) 0;
+  padding: var(--space-5) var(--space-6) var(--call-bar-space);
 }
 
+/* Name, people and time on the left; the link, the room and «Пригласить» on the right. */
 .call-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-3) var(--space-4);
   min-width: 0;
+}
+
+.call-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.call-header-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-3);
 }
 
 .call-header h1 {
@@ -36,17 +56,6 @@
   font-size: var(--text-sm);
 }
 
-/* The organizer's upload (#87); what it carries is in the tooltip. */
-.call-host-upload {
-  flex-shrink: 1;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .call-count {
   flex-shrink: 0;
   padding: 2px var(--space-3);
@@ -55,14 +64,6 @@
   color: var(--color-text-soft);
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
-}
-
-.call-header .rt-button {
-  flex-shrink: 0;
-}
-
-.call-header .rt-button:first-of-type {
-  margin-left: auto;
 }
 
 /* The middle: tiles, or the shared screen with people in a strip under it (mockup 5). */
@@ -314,13 +315,52 @@
   accent-color: var(--color-accent);
 }
 
+/* Notices and the bar float over the content, at the bottom (#110). Only they take the pointer. */
 .call-footer {
+  position: absolute;
+  right: 0;
+  bottom: var(--space-4);
+  left: 0;
+  z-index: 30;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) 0 var(--space-4);
-  border-top: 1px solid var(--color-border-subtle);
+  padding-inline: var(--space-6);
+  pointer-events: none;
+}
+
+.call-footer > * {
+  pointer-events: auto;
+}
+
+/* Stacked above the bar; their arrival moves nothing (ui-ux-pro-max «Content Jumping»). */
+.call-notices {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.call-notices > :not(.visually-hidden) {
+  pointer-events: auto;
+}
+
+.call-notices > .call-sound:not(.visually-hidden) {
+  padding: var(--space-1) var(--space-4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-full);
+  background: var(--glass-solid);
+  font-weight: 500;
+}
+
+@supports (backdrop-filter: blur(1px)) {
+  .call-notices > .call-sound:not(.visually-hidden),
+  .call-notices > .call-request {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur-sm);
+  }
 }
 
 .call-request {
@@ -329,10 +369,12 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-raised);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--glass-solid);
+  box-shadow: var(--glass-shadow-sm);
   font-size: var(--text-md);
+  font-weight: 500;
   animation: screen-in 160ms var(--ease-out);
 }
 
@@ -364,23 +406,27 @@
   color: var(--color-warning-text);
 }
 
+/* The floating bar (#110), as in Meet: on glass, «Выйти» last and red. */
 .call-controls {
   display: flex;
   justify-content: center;
-  gap: var(--space-6);
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-2xl);
 }
 
 .call-control {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
+  min-width: 56px;
   padding: 0;
   border: 0;
   background: none;
   color: var(--color-text-soft);
   font: inherit;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   cursor: pointer;
 }
 
@@ -393,16 +439,28 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   border-radius: var(--radius-full);
-  background: var(--color-raised);
+  background: var(--glass-button);
   color: var(--color-text);
-  transition: background-color 150ms var(--ease-out);
+  transition:
+    background-color 150ms var(--ease-out),
+    transform 100ms var(--ease-out);
 }
 
 .call-control:not(:disabled):hover .call-control-icon {
-  background: var(--color-raised-hover);
+  background: var(--glass-button-hover);
+}
+
+.call-control--leave .call-control-icon,
+.call-control--leave:not(:disabled):hover .call-control-icon {
+  background: var(--color-danger);
+  color: var(--color-on-danger);
+}
+
+.call-control--leave:not(:disabled):hover .call-control-icon {
+  background: var(--color-danger-hover);
 }
 
 .call-control:not(:disabled):active .call-control-icon {
@@ -450,8 +508,8 @@
 }
 
 .call-control-icon svg {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
 }
 
 @keyframes menu-in {
@@ -499,4 +557,23 @@
 
 .call-keys-hint-close:hover {
   background: var(--glass-button-hover);
+}
+
+/* Tiles fill the space (#110): size from tileLayout, a 16:10 shape; rows centred, a short
+   last row too, as in Meet. */
+.call-tiles--fit {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  justify-content: center;
+  width: 100%;
+  max-width: calc(var(--tile-columns) * var(--tile-width) + (var(--tile-columns) - 1) * 14px + 8px);
+  margin-inline: auto;
+  overflow: hidden;
+}
+
+.call-tiles--fit .call-tile {
+  flex: 0 0 var(--tile-width);
+  height: auto;
+  aspect-ratio: 16 / 10;
 }
