@@ -102,12 +102,21 @@ describe('MicCheck', () => {
   it('opens the system settings when the OS denies the microphone (#85)', async () => {
     const user = userEvent.setup()
     const api = installTolkiMock({ permissions: { microphone: 'denied' } })
-    const mic = fakeMic()
+    const mic = fakeMic({ fail: new MicrophoneError('denied') })
     render(() => <MicCheck access={mic.access} />)
     expect(await screen.findByText(/Нет доступа к микрофону/)).toBeTruthy()
-    expect(mic.opened).toEqual([])
     await user.click(screen.getByRole('button', { name: 'Открыть настройки' }))
     expect(api.permissions.openSettings).toHaveBeenCalledWith('microphone')
+  })
+
+  it('tries the microphone even when the OS says «denied» (Windows may be wrong)', async () => {
+    installTolkiMock({ permissions: { microphone: 'denied' } })
+    const mic = fakeMic()
+    render(() => <MicCheck access={mic.access} />)
+    await vi.waitFor(() => {
+      expect(mic.opened).toEqual([''])
+    })
+    expect(screen.queryByText(/Нет доступа к микрофону/)).toBeNull()
   })
 
   it('reports the «join muted» choice', async () => {
