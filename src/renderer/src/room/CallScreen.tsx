@@ -97,6 +97,13 @@ export const SPEAKING_HOLD_MS = 600
 
 type Sound = 'connecting' | 'on' | 'listen-only' | 'failed'
 
+/** Louder than this (0..1) while muted counts as speaking into a muted microphone (#110). */
+export const MUTED_SPEECH_LEVEL = 0.3
+/** For this long in a row, the tip «Микрофон выключен» shows, once per call. */
+export const MUTED_SPEECH_MS = 800
+/** And goes away by itself after this. */
+export const MUTED_SPEECH_TIP_MS = 8000
+
 /** The call (mockup 4): a tile per participant, a frame around whoever is speaking. */
 export function CallScreen(props: {
   session: CallSession
@@ -137,6 +144,13 @@ export function CallScreen(props: {
   const [shortcutsOpen, setShortcutsOpen] = createSignal(false)
   /** Once, in the first call: where the keys are. */
   const [keysHint, setKeysHint] = createSignal(false)
+  /** The user's own voice level (0..1), for the ring on the microphone button (#110). */
+  const [micLevel, setMicLevel] = createSignal(0)
+  /** «Микрофон выключен — вас не слышно»: shown once per call, when they speak muted. */
+  const [mutedSpeechTip, setMutedSpeechTip] = createSignal(false)
+  let mutedSpeechTipShown = false
+  let mutedSpeechSince: number | null = null
+  let mutedSpeechTimer: ReturnType<typeof setTimeout> | undefined
   const mac = isMac()
   const [pickerOpen, setPickerOpen] = createSignal(false)
   /** What this user is showing (PLAN #26); sending it to the others comes with #27. */
@@ -397,6 +411,32 @@ export function CallScreen(props: {
     })
   })
 
+  /** The voice level each frame: the ring on the button, and the tip when muted (#110). */
+  const onMicLevel = (level: number): void => {
+    // Steps of 5 %: the signal changes only when the ring would.
+    setMicLevel(Math.round(level * 20) / 20)
+    if (mutedSpeechTipShown) return
+    const speakingMuted =
+      level > MUTED_SPEECH_LEVEL && muted() && !ptt().enabled && !deafened() && canSpeak()
+    if (!speakingMuted) {
+      mutedSpeechSince = null
+      return
+    }
+    const now = performance.now()
+    mutedSpeechSince ??= now
+    if (now - mutedSpeechSince < MUTED_SPEECH_MS) return
+    mutedSpeechTipShown = true
+    setMutedSpeechTip(true)
+    mutedSpeechTimer = setTimeout(() => setMutedSpeechTip(false), MUTED_SPEECH_TIP_MS)
+  }
+  onCleanup(() => {
+    clearTimeout(mutedSpeechTimer)
+  })
+  // Unmuted, the tip has done its job.
+  createEffect(() => {
+    if (!muted()) setMutedSpeechTip(false)
+  })
+
   /** Starts the call for the room as joined; again after a reconnect, with the same choices. */
   const startTheCall = (room: CallSession['result'], buffer: typeof callEvents): void => {
     void (props.startCall ?? startRealCall)({
@@ -413,6 +453,8 @@ export function CallScreen(props: {
         }
         call = handle
         setSound(handle.sending ? 'on' : 'listen-only')
+        // The meter stops with the handle (a reconnect starts a new one).
+        if (handle.sending) handle.meterMicrophone?.(onMicLevel)
         // Without a microphone because the OS refuses it: its settings can be opened (#85).
         if (!handle.sending) {
           void window.tolki.permissions
@@ -1114,6 +1156,15 @@ export function CallScreen(props: {
               Показ экрана не начался. Можно попробовать ещё раз или выбрать другое окно.
             </p>
           </Show>
+          <Show when={mutedSpeechTip()}>
+            <div class="call-request call-muted-tip" role="status">
+              <span>Микрофон выключен — вас не слышно</span>
+              <Button onClick={() => setMutedSpeechTip(false)}>Понятно</Button>
+              <Button variant="primary" icon={<Mic />} onClick={toggleMic}>
+                Включить
+              </Button>
+            </div>
+          </Show>
           <Show when={keysHint()}>
             <p class="call-keys-hint rt-glass rt-glass--sm" role="status">
               <span>
@@ -1135,8 +1186,14 @@ export function CallScreen(props: {
               <button
                 aria-describedby={tip}
                 type="button"
-                class="call-control"
+                class="call-control call-control--mic"
                 classList={{ 'call-control--off': ptt().enabled ? !transmitting() : muted() }}
+                // The voice as it goes out: a ring that grows with it (#110).
+                style={{
+                  '--mic-level': String(
+                    (ptt().enabled ? transmitting() : !muted() && canSpeak()) ? micLevel() : 0,
+                  ),
+                }}
                 aria-pressed={ptt().enabled ? undefined : muted()}
                 aria-label={
                   ptt().enabled
