@@ -197,3 +197,58 @@
     transform: translateY(8px) scale(0.98);
   }
 }
+
+/* While the list comes (#110): placeholders in its shape, a slow shimmer. */
+.screen-picker-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.screen-picker-skeleton-tabs {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.screen-picker-skeleton-tabs .screen-picker-skeleton {
+  width: 96px;
+  height: 36px;
+  border-radius: var(--radius-md);
+}
+
+.screen-picker-source--skeleton,
+.screen-picker-source--skeleton:hover {
+  background: var(--color-panel);
+  cursor: default;
+}
+
+.screen-picker-skeleton {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 5%) 50%, transparent 100%)
+    var(--color-raised);
+  background-size: 200% 100%;
+  animation: screen-picker-shimmer 1.4s linear infinite;
+}
+
+.screen-picker-skeleton--line {
+  width: 60%;
+  height: 12px;
+  margin: 2px 0;
+}
+
+@keyframes screen-picker-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-picker-skeleton {
+    animation: none;
+  }
+}

@@ -89,3 +89,46 @@
   font-size: var(--text-xs);
   color: var(--color-text-muted);
 }
+
+/* Compact (#110): «Что показываете [Авто] [Чёткий текст] [Плавно]» on one line. */
+.rt-radio-pills--compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.rt-radio-pills--compact .rt-radio-pills__legend {
+  float: left;
+  margin: 0;
+  color: var(--color-text-soft);
+}
+
+.rt-radio-pills--compact .rt-radio-pills__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.rt-radio-pills--compact .rt-radio-pill {
+  grid-template-columns: 14px auto;
+  align-items: center;
+  min-height: 36px;
+  padding: var(--space-1) var(--space-3);
+}
+
+.rt-radio-pills--compact .rt-radio-pill__dot {
+  width: 14px;
+  height: 14px;
+  margin-top: 0;
+}
+
+.rt-radio-pills--compact .rt-radio-pill:has(:checked) .rt-radio-pill__dot {
+  border-width: 4px;
+}
+
+.rt-radio-pills__hint {
+  flex-basis: 100%;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
