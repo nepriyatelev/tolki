@@ -16,6 +16,8 @@ export interface ScreenCaptureOptions {
     fetchWindowIcons: boolean
   }) => Promise<DesktopSource[]>
   platform: NodeJS.Platform
+  /** process.arch: window icons block the main process on Intel macOS (#123). */
+  arch?: string
   /** macOS «Запись экрана» (#85); 'not-asked' lets macOS show its dialog on the first list. */
   screenPermission: () => PermissionState
   env: NodeJS.ProcessEnv
@@ -41,6 +43,14 @@ export class ScreenCapture {
 
   constructor(private readonly options: ScreenCaptureOptions) {}
 
+  /**
+   * The app icon next to a window's name. On Intel macOS asking for it blocked the whole main
+   * process (#123, seen on the macos-26-intel runner), so there the names go without icons.
+   */
+  get #windowIcons(): boolean {
+    return !(this.options.platform === 'darwin' && this.options.arch === 'x64')
+  }
+
   /** Wayland apps cannot see other windows; the desktop portal shows its own picker. */
   get usesSystemPicker(): boolean {
     const { env } = this.options
@@ -61,7 +71,11 @@ export class ScreenCapture {
         fetchWindowIcons: false,
       }),
       this.options
-        .getSources({ types: ['window'], thumbnailSize: THUMBNAIL, fetchWindowIcons: true })
+        .getSources({
+          types: ['window'],
+          thumbnailSize: THUMBNAIL,
+          fetchWindowIcons: this.#windowIcons,
+        })
         .catch(() => []),
     ])
     const sources = [...screens, ...windows]

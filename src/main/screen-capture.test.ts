@@ -58,6 +58,19 @@ describe('ScreenCapture', () => {
     )
   })
 
+  it('asks for no window icons on Intel macOS, where they blocked the main process (#123)', async () => {
+    const intel = capture({ platform: 'darwin', arch: 'x64' })
+    await intel.screen.list()
+    expect(intel.getSources).toHaveBeenCalledWith(
+      expect.objectContaining({ types: ['window'], fetchWindowIcons: false }),
+    )
+    const appleSilicon = capture({ platform: 'darwin', arch: 'arm64' })
+    await appleSilicon.screen.list()
+    expect(appleSilicon.getSources).toHaveBeenCalledWith(
+      expect.objectContaining({ types: ['window'], fetchWindowIcons: true }),
+    )
+  })
+
   it('offers the computer’s sound only where it works, never with the Wayland portal (#41)', async () => {
     expect(await capture({ systemAudio: false }).screen.list()).toMatchObject({
       systemAudio: false,

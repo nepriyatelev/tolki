@@ -15,6 +15,7 @@ import {
   type ScreenSample,
 } from './call'
 import { CallScreen, peopleCount, SPEAKING_HOLD_MS } from './CallScreen'
+import { LIST_TIMEOUT_MS } from '../screen/ScreenSourceDialog'
 
 const RESULT: Extract<JoinResult, { ok: true }> = {
   ok: true,
@@ -732,6 +733,24 @@ describe('showing your screen: picking the source (#26)', () => {
     await screen.findByText('Звук подключён')
     ctx.api.room.emitEvent({ type: 'screen-budget', height: 720, maxBitrate: 1_500_000 })
     expect(ctx.setScreenBudget).toHaveBeenCalledWith({ height: 720, maxBitrate: 1_500_000 })
+  })
+
+  it('stops searching after a while and offers to try again (#123)', async () => {
+    const ctx = setup()
+    await screen.findByText('Звук подключён')
+    ctx.screen.access.listSources.mockReturnValueOnce(new Promise(() => undefined))
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      await ctx.user.click(screen.getByRole('button', { name: 'Показать экран' }))
+      expect(screen.getByText('Поиск экранов и окон…')).toBeTruthy()
+      await vi.advanceTimersByTimeAsync(LIST_TIMEOUT_MS)
+      expect(await screen.findByText('Список экранов получить не удалось.')).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+    await ctx.user.click(screen.getByRole('button', { name: 'Попробовать снова' }))
+    const dialog = screen.getByRole('dialog', { name: 'Что показать' })
+    expect(await within(dialog).findByRole('radio', { name: 'Экран 1' })).toBeTruthy()
   })
 
   it('lets the system pick on Wayland', async () => {

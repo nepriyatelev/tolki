@@ -240,6 +240,7 @@ const permissions = new Permissions({
 const screenCapture = new ScreenCapture({
   getSources: (options) => desktopCapturer.getSources(options),
   platform: process.platform,
+  arch: process.arch,
   screenPermission: () => permissions.status('screen'),
   env: process.env,
   systemAudio: fakeSystemAudio || systemAudioSupported(process.platform, release()),

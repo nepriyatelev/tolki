@@ -19,6 +19,30 @@ import './ScreenSourceDialog.css'
 
 type Tab = 'screen' | 'window'
 
+/**
+ * How long the list may take. Listing windows once blocked the main process for good (#123);
+ * after this the dialog says so and offers to try again instead of searching forever.
+ */
+export const LIST_TIMEOUT_MS = 15_000
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('the list of screens did not come in time'))
+    }, ms)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (error: unknown) => {
+        clearTimeout(timer)
+        reject(error instanceof Error ? error : new Error(String(error)))
+      },
+    )
+  })
+}
+
 /** The list, or (macOS, the first time) a word before macOS asks for «Запись экрана» (#85). */
 type DialogSources = ScreenSourcesResult | { picker: 'ask' }
 
@@ -52,7 +76,7 @@ export function ScreenSourceDialog(props: {
     () => props.open || undefined,
     async (): Promise<DialogSources> => {
       if (!askedBefore && (await access().permission()) === 'not-asked') return { picker: 'ask' }
-      return access().listSources()
+      return withTimeout(access().listSources(), LIST_TIMEOUT_MS)
     },
   )
   const openSettings = async (): Promise<void> => {
