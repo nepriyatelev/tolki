@@ -133,9 +133,15 @@
   font-size: var(--text-md);
 }
 
+/* Cannot host: a warning, not an error — the advice says what helps (#110). */
 .network-card-summary--bad {
-  background: var(--color-danger-soft);
-  color: var(--color-danger-text);
+  border: 1px solid rgb(240 198 107 / 25%);
+  background: var(--color-warning-soft);
+  color: var(--color-text-soft);
+}
+
+.network-card-summary--bad strong {
+  color: var(--color-warning-text);
 }
 
 .network-card-actions {
