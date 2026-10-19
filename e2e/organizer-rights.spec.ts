@@ -34,7 +34,7 @@ test('the organizer lets a guest in, removes them, and lets them back without ap
       await expect(g.getByText('Вход подтверждает организатор', { exact: true })).toBeVisible()
       await g.getByLabel('Имя').fill('Катя')
       await g.getByRole('button', { name: 'Войти в комнату' }).click()
-      await expect(g.getByText('Вход подтверждает организатор — нужно подождать.')).toBeVisible()
+      await expect(g.getByText('Запрос отправлен организатору')).toBeVisible()
 
       // The organizer lets her in.
       await expect(page.getByText('Катя просит впустить')).toBeVisible()
@@ -57,7 +57,7 @@ test('the organizer lets a guest in, removes them, and lets them back without ap
       await g.getByRole('button', { name: 'Попробовать снова' }).click()
       await g.getByLabel('Имя').fill('Катя')
       await g.getByRole('button', { name: 'Войти в комнату' }).click()
-      await expect(g.getByText('Вход подтверждает организатор — нужно подождать.')).toBeVisible()
+      await expect(g.getByText('Запрос отправлен организатору')).toBeVisible()
       await expect(page.getByText('Катя просит впустить')).toBeVisible()
       await page.getByRole('button', { name: 'Меню комнаты' }).click()
       await page.getByRole('checkbox', { name: 'Подтверждать вход' }).click()

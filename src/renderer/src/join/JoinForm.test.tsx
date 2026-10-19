@@ -135,10 +135,11 @@ describe('join form', () => {
     await user.click(screen.getByRole('button', { name: 'Войти в комнату' }))
 
     api.room.emitWaiting()
-    expect(await screen.findByText('Вход подтверждает организатор — нужно подождать.')).toBeTruthy()
-    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Ожидание…' }).disabled).toBe(true)
+    expect(await screen.findByText('Запрос отправлен организатору')).toBeTruthy()
+    // A live wait in place of the form, not a grey button.
+    expect(screen.queryByRole('button', { name: 'Войти в комнату' })).toBeNull()
 
-    await user.click(screen.getByRole('button', { name: 'Отмена' }))
+    await user.click(screen.getByRole('button', { name: 'Отменить запрос' }))
     expect(api.room.leave).toHaveBeenCalled()
     answer({ ok: false, error: 'cancelled' })
     expect(await screen.findByRole('button', { name: 'Войти в комнату' })).toBeTruthy()

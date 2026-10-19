@@ -40,15 +40,18 @@ test('the join screen previews the room, checks the microphone and joins muted',
     await expect(page.getByRole('heading', { name: 'Кино по пятницам' })).toBeVisible()
     await expect(page.getByText('В комнате 1 человек')).toBeVisible()
     await expect(page.getByText('Дима')).toHaveCount(0)
+    // The microphone meter moves with the fake device's tone. The tone beeps on and off about
+    // every half a second: poll often, or the default backoff (…, 500, 1000 ms) keeps landing
+    // in the silences.
+    const meter = page.getByRole('meter', { name: 'Уровень микрофона' })
+    await expect
+      .poll(async () => Number(await meter.getAttribute('aria-valuenow')), { intervals: [100] })
+      .toBeGreaterThan(0)
+    // The certificate check is folded under «Подробнее о подключении» (#110).
+    await page.getByText('Подробнее о подключении').click()
     await expect(
       page.getByText('Подключение напрямую к организатору · сертификат совпадает со ссылкой'),
     ).toBeVisible()
-
-    // The microphone meter moves with the fake device's tone.
-    const meter = page.getByRole('meter', { name: 'Уровень микрофона' })
-    await expect
-      .poll(async () => Number(await meter.getAttribute('aria-valuenow')))
-      .toBeGreaterThan(0)
     const options = page.getByLabel('Микрофон', { exact: true }).locator('option')
     await expect.poll(() => options.count()).toBeGreaterThan(1)
     const device = await options.nth(1).getAttribute('value')

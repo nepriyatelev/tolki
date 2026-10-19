@@ -1,6 +1,6 @@
 import ArrowLeft from 'lucide-solid/icons/arrow-left'
 import Info from 'lucide-solid/icons/info'
-import Link from 'lucide-solid/icons/link'
+import ChevronDown from 'lucide-solid/icons/chevron-down'
 import Lock from 'lucide-solid/icons/lock'
 import ShieldAlert from 'lucide-solid/icons/shield-alert'
 import ShieldCheck from 'lucide-solid/icons/shield-check'
@@ -23,8 +23,7 @@ import {
   type InviteParseResult,
 } from '@shared/invite'
 import type { JoinError, RoomPreview } from '@shared/room'
-import logo from '../assets/icon.png'
-import { Button, Card, Chip, Input } from '../ui'
+import { Avatar, Button, Card, Input } from '../ui'
 import type { ErrorKind } from '../errors/error-content'
 import { describeJoinError, errorScreenFor } from './join-errors'
 import { MicCheck } from '../audio/MicCheck'
@@ -106,21 +105,34 @@ export function JoinScreen(props: JoinScreenProps): JSX.Element {
       fallback={
         <main class="join">
           <Card as="section" class="join-card" aria-labelledby="join-title">
-            <img class="join-logo" src={logo} alt="" width="48" height="48" />
             <Switch>
               <Match when={invite()}>
                 {(inv) => (
                   <>
-                    <Chip icon={<Link />}>Приглашение</Chip>
                     <div class="join-heading">
                       <h1 id="join-title">{live()?.name ?? 'Вход по ссылке'}</h1>
                       <p class="join-people">{peopleText(preview.latest)}</p>
                       <Show when={live()?.approval}>
                         <p class="join-people">Вход подтверждает организатор</p>
                       </Show>
-                      <p class="join-address">{inviteAddress(inv())}</p>
                     </div>
                     <TrustNote preview={preview.latest} />
+                    {/* The address and the certificate: for those who want them (#110). */}
+                    <details class="join-details">
+                      <summary>
+                        Подробнее о подключении
+                        <ChevronDown aria-hidden="true" />
+                      </summary>
+                      <div class="join-details-body">
+                        <p class="join-address">{inviteAddress(inv())}</p>
+                        <Show when={preview.latest?.status === 'live'}>
+                          <p class="join-trust">
+                            <ShieldCheck aria-hidden="true" />
+                            Подключение напрямую к организатору · сертификат совпадает со ссылкой
+                          </p>
+                        </Show>
+                      </div>
+                    </details>
                     <JoinForm
                       invite={inv()}
                       onBack={back}
@@ -165,15 +177,10 @@ export function JoinScreen(props: JoinScreenProps): JSX.Element {
   )
 }
 
+/** Only what needs attention: a changed certificate, a room not open yet. All well — nothing. */
 function TrustNote(props: { preview: RoomPreview | undefined }): JSX.Element {
   return (
     <Switch>
-      <Match when={props.preview?.status === 'live'}>
-        <p class="join-note join-note--ok">
-          <ShieldCheck aria-hidden="true" />
-          Подключение напрямую к организатору · сертификат совпадает со ссылкой
-        </p>
-      </Match>
       <Match when={props.preview?.status === 'certificate-changed'}>
         <p class="join-note join-note--bad" role="alert">
           <ShieldAlert aria-hidden="true" />
@@ -279,83 +286,87 @@ function JoinForm(props: {
   }
 
   return (
-    <form class="join-form" onSubmit={(event) => void submit(event)} novalidate>
-      <Input
-        label="Имя"
-        placeholder="Алексей"
-        maxLength={32}
-        autocomplete="off"
-        value={name()}
-        onInput={(e) => setName(e.currentTarget.value)}
-        error={nameError()}
-      />
-      <Show when={askPassword()}>
+    <Show
+      when={status().kind !== 'waiting'}
+      fallback={
+        // A live wait instead of a grey button (#110); the form comes back on cancel.
+        <div class="join-waiting" role="status">
+          <span class="join-waiting-avatar">
+            <Avatar name={name().trim()} size="xl" />
+          </span>
+          <p class="join-waiting-title">Запрос отправлен организатору</p>
+          <p class="join-waiting-text">Вход откроется, как только организатор впустит.</p>
+          <Button size="lg" onClick={() => void window.tolki.room.leave()}>
+            Отменить запрос
+          </Button>
+        </div>
+      }
+    >
+      <form class="join-form" onSubmit={(event) => void submit(event)} novalidate>
         <Input
-          label="Пароль комнаты"
-          type="password"
-          placeholder="Пароль — у организатора"
-          maxLength={128}
-          value={password()}
-          onInput={(e) => setPassword(e.currentTarget.value)}
-          error={failure()?.field === 'password' ? failure()?.text : undefined}
+          label="Имя"
+          placeholder="Алексей"
+          maxLength={32}
+          autocomplete="off"
+          value={name()}
+          onInput={(e) => setName(e.currentTarget.value)}
+          error={nameError()}
         />
-      </Show>
-      <Show when={passwordNote()}>
-        {(note) => (
-          <p class="join-password-note">
-            <Lock aria-hidden="true" />
-            {note()}
-          </p>
-        )}
-      </Show>
-      <div class="join-mic">
-        <MicCheck
-          muted={micMuted()}
-          onMutedChange={setMicMuted}
-          {...(props.microphone ? { access: props.microphone } : {})}
-        />
-      </div>
-      <Show when={failure()?.field === undefined ? failure()?.text : undefined}>
-        {(text) => (
-          <p class="join-alert" role="alert">
-            {text()}
-          </p>
-        )}
-      </Show>
-      <Show when={status().kind === 'waiting'}>
-        <p class="join-waiting" role="status">
-          Вход подтверждает организатор — нужно подождать.
-        </p>
-      </Show>
-      <div class="join-actions">
-        <Button
-          type="button"
-          size="lg"
-          onClick={() => {
-            // Waiting for the organizer: stop waiting, stay on the form (#42).
-            if (status().kind === 'waiting') void window.tolki.room.leave()
-            else props.onBack()
-          }}
-        >
-          Отмена
-        </Button>
-        <Button
-          type="submit"
-          variant="primary"
-          size="lg"
-          disabled={
-            status().kind === 'joining' ||
-            status().kind === 'waiting' ||
-            props.preview?.status === 'certificate-changed'
-          }
-        >
-          {status().kind === 'joining'
-            ? 'Подключение…'
-            : status().kind === 'waiting'
-              ? 'Ожидание…'
-              : 'Войти в комнату'}
-        </Button>
-      </div>
-    </form>
+        <Show when={askPassword()}>
+          <Input
+            label="Пароль комнаты"
+            type="password"
+            placeholder="Пароль — у организатора"
+            maxLength={128}
+            value={password()}
+            onInput={(e) => setPassword(e.currentTarget.value)}
+            error={failure()?.field === 'password' ? failure()?.text : undefined}
+          />
+        </Show>
+        <Show when={passwordNote()}>
+          {(note) => (
+            <p class="join-password-note">
+              <Lock aria-hidden="true" />
+              {note()}
+            </p>
+          )}
+        </Show>
+        <div class="join-mic">
+          <MicCheck
+            muted={micMuted()}
+            onMutedChange={setMicMuted}
+            {...(props.microphone ? { access: props.microphone } : {})}
+          />
+        </div>
+        <Show when={failure()?.field === undefined ? failure()?.text : undefined}>
+          {(text) => (
+            <p class="join-alert" role="alert">
+              {text()}
+            </p>
+          )}
+        </Show>
+        <div class="join-actions">
+          <Button
+            type="button"
+            size="lg"
+            onClick={() => {
+              props.onBack()
+            }}
+          >
+            Отмена
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            disabled={
+              status().kind === 'joining' || props.preview?.status === 'certificate-changed'
+            }
+          >
+            {status().kind === 'joining' ? 'Подключение…' : 'Войти в комнату'}
+          </Button>
+        </div>
+      </form>
+    </Show>
   )
 }
