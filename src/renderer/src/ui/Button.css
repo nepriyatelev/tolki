@@ -12,7 +12,14 @@
   transition:
     background-color var(--duration-fast) var(--ease-out),
     border-color var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
+    color var(--duration-fast) var(--ease-out),
+    transform 100ms var(--ease-out);
+}
+
+/* The press answers at once, on pointer-down (apple-design §1). */
+.rt-button:active:not(:disabled),
+.rt-icon-button:active:not(:disabled) {
+  transform: scale(calc(1 - 0.03 * var(--rt-motion)));
 }
 
 .rt-button:disabled,

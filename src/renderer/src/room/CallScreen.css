@@ -309,11 +309,33 @@
   color: var(--color-text);
 }
 
+/* Opens under «⋯» and closes back into it (#149): a native popover, so the exit is a transition
+   with display and overlay kept discrete until it ends. */
+.call-tile-menu {
+  opacity: 0;
+  transform: translateY(calc(-4px * var(--rt-motion)));
+  transition:
+    opacity var(--duration-exit) var(--ease-in),
+    transform var(--duration-exit) var(--ease-in),
+    overlay var(--duration-exit) allow-discrete,
+    display var(--duration-exit) allow-discrete;
+}
+
 .call-tile-menu:popover-open {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  animation: menu-in 140ms var(--ease-out);
+  opacity: 1;
+  transform: none;
+  transition-duration: var(--duration-enter);
+  transition-timing-function: var(--ease-out);
+}
+
+@starting-style {
+  .call-tile-menu:popover-open {
+    opacity: 0;
+    transform: translateY(calc(-4px * var(--rt-motion)));
+  }
 }
 
 .call-tile-menu-head {
@@ -416,6 +438,12 @@
   animation: reconnect-pulse 1.4s ease-in-out infinite;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .call-reconnecting {
+    animation: none;
+  }
+}
+
 @keyframes reconnect-pulse {
   50% {
     opacity: 0.55;
@@ -460,9 +488,19 @@
 }
 
 /* The voice going out: a ring around the microphone that grows with it (#110). */
-.call-control--mic .call-control-icon {
-  box-shadow: 0 0 0 calc(var(--mic-level, 0) * 5px) rgb(142 166 255 / 55%);
-  transition: box-shadow 80ms linear;
+/* A ring that grows with the voice: transform and opacity only, no repaint per frame (#149). */
+.call-control--mic .call-control-icon::after {
+  position: absolute;
+  inset: -3px;
+  border: 2px solid rgb(142 166 255 / 70%);
+  border-radius: inherit;
+  content: '';
+  opacity: min(1, calc(var(--mic-level, 0) * 4));
+  pointer-events: none;
+  transform: scale(calc(0.94 + var(--mic-level, 0) * 0.16));
+  transition:
+    transform 80ms linear,
+    opacity 80ms linear;
 }
 
 .call-control:disabled {
@@ -545,13 +583,6 @@
 .call-control-icon svg {
   width: 22px;
   height: 22px;
-}
-
-@keyframes menu-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
 }
 
 /* The organizer's «Удалить из комнаты» (#42): danger text, a second step to confirm. */

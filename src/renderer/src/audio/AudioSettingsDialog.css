@@ -8,15 +8,14 @@
   overscroll-behavior: contain;
 }
 
-.audio-settings[open] {
-  display: flex;
+/* The layout holds while the dialog fades out (#149): only display follows [open]. */
+.audio-settings {
   flex-direction: column;
   gap: var(--space-5);
-  animation: audio-settings-in 180ms ease-out;
 }
 
-.audio-settings::backdrop {
-  background: rgb(0 0 0 / 55%);
+.audio-settings[open] {
+  display: flex;
 }
 
 .audio-settings-header {
@@ -94,17 +93,4 @@
   color: var(--color-text-muted);
   font-size: var(--text-sm);
   line-height: 1.5;
-}
-
-@keyframes audio-settings-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.98);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .audio-settings[open] {
-    animation: none;
-  }
 }

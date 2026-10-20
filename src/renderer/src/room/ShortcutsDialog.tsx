@@ -2,7 +2,7 @@ import X from 'lucide-solid/icons/x'
 import { createEffect, For, Show, type JSX } from 'solid-js'
 import { acceleratorLabel } from '@shared/global-hotkeys'
 import { pushToTalkKeyLabel } from '@shared/push-to-talk'
-import { IconButton } from '../ui'
+import { createPresence, IconButton } from '../ui'
 import { callKeyLabel } from './call-keys'
 import './ShortcutsDialog.css'
 
@@ -20,6 +20,8 @@ export function ShortcutsDialog(props: {
   globalHotkeys: { mute: string; deafen: string }
 }): JSX.Element {
   let dialog: HTMLDialogElement | undefined
+  // The content stays while the dialog fades out (#149).
+  const presence = createPresence(() => props.open)
   createEffect(() => {
     if (!dialog) return
     if (props.open && !dialog.open) dialog.showModal()
@@ -44,13 +46,13 @@ export function ShortcutsDialog(props: {
       ref={(element) => {
         dialog = element
       }}
-      class="shortcuts"
+      class="shortcuts rt-dialog"
       aria-labelledby="shortcuts-title"
       onClose={() => {
         props.onClose()
       }}
     >
-      <Show when={props.open}>
+      <Show when={presence.mounted()}>
         <header class="shortcuts-header">
           <h2 id="shortcuts-title">Клавиши</h2>
           <IconButton
