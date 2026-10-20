@@ -129,19 +129,26 @@ a:hover {
   mask-composite: exclude;
 }
 
-/* A highlight where the pointer is: light moving over a curved surface. */
+/* A highlight where the pointer is: light moving over a curved surface. Only while the pointer
+   is over the glass — parked anywhere it would read as a smudge; at rest the rim is the light. */
 .rt-glass--liquid::after {
   position: absolute;
   inset: 0;
   border-radius: inherit;
   background: radial-gradient(
-    160px 60px at var(--glass-lx, 30%) var(--glass-ly, 0%),
-    rgb(255 255 255 / 18%),
+    120px 44px at var(--glass-lx, 50%) var(--glass-ly, 0%),
+    rgb(255 255 255 / 12%),
     transparent 70%
   );
   content: '';
   mix-blend-mode: screen;
+  opacity: 0;
   pointer-events: none;
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+
+.rt-glass--liquid:hover::after {
+  opacity: 1;
 }
 
 @media (prefers-reduced-transparency: reduce) {
