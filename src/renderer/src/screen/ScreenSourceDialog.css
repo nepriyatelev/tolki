@@ -9,15 +9,14 @@
   overscroll-behavior: contain;
 }
 
-.screen-picker[open] {
-  display: flex;
+/* The layout holds while the dialog fades out (#149): only display follows [open]. */
+.screen-picker {
   flex-direction: column;
   gap: var(--space-4);
-  animation: screen-picker-in 180ms var(--ease-out);
 }
 
-.screen-picker::backdrop {
-  background: rgb(0 0 0 / 55%);
+.screen-picker[open] {
+  display: flex;
 }
 
 .screen-picker-header {
@@ -189,13 +188,6 @@
 /* «Звук компьютера» (#41) on the left, the buttons on the right. */
 .screen-picker-sound {
   margin-right: auto;
-}
-
-@keyframes screen-picker-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.98);
-  }
 }
 
 /* While the list comes (#110): placeholders in its shape, a slow shimmer. */

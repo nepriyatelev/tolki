@@ -18,7 +18,7 @@ import {
   type HotkeyStatus,
 } from '@shared/global-hotkeys'
 import { isPushToTalkKey, pushToTalkKeyLabel, type PushToTalkMode } from '@shared/push-to-talk'
-import { Button, Checkbox, IconButton, Select } from '../ui'
+import { createPresence, Button, Checkbox, IconButton, Select } from '../ui'
 import { MicCheck } from './MicCheck'
 import { browserMicrophone, type AudioInput, type MicrophoneAccess } from './microphone'
 import { playTestSound as playRealTestSound } from './test-sound'
@@ -57,6 +57,8 @@ export function AudioSettingsDialog(props: {
   onHotkeyCapture?: (capturing: boolean) => void
 }): JSX.Element {
   let dialog: HTMLDialogElement | undefined
+  // The content stays while the dialog fades out (#149).
+  const presence = createPresence(() => props.open)
   const access = (): MicrophoneAccess => props.access ?? browserMicrophone
   const [outputs, setOutputs] = createSignal<AudioInput[]>([])
   const [playing, setPlaying] = createSignal(false)
@@ -167,13 +169,13 @@ export function AudioSettingsDialog(props: {
       ref={(element) => {
         dialog = element
       }}
-      class="audio-settings"
+      class="audio-settings rt-dialog"
       aria-labelledby="audio-settings-title"
       onClose={() => {
         props.onClose()
       }}
     >
-      <Show when={props.open}>
+      <Show when={presence.mounted()}>
         <header class="audio-settings-header">
           <h2 id="audio-settings-title">Настройки</h2>
           <IconButton

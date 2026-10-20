@@ -12,7 +12,7 @@
 @keyframes screen-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(calc(4px * var(--rt-motion)));
   }
 }
 

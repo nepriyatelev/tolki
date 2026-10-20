@@ -37,7 +37,7 @@ import { AudioSettingsDialog } from '../audio/AudioSettingsDialog'
 import type { MicrophoneAccess } from '../audio/microphone'
 import { ScreenSourceDialog } from '../screen/ScreenSourceDialog'
 import { browserScreen, type ScreenAccess } from '../screen/screen-share'
-import { Avatar, Button, liquidGlass, Tooltip } from '../ui'
+import { Avatar, Button, createPresence, liquidGlass, Tooltip } from '../ui'
 import {
   createEventBuffer,
   type ConnectionSample,
@@ -151,6 +151,9 @@ export function CallScreen(props: {
   let mutedSpeechTipShown = false
   let mutedSpeechSince: number | null = null
   let mutedSpeechTimer: ReturnType<typeof setTimeout> | undefined
+  // The one-time tips leave the way they came (#149).
+  const mutedTipPresence = createPresence(mutedSpeechTip)
+  const keysHintPresence = createPresence(keysHint)
   const mac = isMac()
   const [pickerOpen, setPickerOpen] = createSignal(false)
   /** What this user is showing (PLAN #26); sending it to the others comes with #27. */
@@ -1156,8 +1159,12 @@ export function CallScreen(props: {
               Показ экрана не начался. Можно попробовать ещё раз или выбрать другое окно.
             </p>
           </Show>
-          <Show when={mutedSpeechTip()}>
-            <div class="call-request call-muted-tip" role="status">
+          <Show when={mutedTipPresence.mounted()}>
+            <div
+              class="call-request call-muted-tip"
+              data-closing={mutedTipPresence.closing() || undefined}
+              role="status"
+            >
               <span>Микрофон выключен — вас не слышно</span>
               <Button onClick={() => setMutedSpeechTip(false)}>Понятно</Button>
               <Button variant="primary" icon={<Mic />} onClick={toggleMic}>
@@ -1165,8 +1172,12 @@ export function CallScreen(props: {
               </Button>
             </div>
           </Show>
-          <Show when={keysHint()}>
-            <p class="call-keys-hint rt-glass rt-glass--sm" role="status">
+          <Show when={keysHintPresence.mounted()}>
+            <p
+              class="call-keys-hint rt-glass rt-glass--sm"
+              data-closing={keysHintPresence.closing() || undefined}
+              role="status"
+            >
               <span>
                 Клавиши звонка — <kbd>{callKeyLabel('shortcuts', mac)}</kbd>
               </span>

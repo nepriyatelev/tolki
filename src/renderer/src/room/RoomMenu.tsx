@@ -1,6 +1,6 @@
 import Ellipsis from 'lucide-solid/icons/ellipsis'
 import { createSignal, createUniqueId, onCleanup, onMount, Show, type JSX } from 'solid-js'
-import { Checkbox, IconButton, liquidGlass } from '../ui'
+import { Checkbox, createPresence, IconButton, liquidGlass } from '../ui'
 import './RoomMenu.css'
 
 /**
@@ -14,6 +14,7 @@ export function RoomMenu(props: {
   upload: string | undefined
 }): JSX.Element {
   const [open, setOpen] = createSignal(false)
+  const presence = createPresence(open)
   const id = createUniqueId()
   let root: HTMLDivElement | undefined
   onMount(() => {
@@ -49,10 +50,11 @@ export function RoomMenu(props: {
         aria-controls={id}
         onClick={() => setOpen((value) => !value)}
       />
-      <Show when={open()}>
+      <Show when={presence.mounted()}>
         <div
           ref={liquidGlass}
           id={id}
+          data-closing={presence.closing() || undefined}
           class="room-menu-panel rt-glass rt-glass--liquid"
           role="dialog"
           aria-label="Комната"
