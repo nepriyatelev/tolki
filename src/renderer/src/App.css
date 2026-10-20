@@ -4,9 +4,35 @@
   min-height: 100vh;
 }
 
-/* Screens fade in instead of popping: a short cue that the view changed. */
-.app > main {
-  animation: screen-in 180ms var(--ease-out);
+/* Screens change by a view transition (#149): the old one cross-fades into the new one, and what
+   both have in common moves — the room's name into the call's title, the button that opens or
+   joins the room into the call's bar, a tile into its place in the strip. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--duration-enter);
+}
+
+::view-transition-group(*) {
+  animation-duration: 240ms;
+  animation-timing-function: var(--ease-out);
+}
+
+/* «Reduce motion»: nothing travels, the cross-fade stays. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*) {
+    animation: none;
+  }
+}
+
+.join-card h1,
+.call-title h1 {
+  view-transition-name: room-title;
+}
+
+.join-submit,
+.create-open,
+.call-controls {
+  view-transition-name: call-bar;
 }
 
 @keyframes screen-in {

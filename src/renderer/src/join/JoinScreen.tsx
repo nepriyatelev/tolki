@@ -23,7 +23,7 @@ import {
   type InviteParseResult,
 } from '@shared/invite'
 import type { JoinError, RoomPreview } from '@shared/room'
-import { Avatar, Button, Card, Input } from '../ui'
+import { Avatar, Button, Card, Input, viewTransition } from '../ui'
 import type { ErrorKind } from '../errors/error-content'
 import { describeJoinError, errorScreenFor } from './join-errors'
 import { MicCheck } from '../audio/MicCheck'
@@ -139,7 +139,8 @@ export function JoinScreen(props: JoinScreenProps): JSX.Element {
                       recent={props.recent}
                       profileName={props.profileName ?? ''}
                       onJoined={(joined) => {
-                        setSession(joined)
+                        // The button becomes the call's bar, the room's name its title (#149).
+                        viewTransition(() => setSession(joined))
                         props.onJoined?.()
                       }}
                       onError={(error) => props.onError?.(error)}
@@ -169,7 +170,9 @@ export function JoinScreen(props: JoinScreenProps): JSX.Element {
         <CallScreen
           session={current()}
           inviteLink={inviteLink()}
-          onLeft={() => setSession(null)}
+          onLeft={() => {
+            viewTransition(() => setSession(null))
+          }}
           {...(props.startCall ? { startCall: props.startCall } : {})}
         />
       )}
@@ -228,7 +231,9 @@ function JoinForm(props: {
       // From IPC, outside any tracking scope.
       window.tolki.room.onWaiting(() => {
         untrack(() => {
-          if (status().kind === 'joining') setStatus({ kind: 'waiting' })
+          if (status().kind === 'joining') {
+            viewTransition(() => setStatus({ kind: 'waiting' }))
+          }
         })
       }),
     )
