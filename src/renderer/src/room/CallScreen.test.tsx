@@ -332,6 +332,39 @@ describe('CallScreen', () => {
   })
 })
 
+describe('the organizer closes the room only after one more step (#149)', () => {
+  it('asks first, «Остаться» keeps the call', async () => {
+    const { api, onLeft, user } = setup({ organizer: true })
+    await screen.findByText('Звук подключён')
+
+    await user.click(screen.getByRole('button', { name: 'Выйти' }))
+    const ask = screen.getByRole('dialog', { name: 'Комната закроется для всех участников' })
+    expect(api.room.leave).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(within(ask).getByRole('button', { name: 'Остаться' }))
+
+    await user.click(within(ask).getByRole('button', { name: 'Остаться' }))
+    expect(screen.queryByRole('dialog', { name: /Комната закроется/ })).toBeNull()
+    expect(onLeft).not.toHaveBeenCalled()
+  })
+
+  it('«Закрыть комнату» leaves and closes it', async () => {
+    const { api, onLeft, user } = setup({ organizer: true })
+    await screen.findByText('Звук подключён')
+    await user.click(screen.getByRole('button', { name: 'Выйти' }))
+    await user.click(screen.getByRole('button', { name: 'Закрыть комнату' }))
+    expect(api.room.leave).toHaveBeenCalledOnce()
+    expect(onLeft).toHaveBeenCalledOnce()
+  })
+
+  it('Esc keeps the call', async () => {
+    const { user } = setup({ organizer: true })
+    await screen.findByText('Звук подключён')
+    await user.click(screen.getByRole('button', { name: 'Выйти' }))
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: /Комната закроется/ })).toBeNull()
+  })
+})
+
 describe('microphone and sound (#22)', () => {
   const mic = () => screen.getByRole('button', { name: /микрофон$/ })
   const sound = () => screen.getByRole('button', { name: /звук$/ })

@@ -879,7 +879,48 @@ export function CallScreen(props: {
   }
   onCleanup(end)
 
+  /** The organizer's «Выйти» closes the room for all: one more step, never at once (#149). */
+  const [confirmClose, setConfirmClose] = createSignal(false)
+  const confirmPresence = createPresence(confirmClose)
+  let leaveButton: HTMLButtonElement | undefined
+  let stayButton: HTMLButtonElement | undefined
+  const askLeave = (): void => {
+    if (!isOrganizer()) {
+      void leave()
+      return
+    }
+    setConfirmClose((open) => !open)
+    if (confirmClose()) queueMicrotask(() => stayButton?.focus())
+  }
+  const stay = (): void => {
+    setConfirmClose(false)
+    leaveButton?.focus()
+  }
+  onMount(() => {
+    const dismiss = (event: Event): void => {
+      if (!confirmClose()) return
+      if (event instanceof KeyboardEvent) {
+        if (event.key === 'Escape') stay()
+        return
+      }
+      const target = event.target as Node
+      if (
+        !leaveButton?.contains(target) &&
+        !document.querySelector('.call-close')?.contains(target)
+      ) {
+        setConfirmClose(false)
+      }
+    }
+    document.addEventListener('pointerdown', dismiss)
+    document.addEventListener('keydown', dismiss)
+    onCleanup(() => {
+      document.removeEventListener('pointerdown', dismiss)
+      document.removeEventListener('keydown', dismiss)
+    })
+  })
+
   const leave = async (): Promise<void> => {
+    setConfirmClose(false)
     end()
     await window.tolki.room.leave()
     props.onLeft()
@@ -1341,10 +1382,15 @@ export function CallScreen(props: {
           <Tooltip text={isOrganizer() ? 'Выйти и закрыть комнату' : 'Выйти из комнаты'}>
             {(tip) => (
               <button
+                ref={(element) => {
+                  leaveButton = element
+                }}
                 aria-describedby={tip}
                 type="button"
                 class="call-control call-control--leave"
-                onClick={() => void leave()}
+                aria-haspopup={isOrganizer() ? 'dialog' : undefined}
+                aria-expanded={isOrganizer() ? confirmClose() : undefined}
+                onClick={askLeave}
               >
                 <span class="call-control-icon rt-glass-control">
                   <LogOut />
@@ -1353,6 +1399,31 @@ export function CallScreen(props: {
               </button>
             )}
           </Tooltip>
+          <Show when={confirmPresence.mounted()}>
+            <div
+              class="call-close"
+              role="dialog"
+              aria-labelledby="call-close-title"
+              data-closing={confirmPresence.closing() || undefined}
+            >
+              <p id="call-close-title" class="call-close-title">
+                Комната закроется для всех участников
+              </p>
+              <div class="call-close-actions">
+                <Button
+                  ref={(element) => {
+                    stayButton = element
+                  }}
+                  onClick={stay}
+                >
+                  Остаться
+                </Button>
+                <Button variant="danger" onClick={() => void leave()}>
+                  Закрыть комнату
+                </Button>
+              </div>
+            </div>
+          </Show>
         </div>
         <ScreenSourceDialog
           open={pickerOpen()}

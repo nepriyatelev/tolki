@@ -46,8 +46,10 @@ test('a global hotkey is held only during the call and toggles the microphone', 
     })
     await expect(page.getByRole('button', { name: 'Включить микрофон' })).toBeVisible()
 
-    // Out of the call, the combination goes back to every other app.
+    // Out of the call, the combination goes back to every other app. This app opened the room
+    // itself, so «Выйти» asks once more (#149).
     await page.getByRole('button', { name: 'Выйти' }).click()
+    await page.getByRole('button', { name: 'Закрыть комнату' }).click()
     await expect.poll(registered).toBe(false)
   } finally {
     await host.app.close()

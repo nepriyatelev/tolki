@@ -226,3 +226,16 @@
   color: var(--color-text-muted);
   font-size: var(--text-md);
 }
+
+/* After «Выйти» (#149): the room goes on; back in, or home. */
+.join-left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.join-left .join-actions {
+  grid-template-columns: auto 1fr;
+  white-space: nowrap;
+}
