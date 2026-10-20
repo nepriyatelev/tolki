@@ -1,7 +1,7 @@
 import Maximize from 'lucide-solid/icons/maximize'
 import Minimize from 'lucide-solid/icons/minimize'
 import { createEffect, createSignal, onCleanup, onMount, Show, type JSX } from 'solid-js'
-import { Avatar, IconButton } from '../ui'
+import { Avatar, IconButton, liquidGlass } from '../ui'
 import type { ScreenLayer, ScreenSample } from './call'
 import { screenStatsText } from './screen-stats'
 import './ScreenStage.css'
@@ -163,14 +163,22 @@ export function ScreenStage(props: {
         muted
         playsinline
       />
-      <span class="screen-stage-chip screen-stage-who rt-glass rt-glass--sm">
+      <span
+        ref={liquidGlass}
+        class="screen-stage-chip screen-stage-who rt-glass rt-glass--sm rt-glass--liquid"
+      >
         <Avatar name={props.name} size="xs" />
         {props.title}
       </span>
       <div class="screen-stage-corner">
         <Show when={stats()}>
           {(text) => (
-            <span class="screen-stage-chip screen-stage-stats rt-glass rt-glass--sm">{text()}</span>
+            <span
+              ref={liquidGlass}
+              class="screen-stage-chip screen-stage-stats rt-glass rt-glass--sm rt-glass--liquid"
+            >
+              {text()}
+            </span>
           )}
         </Show>
         <IconButton

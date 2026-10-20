@@ -1,6 +1,6 @@
 import Ellipsis from 'lucide-solid/icons/ellipsis'
 import { createSignal, createUniqueId, onCleanup, onMount, Show, type JSX } from 'solid-js'
-import { Checkbox, IconButton } from '../ui'
+import { Checkbox, IconButton, liquidGlass } from '../ui'
 import './RoomMenu.css'
 
 /**
@@ -51,8 +51,9 @@ export function RoomMenu(props: {
       />
       <Show when={open()}>
         <div
+          ref={liquidGlass}
           id={id}
-          class="room-menu-panel rt-glass rt-glass--edge"
+          class="room-menu-panel rt-glass rt-glass--liquid"
           role="dialog"
           aria-label="Комната"
         >

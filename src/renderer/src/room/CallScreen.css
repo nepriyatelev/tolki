@@ -14,6 +14,8 @@
   gap: var(--space-4);
   min-height: 0;
   padding: var(--space-5) var(--space-6) var(--call-bar-space);
+  /* A quiet glow of the brand behind the call: glass over it always has something to show. */
+  background: var(--call-ambient);
 }
 
 /* Name, people and time on the left; the link, the room and «Пригласить» on the right. */
@@ -170,7 +172,8 @@
   min-width: 0;
   height: 210px;
   border-radius: var(--radius-xl);
-  background: var(--color-surface);
+  /* Lets the glow behind the call come through, faintly. */
+  background: rgb(26 29 33 / 82%);
 }
 
 /* The speaking frame: only opacity changes, so the tile never reflows. */
@@ -383,7 +386,8 @@
 @supports (backdrop-filter: blur(1px)) {
   .call-notices > .call-sound:not(.visually-hidden),
   .call-notices > .call-request {
-    background: var(--glass-bg);
+    background: var(--glass-bg-sm);
+    text-shadow: var(--glass-text-shadow);
     backdrop-filter: var(--glass-blur-sm);
   }
 }

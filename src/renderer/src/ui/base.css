@@ -68,68 +68,101 @@ a:hover {
   }
 }
 
-/* Liquid glass (#110): a floating panel over content — .rt-glass for panels (the call's bar,
-   the people strip), .rt-glass.rt-glass--sm for small things (tooltips, chips). Opaque when the
+/* Liquid glass (#110, #149): a floating panel over content. .rt-glass is clear frosted glass
+   (tooltips, notifications), .rt-glass--sm a smaller one with a little more fill for small text,
+   .rt-glass--liquid the key surfaces (the call's bar, the room menu, the chips over a screen):
+   a lens at the rim from liquidGlass() and a light that follows the pointer. Opaque when the
    system asks for less transparency, solid with a clear edge for more contrast, and wherever
-   backdrop-filter is missing. Text on it is a little heavier and wider, so it stays legible over
-   whatever moves underneath. */
+   backdrop-filter is missing. Text on it is a little heavier, with a soft shadow, so it stays
+   legible over whatever moves underneath. */
 .rt-glass {
   border: 1px solid var(--glass-border);
   background: var(--glass-solid);
-  box-shadow:
-    var(--glass-shadow),
-    inset 0 1px 0 var(--glass-highlight);
+  box-shadow: var(--glass-shadow), var(--glass-inset);
   font-weight: 500;
   letter-spacing: 0.01em;
 }
 
 .rt-glass--sm {
-  box-shadow:
-    var(--glass-shadow-sm),
-    inset 0 1px 0 var(--glass-highlight);
+  box-shadow: var(--glass-shadow-sm), var(--glass-inset);
 }
 
 @supports (backdrop-filter: blur(1px)) {
   .rt-glass {
-    background: var(--glass-sheen), var(--glass-bg);
+    background: var(--glass-bg);
+    text-shadow: var(--glass-text-shadow);
     backdrop-filter: var(--glass-blur);
   }
 
   .rt-glass--sm {
+    background: var(--glass-bg-sm);
     backdrop-filter: var(--glass-blur-sm);
   }
-}
 
-@media (prefers-reduced-transparency: reduce) {
-  .rt-glass {
-    background: var(--glass-solid);
-    backdrop-filter: none;
+  /* --glass-lens is url(#…) of the element's own lens, set by liquidGlass(). */
+  .rt-glass--liquid {
+    backdrop-filter: var(--glass-lens, blur(11px)) var(--glass-blur-liquid);
   }
-}
-
-/* Key surfaces (the call's bar, the room menu): the edge is a gradient drawn with a masked
-   pseudo-element, so it follows the radius and leaves the inside clear. */
-.rt-glass--edge {
-  border-color: transparent;
 }
 
 /* Zero specificity: a component that positions itself (a popover) keeps its own position. */
-:where(.rt-glass--edge) {
+:where(.rt-glass--liquid) {
   position: relative;
 }
 
-.rt-glass--edge::before {
+.rt-glass--liquid {
+  border-color: transparent;
+}
+
+/* The rim of light, drawn with a masked pseudo-element so it follows the radius. */
+.rt-glass--liquid::before {
   position: absolute;
   inset: -1px;
-  padding: 1px;
+  padding: 1.5px;
   border-radius: inherit;
-  background: var(--glass-edge);
+  background: var(--glass-rim);
   content: '';
   pointer-events: none;
   mask:
     linear-gradient(#fff 0 0) content-box,
     linear-gradient(#fff 0 0);
   mask-composite: exclude;
+}
+
+/* A highlight where the pointer is: light moving over a curved surface. Only while the pointer
+   is over the glass — parked anywhere it would read as a smudge; at rest the rim is the light. */
+.rt-glass--liquid::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    120px 44px at var(--glass-lx, 50%) var(--glass-ly, 0%),
+    rgb(255 255 255 / 12%),
+    transparent 70%
+  );
+  content: '';
+  mix-blend-mode: screen;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+
+.rt-glass--liquid:hover::after {
+  opacity: 1;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .rt-glass,
+  .rt-glass--sm,
+  .rt-glass--liquid {
+    background: var(--glass-solid);
+    text-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .rt-glass--liquid::after {
+    display: none;
+  }
 }
 
 /* Muted text is too dim on glass over moving video: soft text at least (glass-dark-ui). */
@@ -139,13 +172,17 @@ a:hover {
 }
 
 @media (prefers-contrast: more) {
-  .rt-glass {
+  .rt-glass,
+  .rt-glass--sm,
+  .rt-glass--liquid {
     border-color: var(--glass-border-strong);
     background: var(--glass-solid);
+    text-shadow: none;
     backdrop-filter: none;
   }
 
-  .rt-glass--edge::before {
+  .rt-glass--liquid::before,
+  .rt-glass--liquid::after {
     display: none;
   }
 }

@@ -37,7 +37,7 @@ import { AudioSettingsDialog } from '../audio/AudioSettingsDialog'
 import type { MicrophoneAccess } from '../audio/microphone'
 import { ScreenSourceDialog } from '../screen/ScreenSourceDialog'
 import { browserScreen, type ScreenAccess } from '../screen/screen-share'
-import { Avatar, Button, Tooltip } from '../ui'
+import { Avatar, Button, liquidGlass, Tooltip } from '../ui'
 import {
   createEventBuffer,
   type ConnectionSample,
@@ -1177,7 +1177,8 @@ export function CallScreen(props: {
           </Show>
         </div>
         <div
-          class="call-controls rt-glass rt-glass--edge"
+          ref={liquidGlass}
+          class="call-controls rt-glass rt-glass--liquid"
           role="toolbar"
           aria-label="Управление звонком"
         >
