@@ -18,7 +18,7 @@ import { ErrorScreen } from './errors/ErrorScreen'
 import { RetryButton } from './errors/RetryButton'
 import { HomeScreen } from './home/HomeScreen'
 import { JoinScreen, type RecentContext } from './join/JoinScreen'
-import { Button } from './ui'
+import { Button, viewTransition } from './ui'
 import './App.css'
 
 type JoinRoute = { screen: 'join'; result: InviteParseResult; recent?: RecentContext }
@@ -30,7 +30,11 @@ type Route =
   | { screen: 'error'; error: ErrorKind; retry?: JoinRoute }
 
 export function App(): JSX.Element {
-  const [route, setRoute] = createSignal<Route>({ screen: 'home' })
+  const [route, setRouteNow] = createSignal<Route>({ screen: 'home' })
+  // Screens become one another as a whole (#149), not in a cut.
+  const setRoute = (next: Route): void => {
+    viewTransition(() => setRouteNow(next))
+  }
   const [settings, { refetch: reloadSettings }] = createResource(() => window.tolki.settings.get())
   const profileName = (): string => settings.latest?.profile.name ?? ''
   const home = (): void => {
@@ -98,7 +102,9 @@ export function App(): JSX.Element {
             profileName={profileName()}
             onOpenInvite={openInvite}
             onOpenRecent={openRecent}
-            onCreateRoom={() => setRoute({ screen: 'create' })}
+            onCreateRoom={() => {
+              setRoute({ screen: 'create' })
+            }}
           />
         }
       >
@@ -116,7 +122,9 @@ export function App(): JSX.Element {
               recent={current().recent}
               profileName={profileName()}
               onJoined={() => void reloadSettings()}
-              onError={(error) => setRoute({ screen: 'error', error, retry: current() })}
+              onError={(error) => {
+                setRoute({ screen: 'error', error, retry: current() })
+              }}
               onBack={home}
             />
           )}
@@ -140,7 +148,9 @@ export function App(): JSX.Element {
                     {(retry) => (
                       <RetryButton
                         waitSeconds={current().error.kind === 'too-many-attempts' ? 60 : 0}
-                        onRetry={() => setRoute(retry())}
+                        onRetry={() => {
+                          setRoute(retry())
+                        }}
                       />
                     )}
                   </Show>

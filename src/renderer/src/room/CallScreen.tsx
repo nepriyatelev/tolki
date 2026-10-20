@@ -37,7 +37,15 @@ import { AudioSettingsDialog } from '../audio/AudioSettingsDialog'
 import type { MicrophoneAccess } from '../audio/microphone'
 import { ScreenSourceDialog } from '../screen/ScreenSourceDialog'
 import { browserScreen, type ScreenAccess } from '../screen/screen-share'
-import { Avatar, Button, createPresence, liquidGlass, Tooltip } from '../ui'
+import {
+  animateLayout,
+  Avatar,
+  Button,
+  createPresence,
+  liquidGlass,
+  Tooltip,
+  viewTransition,
+} from '../ui'
 import {
   createEventBuffer,
   type ConnectionSample,
@@ -179,7 +187,8 @@ export function CallScreen(props: {
     })
   }
   const answerJoin = (requestId: string, admit: boolean): void => {
-    setJoinRequests((list) => list.filter((r) => r.requestId !== requestId))
+    // The card leaves instead of vanishing (#149).
+    viewTransition(() => setJoinRequests((list) => list.filter((r) => r.requestId !== requestId)))
     organizerRequest({ method: 'answerJoin', requestId, admit })
   }
   const toggleApproval = (): void => {
@@ -304,6 +313,8 @@ export function CallScreen(props: {
   onCleanup(() => {
     for (const timer of releaseTimers.values()) clearTimeout(timer)
   })
+  /** The grid of tiles, for their gliding when people come and go (#149). */
+  let tilesList: HTMLUListElement | undefined
   // The call gets its own copy of the events; the screen keeps the list of people. A new
   // connection after a reconnect gets a new copy.
   let callEvents = createEventBuffer()
@@ -316,11 +327,16 @@ export function CallScreen(props: {
   const onRoomEvent = (event: RoomEvent): void => {
     switch (event.type) {
       case 'peer-joined':
-        setPeers((list) => [...list.filter((p) => p.id !== event.peer.id), event.peer])
+        // The state now; the tiles glide to their new places after it (#149).
+        animateLayout(tilesList, () =>
+          setPeers((list) => [...list.filter((p) => p.id !== event.peer.id), event.peer]),
+        )
         cue('join')
         break
       case 'peer-left':
-        setPeers((list) => list.filter((p) => p.id !== event.peerId))
+        animateLayout(tilesList, () =>
+          setPeers((list) => list.filter((p) => p.id !== event.peerId)),
+        )
         cue('leave')
         break
       case 'active-speakers':
@@ -837,7 +853,7 @@ export function CallScreen(props: {
     on(
       () => screens()[0]?.consumerId ?? myScreen(),
       (share) => {
-        if (share) setView('stage')
+        if (share) viewTransition(() => setView('stage'))
       },
     ),
   )
@@ -876,6 +892,7 @@ export function CallScreen(props: {
   // Tiles fill the space (#110): the biggest tiles for this window and this many people.
   const [tilesBox, setTilesBox] = createSignal({ width: 0, height: 0 })
   const observeTiles = (element: HTMLUListElement): void => {
+    tilesList = element
     if (typeof ResizeObserver === 'undefined') return
     // The width from the container (the grid narrows itself to its rows), the height from the
     // grid (a «Смотреть» banner may take some above it).
@@ -919,7 +936,7 @@ export function CallScreen(props: {
             <Button
               icon={<Users />}
               onClick={() => {
-                setView('grid')
+                viewTransition(() => setView('grid'))
               }}
             >
               Все участники
@@ -962,7 +979,7 @@ export function CallScreen(props: {
                       <Button
                         variant="primary"
                         onClick={() => {
-                          setView('stage')
+                          viewTransition(() => setView('stage'))
                         }}
                       >
                         Смотреть
@@ -1031,6 +1048,7 @@ export function CallScreen(props: {
                   <For each={everyone()}>
                     {(person) => (
                       <li
+                        style={{ 'view-transition-name': `person-${person.id}` }}
                         class="call-strip-person"
                         classList={{ 'call-strip-person--speaking': speaking().has(person.id) }}
                       >
@@ -1107,7 +1125,11 @@ export function CallScreen(props: {
           </Show>
           <For each={joinRequests().slice(0, 3)}>
             {(request) => (
-              <div class="call-request" role="alert">
+              <div
+                class="call-request"
+                style={{ 'view-transition-name': `request-${request.requestId}` }}
+                role="alert"
+              >
                 <span>{request.name} просит впустить</span>
                 <Button
                   onClick={() => {

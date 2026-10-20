@@ -75,7 +75,12 @@ export function ParticipantTile(props: {
       classList={{ 'call-tile--speaking': props.speaking }}
       data-peer-id={props.person.id}
       // The «⋯» button anchors its popover (CSS anchor positioning), one name per tile.
-      style={{ '--tile-anchor': `--${menuId}` }}
+      style={{
+        '--tile-anchor': `--${menuId}`,
+        // The same person in the grid and in the strip: one moves into the other (#149).
+        'view-transition-name': `person-${props.person.id}`,
+      }}
+      data-flip={props.person.id}
       aria-label={label()}
     >
       <Avatar name={props.person.name} size="xl" speaking={props.speaking} />

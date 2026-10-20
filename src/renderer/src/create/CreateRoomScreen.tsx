@@ -4,7 +4,7 @@ import Copy from 'lucide-solid/icons/copy'
 import Router from 'lucide-solid/icons/router'
 import { createResource, createSignal, onCleanup, onMount, Show, type JSX } from 'solid-js'
 import { DEFAULT_HOST_PORT, type HostStartFailure, type HostState } from '@shared/host-protocol'
-import { Button, Card, Checkbox, IconButton, Input, RadioPillGroup } from '../ui'
+import { Button, Card, Checkbox, IconButton, Input, RadioPillGroup, viewTransition } from '../ui'
 import { ErrorScreen } from '../errors/ErrorScreen'
 import { collectRoomEvents } from '../room/call'
 import { CallScreen, type CallSession } from '../room/CallScreen'
@@ -174,7 +174,9 @@ export function CreateRoomScreen(props: {
       })
       return
     }
-    setPhase({ kind: 'open', session: { result: joined, events, name: who, muted: false } })
+    viewTransition(() =>
+      setPhase({ kind: 'open', session: { result: joined, events, name: who, muted: false } }),
+    )
     props.onOpened?.()
   }
 
@@ -407,6 +409,7 @@ export function CreateRoomScreen(props: {
               </p>
             </Show>
             <Button
+              class="create-open"
               variant="primary"
               size="lg"
               block
