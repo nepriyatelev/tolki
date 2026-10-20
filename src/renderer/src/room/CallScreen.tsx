@@ -786,12 +786,11 @@ export function CallScreen(props: {
     ptt().enabled
       ? `Говорить, пока нажата ${pushToTalkKeyLabel(ptt().key)}`
       : `${muted() ? 'Включить микрофон' : 'Выключить микрофон'} · ${callKeyLabel('mic', mac)}`
-  const screenButton = (): { label: string; text: string } => {
-    if (myScreen()) return { label: 'Остановить показ экрана', text: 'Остановить' }
-    if (askingToShare()) return { label: 'Ожидание ответа на запрос показа', text: 'Ожидание…' }
-    if (someoneElseShares())
-      return { label: 'Попросить показать свой экран', text: 'Показать свой' }
-    return { label: 'Показать экран', text: 'Экран' }
+  const screenButton = (): { label: string } => {
+    if (myScreen()) return { label: 'Остановить показ экрана' }
+    if (askingToShare()) return { label: 'Ожидание ответа на запрос показа' }
+    if (someoneElseShares()) return { label: 'Попросить показать свой экран' }
+    return { label: 'Показать экран' }
   }
 
   /** «Показать свой»: the sharer decides; meanwhile the button waits. */
@@ -1295,7 +1294,7 @@ export function CallScreen(props: {
                 aria-pressed={ptt().enabled ? undefined : muted()}
                 aria-label={
                   ptt().enabled
-                    ? `Микрофон по клавише ${pushToTalkKeyLabel(ptt().key)}`
+                    ? `Микрофон по клавише ${pushToTalkKeyLabel(ptt().key)}${transmitting() ? ', говорите' : ''}`
                     : muted()
                       ? 'Включить микрофон'
                       : 'Выключить микрофон'
@@ -1306,13 +1305,6 @@ export function CallScreen(props: {
                 <span class="call-control-icon rt-glass-control">
                   {(ptt().enabled ? transmitting() : !muted()) ? <Mic /> : <MicOff />}
                 </span>
-                {ptt().enabled
-                  ? transmitting()
-                    ? 'Говорите'
-                    : 'По клавише'
-                  : muted()
-                    ? 'Выкл.'
-                    : 'Микрофон'}
               </button>
             )}
           </Tooltip>
@@ -1332,7 +1324,6 @@ export function CallScreen(props: {
                 <span class="call-control-icon rt-glass-control">
                   {deafened() ? <HeadphoneOff /> : <Headphones />}
                 </span>
-                {deafened() ? 'Звук выкл.' : 'Звук'}
               </button>
             )}
           </Tooltip>
@@ -1355,7 +1346,6 @@ export function CallScreen(props: {
                 <span class="call-control-icon rt-glass-control">
                   {myScreen() ? <ScreenShareOff /> : <ScreenShare />}
                 </span>
-                {screenButton().text}
               </button>
             )}
           </Tooltip>
@@ -1381,7 +1371,6 @@ export function CallScreen(props: {
                     </span>
                   </Show>
                 </span>
-                Чат
               </button>
             )}
           </Tooltip>
@@ -1391,13 +1380,13 @@ export function CallScreen(props: {
                 aria-describedby={tip}
                 type="button"
                 class="call-control"
+                aria-label="Настройки"
                 aria-haspopup="dialog"
                 onClick={() => setSettingsOpen(true)}
               >
                 <span class="call-control-icon rt-glass-control">
                   <Settings />
                 </span>
-                Настройки
               </button>
             )}
           </Tooltip>
@@ -1411,6 +1400,7 @@ export function CallScreen(props: {
                 aria-describedby={tip}
                 type="button"
                 class="call-control call-control--leave"
+                aria-label="Выйти"
                 aria-haspopup={isOrganizer() ? 'dialog' : undefined}
                 aria-expanded={isOrganizer() ? confirmClose() : undefined}
                 onClick={askLeave}
@@ -1418,7 +1408,6 @@ export function CallScreen(props: {
                 <span class="call-control-icon rt-glass-control">
                   <LogOut />
                 </span>
-                Выйти
               </button>
             )}
           </Tooltip>

@@ -1213,9 +1213,8 @@ describe('push-to-talk (#39)', () => {
     // The global hook in main sees the key, wherever the focus is.
     ctx.api.ptt.emitKey(true)
     expect(ctx.setTransmitting).toHaveBeenLastCalledWith(true)
-    expect(screen.getByRole('button', { name: 'Микрофон по клавише V' }).textContent).toContain(
-      'Говорите',
-    )
+    // Icons only (#149): the state is in the name and the tooltip, not a label under the icon.
+    expect(screen.getByRole('button', { name: 'Микрофон по клавише V, говорите' })).toBeTruthy()
     ctx.api.ptt.emitKey(false)
     expect(ctx.setTransmitting).toHaveBeenLastCalledWith(false)
   })

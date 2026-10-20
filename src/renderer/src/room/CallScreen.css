@@ -5,7 +5,7 @@
 
 .call {
   /* Room the floating bar keeps clear under the content. */
-  --call-bar-space: 108px;
+  --call-bar-space: 88px;
 
   position: relative;
   display: grid;
@@ -484,12 +484,13 @@
   border-radius: var(--radius-full);
 }
 
+/* Icons only (#149), as in Meet and FaceTime: what each does is in its tooltip with its key, and
+   in its accessible name; the state shows in the icon itself. */
 .call-control {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-1);
-  min-width: 56px;
+  min-width: 48px;
   padding: 0;
   border: 0;
   background: none;
