@@ -17,19 +17,20 @@ describe('versions', () => {
   it('reads tags with or without «v»', () => {
     expect(parseVersion('v0.2.0')).toEqual({ core: [0, 2, 0], pre: [] })
     expect(parseVersion('1.10.3')).toEqual({ core: [1, 10, 3], pre: [] })
-    expect(parseVersion('v1.0.0-beta.1')).toEqual({ core: [1, 0, 0], pre: ['beta', 1] })
+    expect(parseVersion('v1.0.0-rc.1')).toEqual({ core: [1, 0, 0], pre: ['rc', 1] })
     expect(parseVersion('latest')).toBeNull()
     expect(parseVersion('1.0.0-')).toBeNull()
   })
 
-  it('takes only alpha.N and beta.N pre-releases, as the release workflow (#46)', () => {
-    expect(parseVersion('v0.1.0-alpha.0')).toEqual({ core: [0, 1, 0], pre: ['alpha', 0] })
-    expect(parseVersion('v0.1.0-rc.1')).toBeNull()
-    expect(parseVersion('v0.1.0-alpha1')).toBeNull()
-    expect(parseVersion('v0.1.0-alpha')).toBeNull()
-    expect(parseVersion('v0.1.0-alpha.01')).toBeNull()
+  it('takes only rc.N pre-releases, as the release workflow', () => {
+    expect(parseVersion('v0.1.0-rc.0')).toEqual({ core: [0, 1, 0], pre: ['rc', 0] })
+    expect(parseVersion('v0.1.0-alpha.1')).toBeNull()
+    expect(parseVersion('v0.1.0-beta.1')).toBeNull()
+    expect(parseVersion('v0.1.0-rc1')).toBeNull()
+    expect(parseVersion('v0.1.0-rc')).toBeNull()
+    expect(parseVersion('v0.1.0-rc.01')).toBeNull()
     expect(parseVersion('v01.1.0')).toBeNull()
-    expect(isNewer('v0.1.0-rc.1', '0.1.0-alpha.1')).toBe(false)
+    expect(isNewer('v0.1.0-beta.1', '0.1.0-rc.1')).toBe(false)
   })
 
   it('compares part by part, not as text', () => {
@@ -40,14 +41,13 @@ describe('versions', () => {
     expect(isNewer('nonsense', '0.1.0')).toBe(false)
   })
 
-  it('orders alphas and betas before their release (#46)', () => {
-    expect(isNewer('v0.1.0-alpha.2', '0.1.0-alpha.1')).toBe(true)
-    expect(isNewer('v0.1.0-alpha.10', '0.1.0-alpha.9')).toBe(true)
-    expect(isNewer('v0.1.0-beta.1', '0.1.0-alpha.3')).toBe(true)
-    expect(isNewer('v0.1.0', '0.1.0-beta.2')).toBe(true)
-    expect(isNewer('v0.1.0-alpha.1', '0.1.0')).toBe(false)
-    expect(isNewer('v0.1.0-alpha.1', '0.1.0-alpha.1')).toBe(false)
-    expect(isNewer('v0.2.0-alpha.1', '0.1.0')).toBe(true)
+  it('orders pre-releases before their release', () => {
+    expect(isNewer('v0.1.0-rc.2', '0.1.0-rc.1')).toBe(true)
+    expect(isNewer('v0.1.0-rc.10', '0.1.0-rc.9')).toBe(true)
+    expect(isNewer('v0.1.0', '0.1.0-rc.2')).toBe(true)
+    expect(isNewer('v0.1.0-rc.1', '0.1.0')).toBe(false)
+    expect(isNewer('v0.1.0-rc.1', '0.1.0-rc.1')).toBe(false)
+    expect(isNewer('v0.2.0-rc.1', '0.1.0')).toBe(true)
   })
 })
 
@@ -94,15 +94,33 @@ describe('UpdateCheck (#36)', () => {
     expect(await garbage.check()).toBeNull()
   })
 
-  it('an alpha looks at pre-releases too, skipping drafts', async () => {
+  it('a pre-release looks at pre-releases too, skipping drafts', async () => {
     const fetch = answer([
-      { tag_name: 'v0.1.0-alpha.4', draft: true },
-      { tag_name: 'v0.1.0-alpha.3', draft: false, prerelease: true },
-      { tag_name: 'v0.1.0-alpha.2', draft: false, prerelease: true },
+      { tag_name: 'v0.1.0-rc.4', draft: true },
+      { tag_name: 'v0.1.0-rc.3', draft: false, prerelease: true },
+      { tag_name: 'v0.1.0-rc.2', draft: false, prerelease: true },
     ])
-    const check = new UpdateCheck({ enabled: true, currentVersion: '0.1.0-alpha.2', fetch })
-    expect(await check.check()).toEqual({ version: '0.1.0-alpha.3' })
+    const check = new UpdateCheck({ enabled: true, currentVersion: '0.1.0-rc.2', fetch })
+    expect(await check.check()).toEqual({ version: '0.1.0-rc.3' })
     expect(fetch).toHaveBeenCalledWith(RELEASES_API, expect.anything())
+  })
+
+  it('a pre-release gets its release as well', async () => {
+    const fetch = answer([
+      { tag_name: 'v0.1.0', draft: false, prerelease: false },
+      { tag_name: 'v0.1.0-rc.2', draft: false, prerelease: true },
+    ])
+    const check = new UpdateCheck({ enabled: true, currentVersion: '0.1.0-rc.2', fetch })
+    expect(await check.check()).toEqual({ version: '0.1.0' })
+  })
+
+  it('asks this repository, where the releases are published', () => {
+    expect(LATEST_RELEASE_API).toBe(
+      'https://api.github.com/repos/nepriyatelev/tolki/releases/latest',
+    )
+    expect(RELEASES_API).toMatch(
+      /^https:\/\/api\.github\.com\/repos\/nepriyatelev\/tolki\/releases\?/,
+    )
   })
 
   it('never contacts GitHub when off', async () => {

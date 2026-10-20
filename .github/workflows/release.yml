@@ -1,8 +1,8 @@
 name: Release
 
-# Tag vX.Y.Z (or vX.Y.Z-alpha.N / -beta.N: a pre-release) → installers for every OS → GitHub
-# release in the public tolki-releases repo. The version comes from the tag; package.json keeps
-# 0.0.0 for development builds. Any other vX.Y.Z-… tag starts the workflow only to fail on it.
+# Tag vX.Y.Z (a release) or vX.Y.Z-rc.N (a pre-release) → installers for every OS → a GitHub
+# release in this repository. The version comes from the tag; package.json keeps 0.0.0 for
+# development builds. Any other vX.Y.Z-… tag starts the workflow only to fail on it.
 on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+', 'v[0-9]+.[0-9]+.[0-9]+-*']
@@ -14,22 +14,19 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  RELEASES_REPO: nepriyatelev/tolki-releases
-
 jobs:
-  # electron-updater knows only the alpha and beta channels (#46): an alpha would never get a
-  # «-rc.1», and «-alpha10» sorts before «-alpha9». Such tags stop here, before any build.
+  # Only a release and its pre-releases: «-rc10» would sort before «-rc9», and the app reads no
+  # other suffix (update-check.ts). Such tags stop here, before any build.
   tag:
     name: check the tag
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: vX.Y.Z, vX.Y.Z-alpha.N or vX.Y.Z-beta.N
+      - name: vX.Y.Z or vX.Y.Z-rc.N
         run: |
           n='(0|[1-9][0-9]*)'
-          if [[ ! "$GITHUB_REF_NAME" =~ ^v$n\.$n\.$n(-(alpha|beta)\.$n)?$ ]]; then
-            echo "::error::Тег $GITHUB_REF_NAME не подходит: нужен vX.Y.Z, vX.Y.Z-alpha.N или vX.Y.Z-beta.N (например v0.1.0-alpha.1)"
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v$n\.$n\.$n(-rc\.$n)?$ ]]; then
+            echo "::error::Тег $GITHUB_REF_NAME не подходит: нужен vX.Y.Z (релиз) или vX.Y.Z-rc.N (пререлиз, например v0.1.0-rc.1)"
             exit 1
           fi
 
@@ -115,10 +112,13 @@ jobs:
           retention-days: 7
 
   publish:
-    name: publish to tolki-releases
+    name: publish the release
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # The built-in token creates the release here; no other repository, no personal token.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -141,26 +141,14 @@ jobs:
 
       - name: Create release
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          # An alpha or beta is a pre-release: «latest» stays the last full release, and only
-          # those already on an alpha or beta update to it (electron-updater, #46).
+          # An rc is a pre-release: «latest» stays the last release, and only those already on
+          # a pre-release update to it (update-check.ts).
           prerelease=()
           case "$GITHUB_REF_NAME" in *-*) prerelease=(--prerelease) ;; esac
           gh release create "$GITHUB_REF_NAME" dist/* \
-            --repo "$RELEASES_REPO" \
+            --repo "$GITHUB_REPOSITORY" \
             --title "Tolki ${GITHUB_REF_NAME#v}" \
             --notes-file notes.md \
             "${prerelease[@]}"
-
-      # The install guide (docs/INSTALL.md) is the releases repository's README, kept in step
-      # with every release.
-      - name: Update README
-        env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
-        run: |
-          sha="$(gh api "repos/$RELEASES_REPO/contents/README.md" --jq .sha 2>/dev/null || true)"
-          gh api --method PUT "repos/$RELEASES_REPO/contents/README.md" \
-            -f message="docs: install guide for $GITHUB_REF_NAME" \
-            -f content="$(base64 -w0 docs/INSTALL.md)" \
-            ${sha:+-f sha="$sha"} > /dev/null

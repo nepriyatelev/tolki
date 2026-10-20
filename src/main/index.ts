@@ -48,7 +48,7 @@ import { RoomSession } from './room-session'
 import { SettingsStore } from './settings'
 import { measureUpload } from './speed-test'
 import { UpdateCheck } from './update-check'
-import { AutoUpdate, type Updater } from './auto-update'
+import { AutoUpdate, pinToRelease, type Updater } from './auto-update'
 import { Permissions } from './permissions'
 import { UploadEstimator } from './upload-estimator'
 import { registerIpcHandlers } from './ipc'
@@ -120,7 +120,7 @@ const speedTestAllowed = process.env['TOLKI_SPEED_TEST'] !== 'off'
 
 // Packaged builds only: a development build is always «older». TOLKI_UPDATE_CHECK=off never
 // contacts GitHub (e2e tests); TOLKI_UPDATE_API is another base for both requests, the latest
-// release and the list an alpha reads (an e2e stub).
+// release and the list a pre-release reads (an e2e stub).
 const updateApi = process.env['TOLKI_UPDATE_API']
 const updates = new UpdateCheck({
   enabled: process.env['TOLKI_UPDATE_CHECK'] !== 'off' && (app.isPackaged || !!updateApi),
@@ -165,8 +165,10 @@ function createUpdater(): Updater | null {
     updater.updateConfigPath = updateConfig
     // The stub installer is no AppImage to diff against.
     updater.disableDifferentialDownload = true
+    return updater
   }
-  return updater
+  // The version our check found, from its release: so a pre-release reaches the release too.
+  return pinToRelease(updater, () => updates.check())
 }
 
 const store = new Store({ name: 'settings' })

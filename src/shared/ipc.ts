@@ -41,7 +41,7 @@ export interface InvokeContract {
   'app:open-download-page': { args: []; result: null }
   /** A link from the chat (#45) in the browser; main opens http(s) only, ignores anything else. */
   'app:open-link': { args: [url: string]; result: null }
-  /** A newer release in tolki-releases, if any (PLAN #36); asked once per run. */
+  /** A newer release on GitHub, if any (PLAN #36); asked once per run. */
   'app:check-update': { args: []; result: UpdateOffer }
   /** «Перезапустить» (#46): quits and installs the downloaded version; false if there is none. */
   'app:install-update': { args: []; result: boolean }

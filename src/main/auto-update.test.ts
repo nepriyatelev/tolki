@@ -1,7 +1,13 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import type { UpdateOffer } from '@shared/ipc'
-import { AutoUpdate, type Updater } from './auto-update'
+import {
+  AutoUpdate,
+  pinToRelease,
+  releaseFeedUrl,
+  type FeedUpdater,
+  type Updater,
+} from './auto-update'
 
 class FakeUpdater extends EventEmitter implements Updater {
   checkForUpdates = vi.fn(() => Promise.resolve(null))
@@ -64,5 +70,47 @@ describe('AutoUpdate (#46)', () => {
     updater.emit('error', new Error('later'))
     expect(fallback).not.toHaveBeenCalled()
     expect(await auto.offer()).toEqual({ version: '0.3.0', ready: true })
+  })
+})
+
+describe('pinToRelease', () => {
+  class FakeFeedUpdater extends FakeUpdater implements FeedUpdater {
+    setFeedURL = vi.fn()
+  }
+
+  it('downloads the version our check found, from its release', async () => {
+    const updater = new FakeFeedUpdater()
+    const pinned = pinToRelease(updater, () => Promise.resolve({ version: '0.1.0' }))
+    await pinned.checkForUpdates()
+    expect(updater.setFeedURL).toHaveBeenCalledWith({
+      provider: 'generic',
+      url: 'https://github.com/nepriyatelev/tolki/releases/download/v0.1.0',
+    })
+    expect(updater.checkForUpdates).toHaveBeenCalledOnce()
+  })
+
+  it('asks nothing of the updater when there is nothing newer', async () => {
+    const updater = new FakeFeedUpdater()
+    const pinned = pinToRelease(updater, () => Promise.resolve(null))
+    expect(await pinned.checkForUpdates()).toBeNull()
+    expect(updater.setFeedURL).not.toHaveBeenCalled()
+    expect(updater.checkForUpdates).not.toHaveBeenCalled()
+  })
+
+  it('passes the updater’s events and the install through', () => {
+    const updater = new FakeFeedUpdater()
+    const pinned = pinToRelease(updater, () => Promise.resolve(null))
+    const downloaded = vi.fn()
+    pinned.on('update-downloaded', downloaded)
+    updater.emit('update-downloaded', { version: '0.1.0' })
+    expect(downloaded).toHaveBeenCalledWith({ version: '0.1.0' })
+    pinned.quitAndInstall(true, true)
+    expect(updater.quitAndInstall).toHaveBeenCalledWith(true, true)
+  })
+
+  it('a pre-release’s feed is its own release', () => {
+    expect(releaseFeedUrl('0.2.0-rc.1')).toBe(
+      'https://github.com/nepriyatelev/tolki/releases/download/v0.2.0-rc.1',
+    )
   })
 })

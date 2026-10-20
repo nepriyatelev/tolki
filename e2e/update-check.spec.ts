@@ -5,7 +5,7 @@ import { launchApp } from './app'
 
 // PLAN #36: on launch the app asks for the latest release and offers a newer one. GitHub is
 // replaced by a local stub; the request itself is checked to carry nothing about the user.
-// A release asks for /releases/latest, an alpha (a packaged alpha build, #46) for the list.
+// A release asks for /releases/latest, a pre-release (a packaged rc build) for the list.
 
 async function stub(
   tag: string,

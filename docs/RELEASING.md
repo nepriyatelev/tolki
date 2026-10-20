@@ -11,25 +11,26 @@
    ```
    Версию берём из тега: `package.json` не меняется (в нём `0.0.0` для dev-сборок).
 
-   Теги — только трёх видов (иначе workflow сразу падает с ошибкой, до сборки):
-   - `v0.1.0` — полная версия, становится «latest»;
-   - `v0.1.0-alpha.1`, `v0.1.0-alpha.2`, … — альфа, публикуется как пре-релиз;
-   - `v0.1.0-beta.1`, … — бета, тоже пре-релиз.
+   Теги — только двух видов (иначе workflow сразу падает с ошибкой, до сборки):
+   - `v0.1.0` — релиз, становится «latest»;
+   - `v0.1.0-rc.1`, `v0.1.0-rc.2`, … — пререлиз (отмечен «Pre-release»).
 
-   Номер после `alpha.` / `beta.` — через точку и без ведущих нулей: так версии сравниваются
-   как числа (`alpha.10` новее `alpha.9`). Другие суффиксы (`-rc.1`, `-alpha1`) electron-updater
-   считает отдельным каналом, и альфы их не получат.
+   Номер после `rc.` — через точку и без ведущих нулей: так версии сравниваются как числа
+   (`rc.10` новее `rc.9`). Альф и бет нет.
 
-   Кто обновится автоматически: альфа — до следующей альфы, беты или полной версии; бета — до
-   следующей беты или полной; полная — только до полной.
+   Кто обновится автоматически: пререлиз — до следующего пререлиза или релиза; релиз — только
+   до релиза. Новую версию выбирает проверка обновлений Tolki (`src/main/update-check.ts`), а
+   electron-updater скачивает именно её из этого релиза: сам по себе он считает `rc` отдельным
+   каналом и до релиза пререлиз бы не довёл.
 3. Workflow [Release](https://github.com/nepriyatelev/tolki/actions/workflows/release.yml):
    - собирает установщики на четырёх раннерах (Windows x64, macOS arm64, macOS x64, Linux x64);
    - на каждой ОС запускает e2e-набор на собранном приложении;
-   - публикует релиз в [tolki-releases](https://github.com/nepriyatelev/tolki-releases/releases):
-     5 установщиков, файлы автообновления (`latest.yml`, `latest-linux.yml`, `*.blockmap`),
-     `SHA256SUMS.txt` и release notes на русском.
-   - обновляет README `tolki-releases` из [`docs/INSTALL.md`](INSTALL.md) — инструкцию по
-     установке; правки инструкции попадают туда со следующим релизом.
+   - публикует релиз в этом же репозитории, на странице
+     [Releases](https://github.com/nepriyatelev/tolki/releases): 5 установщиков, файлы
+     автообновления (`latest.yml`, `latest-linux.yml`, `*.blockmap`), `SHA256SUMS.txt` и
+     release notes на русском. Публикует встроенный `GITHUB_TOKEN`, отдельный токен не нужен.
+   - release notes ссылаются на [`docs/INSTALL.md`](INSTALL.md) в `main` — инструкция по
+     установке всегда актуальная.
 4. Release notes собираются скриптом `.github/release-notes.sh`: таблица файлов, подсказки
    по первому запуску и список коммитов с прошлого тега (без `chore`, `ci`, `test`, `docs`,
    `style`). Текст можно поправить после публикации на странице релиза.
@@ -45,83 +46,12 @@
   ```bash
   git push origin :refs/tags/v0.1.0 && git tag -d v0.1.0
   ```
-- Упала только публикация (например, токен) — исправить причину и перезапустить
-  упавший job: `gh run rerun <run-id> --failed`.
+- Упала только публикация — исправить причину и перезапустить упавший job:
+  `gh run rerun <run-id> --failed`.
 - Удалить ошибочный релиз:
-  `gh release delete v0.1.0 -R nepriyatelev/tolki-releases --cleanup-tag`.
+  `gh release delete v0.1.0 -R nepriyatelev/tolki --cleanup-tag`.
 
 ### Минуты GitHub Actions
 
-Репозиторий закрытый: macOS-минуты считаются с множителем ×10, Windows — ×2, время каждого
-job'а округляется вверх до минуты. Релиз `v0.0.1` занял около 60 минут из бесплатного месячного
-лимита (две macOS-сборки — 5 мин × 10, Windows — 3 мин × 2, Linux и публикация — 4 мин),
-поэтому сборка запускается только по тегу.
-
-## Токен `RELEASES_TOKEN`
-
-### Зачем он нужен
-
-Релизный workflow работает в закрытом репозитории `tolki`, а установщики публикует в публичный
-`tolki-releases`. Встроенный `GITHUB_TOKEN` действует только внутри своего репозитория,
-поэтому для записи в `tolki-releases` нужен отдельный токен.
-
-Это **fine-grained personal access token** с минимальными правами:
-
-| Параметр          | Значение                                          |
-| ----------------- | ------------------------------------------------- |
-| Resource owner    | `nepriyatelev`                                    |
-| Repository access | Only select repositories → `tolki-releases`    |
-| Permissions       | Contents: **Read and write** (Metadata: Read-only добавится сам) |
-
-Он хранится в секретах репозитория `tolki` под именем `RELEASES_TOKEN` и используется только
-на шаге публикации релиза.
-
-### Когда его нужно заменить
-
-- истёк срок действия — дату видно в
-  [списке токенов](https://github.com/settings/personal-access-tokens);
-- релизный workflow упал на публикации с `401 Bad credentials` или
-  `403 Resource not accessible by personal access token`;
-- токен мог утечь: попал в чат, лог, скриншот, командную строку, файл в репозитории.
-
-### Как заменить
-
-1. **Отозвать старый токен** (если он ещё существует):
-   [Fine-grained tokens](https://github.com/settings/personal-access-tokens) → `tolki-releases` →
-   **Delete**.
-2. **Создать новый**: [Generate new token](https://github.com/settings/personal-access-tokens/new).
-   - Token name: `tolki-releases`
-   - Expiration: на выбор (рекомендуется 1 год — тогда эта инструкция понадобится раз в год)
-   - Resource owner: `nepriyatelev`
-   - Repository access: **Only select repositories** → `nepriyatelev/tolki-releases`
-   - Repository permissions → **Contents: Read and write**, больше ничего не включать
-   - **Generate token** и скопировать значение (`github_pat_…`) — GitHub покажет его один раз.
-3. **Сохранить в секрет** — одним из способов, не вставляя токен в чат, в аргументы команды
-   или в файлы:
-   - веб: [Settings → Secrets and variables → Actions](https://github.com/nepriyatelev/tolki/settings/secrets/actions)
-     → `RELEASES_TOKEN` → **Update** (или **New repository secret**, если его нет);
-   - в своём терминале (команда сама спросит значение):
-     ```bash
-     gh secret set RELEASES_TOKEN -R nepriyatelev/tolki
-     ```
-     Имя секрета — первый аргумент. Токен вставляется только в ответ на запрос.
-4. **Проверить**, что дата обновления секрета сменилась:
-   ```bash
-   gh secret list -R nepriyatelev/tolki
-   ```
-5. Если релиз упал из-за токена — **перезапустить** упавшие job'ы:
-   ```bash
-   gh run list -R nepriyatelev/tolki --workflow release.yml --limit 5
-   gh run rerun <run-id> --failed -R nepriyatelev/tolki
-   ```
-
-### Если токен утёк
-
-1. Сразу удалить его (шаг 1 выше) — после этого он бесполезен.
-2. Проверить [релизы `tolki-releases`](https://github.com/nepriyatelev/tolki-releases/releases):
-   нет ли чужих релизов или подменённых файлов. Сверить файлы с `SHA256SUMS.txt` из сборки.
-3. Создать новый токен и обновить секрет (шаги 2–4).
-4. Если токен попал в историю терминала — удалить строку (`grep -n github_pat_ ~/.zsh_history`).
-
-Значение секрета после сохранения не может прочитать никто, включая владельца, — его можно только
-заменить.
+Репозиторий открытый: минуты GitHub Actions на стандартных раннерах не считаются. Сборка
+всё равно запускается только по тегу — она идёт на четырёх ОС и занимает около 15 минут.

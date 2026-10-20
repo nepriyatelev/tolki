@@ -9,6 +9,38 @@ export interface Updater {
   quitAndInstall(isSilent?: boolean, isForceRunAfter?: boolean): void
 }
 
+/** An updater whose feed can be pointed at one release (electron-updater's setFeedURL). */
+export interface FeedUpdater extends Updater {
+  setFeedURL(options: { provider: 'generic'; url: string }): void
+}
+
+/** Where a release's installers and latest*.yml are, by its version. */
+export function releaseFeedUrl(version: string): string {
+  return `https://github.com/nepriyatelev/tolki/releases/download/v${version}`
+}
+
+/**
+ * The updater downloads the version our own check found, from that release (#46). electron-updater
+ * on its own takes a pre-release's «rc» for a channel of its own: a 0.1.0-rc.1 would then get
+ * the next rc but never 0.1.0. Our check knows a pre-release looks at both.
+ */
+export function pinToRelease(
+  updater: FeedUpdater,
+  newer: () => Promise<{ version: string } | null>,
+  feedUrl: (version: string) => string = releaseFeedUrl,
+): Updater {
+  return {
+    on: updater.on.bind(updater),
+    quitAndInstall: updater.quitAndInstall.bind(updater),
+    checkForUpdates: async () => {
+      const latest = await newer()
+      if (!latest) return null
+      updater.setFeedURL({ provider: 'generic', url: feedUrl(latest.version) })
+      return updater.checkForUpdates()
+    },
+  }
+}
+
 export interface AutoUpdateOptions {
   /**
    * electron-updater where it can install by itself (Windows NSIS, Linux AppImage; #46); null
