@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { PermissionKind, PermissionState } from '@shared/permissions'
 import type { JoinResult } from '@shared/room'
 import { installTolkiMock } from '../../../test/tolki-mock'
+import { CHROME_HIDE_MS } from './ScreenStage'
 import type { ScreenMode, ScreenSourcesResult } from '@shared/screen'
 import type { MicrophoneAccess } from '../audio/microphone'
 import {
@@ -1044,6 +1045,33 @@ describe('the screen stage (#30)', () => {
   }
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  it('hides the header, the bar and the strip after 3 s without a mouse move (#149)', async () => {
+    await withRemoteScreen()
+    const call = document.querySelector('main.call')
+    if (!call) throw new Error('no call')
+    vi.useFakeTimers()
+    fireEvent.pointerMove(call)
+    vi.advanceTimersByTime(CHROME_HIDE_MS - 1)
+    expect(call.classList.contains('call--chrome-hidden')).toBe(false)
+    vi.advanceTimersByTime(1)
+    expect(call.classList.contains('call--chrome-hidden')).toBe(true)
+
+    fireEvent.pointerMove(call)
+    expect(call.classList.contains('call--chrome-hidden')).toBe(false)
+    vi.useRealTimers()
+  })
+
+  it('keeps the chrome over the tiles', async () => {
+    setup()
+    await screen.findByText('Звук подключён')
+    const call = document.querySelector('main.call')
+    vi.useFakeTimers()
+    if (call) fireEvent.pointerMove(call)
+    vi.advanceTimersByTime(CHROME_HIDE_MS * 2)
+    expect(call?.classList.contains('call--chrome-hidden')).toBe(false)
+    vi.useRealTimers()
   })
 
   it('opens on the shared screen with people in a strip under it', async () => {
