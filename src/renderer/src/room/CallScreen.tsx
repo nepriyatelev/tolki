@@ -70,7 +70,7 @@ import { RoomMenu } from './RoomMenu'
 import { tileLayout } from './tile-layout'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { ParticipantTile } from './ParticipantTile'
-import { ScreenStage } from './ScreenStage'
+import { CHROME_HIDE_MS, ScreenStage } from './ScreenStage'
 import { RemoteAudio } from './RemoteAudio'
 import { startCall as startRealCall, type CallHandle } from './start-call'
 import './CallScreen.css'
@@ -957,13 +957,36 @@ export function CallScreen(props: {
     return stats ? `${hostUploadText(stats)} — ${hostUploadHint(stats).toLowerCase()}` : undefined
   }
   /** The organizer's upload in the call (#87), and a warning when it falls short. */
+  // Over someone else's screen the call's chrome — the header, the bar, the people strip — goes
+  // after 3 s without a mouse move and comes back on one (#110, #149), as in Meet and Zoom. Keyboard
+  // focus keeps it; so does the confirmation of closing the room. Notices stay.
+  const [chromeIdle, setChromeIdle] = createSignal(false)
+  let chromeTimer: ReturnType<typeof setTimeout> | undefined
+  const wakeChrome = (): void => {
+    setChromeIdle(false)
+    clearTimeout(chromeTimer)
+    chromeTimer = setTimeout(() => setChromeIdle(true), CHROME_HIDE_MS)
+  }
+  onMount(wakeChrome)
+  onCleanup(() => {
+    clearTimeout(chromeTimer)
+  })
+  const chromeHidden = (): boolean =>
+    chromeIdle() && (stage()?.consumerId ?? null) !== null && !confirmClose()
+
   const uploadWarning = (): string | null => {
     const stats = hostStats()
     return stats ? hostUploadWarning(stats, everyone().length, shownScreen() !== null) : null
   }
 
   return (
-    <main class="call" classList={{ 'call--stage': stage() !== null }}>
+    <main
+      class="call"
+      classList={{ 'call--stage': stage() !== null, 'call--chrome-hidden': chromeHidden() }}
+      onPointerMove={wakeChrome}
+      onPointerDown={wakeChrome}
+      onKeyDown={wakeChrome}
+    >
       <header class="call-header">
         <div class="call-title">
           <h1>{joined().room.name}</h1>

@@ -323,10 +323,14 @@ export function CreateRoomScreen(props: {
                   onChange={setMode}
                   options={SCREEN_MODE_OPTIONS}
                 />
-                <p class="create-hint">
-                  Тот, кто показывает, может выбрать другое в окне «Что показать». Качество
-                  подстраивается под отдачу этого компьютера и число зрителей.
-                </p>
+                <p class="create-hint">Каждый показывающий может выбрать своё.</p>
+                <details class="rt-more create-hint">
+                  <summary>Подробнее</summary>
+                  <p>
+                    Тот, кто показывает, может выбрать другое в окне «Что показать». Качество
+                    подстраивается под отдачу этого компьютера и число зрителей.
+                  </p>
+                </details>
               </div>
               <details class="create-advanced">
                 <summary>Дополнительно</summary>
