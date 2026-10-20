@@ -29,7 +29,8 @@ test('a joined room shows up in recent rooms with its live status and saved pass
     await page.getByRole('button', { name: 'Войти в комнату' }).click()
     await expect(page.getByRole('heading', { name: 'Вечерний созвон' })).toBeVisible()
     await page.getByRole('button', { name: 'Выйти' }).click()
-    await page.getByRole('button', { name: 'Отмена' }).click()
+    // «Звонок завершён» (#149): home from there.
+    await page.getByRole('button', { name: 'На главный экран' }).click()
 
     // Home: no app bar with the name any more (#110); recent room with only the number of people.
     const row = page.getByRole('listitem').filter({ hasText: 'Вечерний созвон' })
@@ -53,7 +54,7 @@ test('a joined room shows up in recent rooms with its live status and saved pass
     await page.getByRole('button', { name: 'Войти в комнату' }).click()
     await expect(page.getByRole('heading', { name: 'Вечерний созвон' })).toBeVisible()
     await page.getByRole('button', { name: 'Выйти' }).click()
-    await page.getByRole('button', { name: 'Отмена' }).click()
+    await page.getByRole('button', { name: 'На главный экран' }).click()
 
     // Someone else is inside now: the list shows the count, never names.
     const joined = await host.page.evaluate(

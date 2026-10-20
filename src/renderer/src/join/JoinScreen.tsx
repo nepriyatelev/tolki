@@ -2,6 +2,7 @@ import ArrowLeft from 'lucide-solid/icons/arrow-left'
 import Info from 'lucide-solid/icons/info'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import Lock from 'lucide-solid/icons/lock'
+import RotateCcw from 'lucide-solid/icons/rotate-ccw'
 import ShieldAlert from 'lucide-solid/icons/shield-alert'
 import ShieldCheck from 'lucide-solid/icons/shield-check'
 import {
@@ -93,6 +94,8 @@ export function JoinScreen(props: JoinScreenProps): JSX.Element {
     return p?.status === 'live' ? p.room : undefined
   }
   const [session, setSession] = createSignal<CallSession | null>(null)
+  /** Left the call by «Выйти»: the room goes on; back in, or home (#149). Its name. */
+  const [leftRoom, setLeftRoom] = createSignal<string | null>(null)
   // The link this participant came by: its password is there only if the organizer put it in.
   const inviteLink = (): string | undefined => {
     const inv = invite()
@@ -106,6 +109,31 @@ export function JoinScreen(props: JoinScreenProps): JSX.Element {
         <main class="join">
           <Card as="section" class="join-card" aria-labelledby="join-title">
             <Switch>
+              <Match when={leftRoom()}>
+                {(name) => (
+                  <div class="join-left">
+                    <h1 id="join-title">Звонок завершён</h1>
+                    <p class="join-people">
+                      Комната «{name()}» продолжает работать — вернуться можно в любой момент.
+                    </p>
+                    <div class="join-actions">
+                      <Button size="lg" onClick={back}>
+                        На главный экран
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="lg"
+                        icon={<RotateCcw />}
+                        onClick={() => {
+                          viewTransition(() => setLeftRoom(null))
+                        }}
+                      >
+                        Вернуться в комнату
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </Match>
               <Match when={invite()}>
                 {(inv) => (
                   <>
@@ -171,7 +199,10 @@ export function JoinScreen(props: JoinScreenProps): JSX.Element {
           session={current()}
           inviteLink={inviteLink()}
           onLeft={() => {
-            viewTransition(() => setSession(null))
+            viewTransition(() => {
+              setLeftRoom(current().result.room.name)
+              setSession(null)
+            })
           }}
           {...(props.startCall ? { startCall: props.startCall } : {})}
         />

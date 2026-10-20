@@ -20,10 +20,11 @@ const INVITE: Invite = {
 function setup(invite: Invite, result: JoinResult, startCall?: StartCall) {
   const api = installTolkiMock({ join: () => Promise.resolve(result) })
   const onError = vi.fn()
+  const onBack = vi.fn()
   render(() => (
     <JoinScreen
       result={parseInvite(buildInvite(invite))}
-      onBack={() => undefined}
+      onBack={onBack}
       onError={onError}
       startCall={
         startCall ??
@@ -47,7 +48,7 @@ function setup(invite: Invite, result: JoinResult, startCall?: StartCall) {
       }
     />
   ))
-  return { api, onError, user: userEvent.setup() }
+  return { api, onError, onBack, user: userEvent.setup() }
 }
 
 const ok: JoinResult = {
@@ -198,7 +199,20 @@ describe('join form', () => {
     await user.click(await screen.findByRole('button', { name: 'Выйти' }))
 
     expect(api.room.leave).toHaveBeenCalledOnce()
+    // The room goes on (#149): back in, or home.
+    expect(await screen.findByRole('heading', { name: 'Звонок завершён' })).toBeTruthy()
+    expect(screen.getByText(/Комната «Вечерний созвон» продолжает работать/)).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Вернуться в комнату' }))
     expect(await screen.findByRole('button', { name: 'Войти в комнату' })).toBeTruthy()
+  })
+
+  it('goes home from «Звонок завершён»', async () => {
+    const { user, onBack } = setup(INVITE, ok)
+    await user.type(screen.getByLabelText('Имя'), 'Алексей')
+    await user.click(screen.getByRole('button', { name: 'Войти в комнату' }))
+    await user.click(await screen.findByRole('button', { name: 'Выйти' }))
+    await user.click(await screen.findByRole('button', { name: 'На главный экран' }))
+    expect(onBack).toHaveBeenCalledOnce()
   })
 
   it('prefills the remembered name', () => {

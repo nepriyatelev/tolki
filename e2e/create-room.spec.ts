@@ -77,6 +77,8 @@ test('the organizer opens a room from the UI and is in its call; a participant i
 
       // The organizer leaves: the room closes for everyone.
       await page.getByRole('button', { name: 'Выйти' }).click()
+      // One more step: it closes the room for everyone (#149).
+      await page.getByRole('button', { name: 'Закрыть комнату' }).click()
       await expect(friend.page.getByText('Организатор закрыл комнату')).toBeVisible({
         timeout: 15_000,
       })
