@@ -90,6 +90,17 @@
   flex: 1;
 }
 
+/* A shared screen runs under the floating bar (#149): glass shows its lensing only with content
+   beneath, as in FaceTime and Meet; the bar is the navigation layer over it. Over busy content
+   the glass takes more tint, so the controls stay legible (WWDC25: tint adapts to content). */
+.call--stage {
+  padding-bottom: var(--space-4);
+}
+
+.call--stage .call-controls {
+  background: rgb(18 20 24 / 34%);
+}
+
 /* A shared screen takes the whole height; people go to a strip beside it (#110). */
 .call-stage {
   display: grid;
@@ -441,7 +452,8 @@
   justify-content: center;
   gap: var(--space-4);
   padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-2xl);
+  /* A capsule, as glass bars are: the lens runs round its ends. */
+  border-radius: var(--radius-full);
 }
 
 .call-control {

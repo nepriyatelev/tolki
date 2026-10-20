@@ -99,9 +99,11 @@ a:hover {
     backdrop-filter: var(--glass-blur-sm);
   }
 
-  /* --glass-lens is url(#…) of the element's own lens, set by liquidGlass(). */
+  /* --glass-lens is url(#…) of the element's own lens, set by liquidGlass(): the frost, the
+     bending and the light on the rim are all in it. Until it is drawn, plain frost. */
   .rt-glass--liquid {
-    backdrop-filter: var(--glass-lens, blur(11px)) var(--glass-blur-liquid);
+    background: var(--glass-bg-liquid);
+    backdrop-filter: var(--glass-lens, blur(11px) saturate(160%));
   }
 }
 
@@ -114,8 +116,9 @@ a:hover {
   border-color: transparent;
 }
 
-/* The rim of light, drawn with a masked pseudo-element so it follows the radius. */
-.rt-glass--liquid::before {
+/* Until the lens is drawn (and in tests) the rim is a masked gradient; then the light is part of
+   the lens itself and moves round the rim with the pointer. */
+.rt-glass--liquid:not([data-lens])::before {
   position: absolute;
   inset: -1px;
   padding: 1.5px;
@@ -129,26 +132,53 @@ a:hover {
   mask-composite: exclude;
 }
 
-/* A highlight where the pointer is: light moving over a curved surface. Only while the pointer
-   is over the glass — parked anywhere it would read as a smudge; at rest the rim is the light. */
-.rt-glass--liquid::after {
+/* A press flexes the glass and energises it with light (WWDC25 «Meet Liquid Glass»). */
+.rt-glass--liquid {
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.rt-glass--liquid[data-energised] {
+  transform: scale(calc(1 + 0.012 * var(--rt-motion)));
+  transition-duration: 90ms;
+}
+
+/* A control on glass lights up from under the pointer, and the glow spreads through it. */
+.rt-glass-control {
+  position: relative;
+}
+
+.rt-glass-control::before {
   position: absolute;
   inset: 0;
   border-radius: inherit;
   background: radial-gradient(
-    120px 44px at var(--glass-lx, 50%) var(--glass-ly, 0%),
-    rgb(255 255 255 / 12%),
-    transparent 70%
+    circle at var(--press-x, 50%) var(--press-y, 50%),
+    rgb(255 255 255 / 45%),
+    rgb(255 255 255 / 0%) 65%
   );
   content: '';
-  mix-blend-mode: screen;
   opacity: 0;
   pointer-events: none;
-  transition: opacity var(--duration-base) var(--ease-out);
 }
 
-.rt-glass--liquid:hover::after {
-  opacity: 1;
+.rt-glass-control[data-pressed]::before {
+  animation: rt-glass-press 420ms var(--ease-out);
+}
+
+@keyframes rt-glass-press {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+
+  25% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
 }
 
 @media (prefers-reduced-transparency: reduce) {
@@ -160,7 +190,8 @@ a:hover {
     backdrop-filter: none;
   }
 
-  .rt-glass--liquid::after {
+  .rt-glass--liquid::before,
+  .rt-glass-control::before {
     display: none;
   }
 }
@@ -181,8 +212,7 @@ a:hover {
     backdrop-filter: none;
   }
 
-  .rt-glass--liquid::before,
-  .rt-glass--liquid::after {
+  .rt-glass--liquid::before {
     display: none;
   }
 }
