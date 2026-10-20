@@ -1,15 +1,13 @@
 /** The newest published release (pre-releases and drafts are not «latest»). */
-export const LATEST_RELEASE_API =
-  'https://api.github.com/repos/nepriyatelev/tolki-releases/releases/latest'
+export const LATEST_RELEASE_API = 'https://api.github.com/repos/nepriyatelev/tolki/releases/latest'
 
-/** Every release, newest first: what an alpha or beta looks at (they are pre-releases). */
-export const RELEASES_API =
-  'https://api.github.com/repos/nepriyatelev/tolki-releases/releases?per_page=10'
+/** Every release, newest first: what a pre-release looks at. */
+export const RELEASES_API = 'https://api.github.com/repos/nepriyatelev/tolki/releases?per_page=10'
 
 export interface UpdateCheckOptions {
   /** Off: never contacts GitHub (e2e tests, development builds). */
   enabled: boolean
-  /** This app's version, e.g. "0.1.0" or "0.1.0-alpha.2". */
+  /** This app's version, e.g. "0.1.0" or "0.1.0-rc.2". */
   currentVersion: string
   fetch: (url: string, init: RequestInit) => Promise<Response>
   url?: string
@@ -19,17 +17,15 @@ export interface UpdateCheckOptions {
 
 export interface Version {
   core: [number, number, number]
-  /** "alpha.2" → ['alpha', 2]; empty for a release. */
+  /** "rc.2" → ['rc', 2]; empty for a release. */
   pre: (string | number)[]
 }
 
 const NUMBER = '(0|[1-9]\\d*)'
-/** The tags the release workflow accepts (#46): vX.Y.Z, vX.Y.Z-alpha.N, vX.Y.Z-beta.N. */
-const VERSION = new RegExp(
-  `^v?${NUMBER}\\.${NUMBER}\\.${NUMBER}(?:-((?:alpha|beta)\\.${NUMBER}))?$`,
-)
+/** The tags the release workflow accepts: vX.Y.Z, a release, and vX.Y.Z-rc.N, a pre-release. */
+const VERSION = new RegExp(`^v?${NUMBER}\\.${NUMBER}\\.${NUMBER}(?:-(rc\\.${NUMBER}))?$`)
 
-/** "v0.2.0", "0.2.0", "0.2.0-alpha.1" or "0.2.0-beta.3"; null for anything else. */
+/** "v0.2.0", "0.2.0" or "0.2.0-rc.1"; null for anything else. */
 export function parseVersion(text: string): Version | null {
   const match = VERSION.exec(text.trim())
   if (!match) return null
@@ -42,7 +38,7 @@ export function parseVersion(text: string): Version | null {
   }
 }
 
-/** By semver precedence: 0.1.0-alpha.1 < 0.1.0-alpha.2 < 0.1.0-beta.1 < 0.1.0 < 0.1.1. */
+/** By semver precedence: 0.1.0-rc.1 < 0.1.0-rc.2 < 0.1.0 < 0.1.1-rc.1 < 0.1.1. */
 export function isNewer(latest: string, current: string): boolean {
   const a = parseVersion(latest)
   const b = parseVersion(current)
@@ -67,9 +63,9 @@ export function isNewer(latest: string, current: string): boolean {
 }
 
 /**
- * «Доступна версия X» (PLAN #36): one anonymous request to the public releases repository per
+ * «Доступна версия X» (PLAN #36): one anonymous request to the public repository's releases per
  * launch. Nothing about the user or the app is sent; any failure just means no banner. A
- * release looks at the latest release only; an alpha or beta (#46) also at newer pre-releases.
+ * release looks at the latest release only; a pre-release also at newer pre-releases.
  */
 export class UpdateCheck {
   #result: Promise<{ version: string } | null> | null = null

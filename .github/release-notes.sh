@@ -35,7 +35,7 @@ cat <<EOF
 - **macOS:** «Apple не удалось подтвердить, что «Tolki» не содержит вредоносного ПО…» → «Готово», затем «Системные настройки» → «Конфиденциальность и безопасность» → «Всё равно открыть». Так — с каждой новой версией: автообновления на Mac нет. Если кнопки нет: \`xattr -dr com.apple.quarantine /Applications/Tolki.app\` в «Терминале».
 - **Linux (AppImage):** \`chmod +x Tolki-*.AppImage\`, затем запустить файл. Предупреждений нет.
 
-Подробно — в [инструкции по установке](https://github.com/nepriyatelev/tolki-releases#readme).
+Подробно — в [инструкции по установке](https://github.com/nepriyatelev/tolki/blob/main/docs/INSTALL.md).
 
 Проверить, что файл не повреждён: сравните его SHA-256 со строкой в \`SHA256SUMS.txt\`.
 

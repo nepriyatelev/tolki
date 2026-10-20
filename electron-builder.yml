@@ -95,10 +95,11 @@ linux:
 deb:
   packageCategory: net
 
-# Auto-update (#46): app-update.yml inside the app and latest*.yml / alpha*.yml next to the
-# installers point electron-updater at the public releases repository. The release workflow
-# uploads them itself (`--publish never`); electron-builder never publishes.
+# Auto-update (#46): app-update.yml inside the app and latest*.yml next to the installers point
+# electron-updater at this repository's releases; the app pins the feed to the release its own
+# check found (auto-update.ts). The release workflow uploads them itself (`--publish never`);
+# electron-builder never publishes.
 publish:
   provider: github
   owner: nepriyatelev
-  repo: tolki-releases
+  repo: tolki

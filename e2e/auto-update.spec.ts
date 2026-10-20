@@ -8,7 +8,7 @@ import { expect, test } from '@playwright/test'
 import { launchApp } from './app'
 
 // PLAN #46: the new version downloads in the background, then the home screen offers
-// «Перезапустить». A local feed stands in for tolki-releases; the test ends at «downloaded»
+// «Перезапустить». A local feed stands in for the GitHub release; the test ends at «downloaded»
 // and installs nothing (electron-updater's AppImage updater, on any OS, as far as the download).
 
 const INSTALLER = Buffer.from('not really an AppImage, but the checksum matches')
