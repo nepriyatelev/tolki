@@ -48,9 +48,9 @@ test('push-to-talk: heard only while the key is held', async () => {
       // Silent without the key; heard while it is held; silent again on release.
       await expect.poll(() => heardLevel(misha.page), { timeout: 15_000 }).toBeLessThan(0.001)
       await katya.page.keyboard.down('KeyV')
-      await expect(katya.page.getByRole('button', { name: 'Микрофон по клавише V' })).toContainText(
-        'Говорите',
-      )
+      await expect(
+        katya.page.getByRole('button', { name: 'Микрофон по клавише V, говорите' }),
+      ).toBeVisible()
       await expect.poll(() => heardLevel(misha.page), { timeout: 15_000 }).toBeGreaterThan(0.01)
       await katya.page.keyboard.up('KeyV')
       await expect.poll(() => heardLevel(misha.page), { timeout: 15_000 }).toBeLessThan(0.001)
