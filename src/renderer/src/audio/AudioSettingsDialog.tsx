@@ -334,18 +334,22 @@ function PushToTalkNote(props: { mode: PushToTalkMode; onOpenSettings: () => voi
         <p class="audio-settings-note">Работает, только когда окно Tolki активно.</p>
       </Match>
       <Match when={props.mode === 'needs-permission'}>
-        <p class="audio-settings-note">
-          Пока работает, только когда окно Tolki активно. Чтобы клавиша работала и поверх других
-          окон, разрешите Tolki в «Системные настройки → Конфиденциальность и безопасность →
-          Универсальный доступ».
-        </p>
-        <Button
-          onClick={() => {
-            props.onOpenSettings()
-          }}
-        >
-          Открыть настройки
-        </Button>
+        {/* One line, the rest one step deeper (#110, #149). */}
+        <p class="audio-settings-note">Пока работает, только когда окно Tolki активно.</p>
+        <details class="rt-more">
+          <summary>Подробнее</summary>
+          <p class="audio-settings-note">
+            Чтобы клавиша работала и поверх других окон, разрешите Tolki в «Системные настройки →
+            Конфиденциальность и безопасность → Универсальный доступ».
+          </p>
+          <Button
+            onClick={() => {
+              props.onOpenSettings()
+            }}
+          >
+            Открыть настройки
+          </Button>
+        </details>
       </Match>
     </Switch>
   )
