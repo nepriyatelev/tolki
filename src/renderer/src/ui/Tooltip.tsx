@@ -1,4 +1,5 @@
 import { createSignal, createUniqueId, onCleanup, Show, type JSX } from 'solid-js'
+import { createPresence } from './presence'
 import './Tooltip.css'
 
 /** Hover waits this long, as in other apps: a tooltip should not flash past the pointer. */
@@ -23,6 +24,7 @@ export interface TooltipProps {
 export function Tooltip(props: TooltipProps): JSX.Element {
   const id = createUniqueId()
   const [shown, setShown] = createSignal(false)
+  const presence = createPresence(shown)
   let timer: ReturnType<typeof setTimeout> | undefined
   const show = (delay: number): void => {
     clearTimeout(timer)
@@ -55,9 +57,10 @@ export function Tooltip(props: TooltipProps): JSX.Element {
       onPointerDown={hide}
     >
       {props.children(id)}
-      <Show when={shown()}>
+      <Show when={presence.mounted()}>
         <span
           id={id}
+          data-closing={presence.closing() || undefined}
           role="tooltip"
           class={`rt-tooltip rt-glass rt-glass--sm rt-tooltip--${props.placement ?? 'top'}`}
         >

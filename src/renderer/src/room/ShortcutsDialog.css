@@ -7,14 +7,14 @@
   color: var(--color-text);
 }
 
-.shortcuts[open] {
-  display: flex;
+/* The layout holds while the dialog fades out (#149): only display follows [open]. */
+.shortcuts {
   flex-direction: column;
   gap: var(--space-4);
 }
 
-.shortcuts::backdrop {
-  background: rgb(0 0 0 / 55%);
+.shortcuts[open] {
+  display: flex;
 }
 
 .shortcuts-header {

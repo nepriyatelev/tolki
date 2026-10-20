@@ -12,7 +12,7 @@ import {
   type JSX,
 } from 'solid-js'
 import type { CaptureSource, ScreenMode, ScreenSourcesResult } from '@shared/screen'
-import { Button, Checkbox, IconButton, RadioPillGroup } from '../ui'
+import { createPresence, Button, Checkbox, IconButton, RadioPillGroup } from '../ui'
 import { SCREEN_MODE_OPTIONS } from './screen-modes'
 import { browserScreen, type ScreenAccess } from './screen-share'
 import './ScreenSourceDialog.css'
@@ -60,6 +60,8 @@ export function ScreenSourceDialog(props: {
   access?: ScreenAccess
 }): JSX.Element {
   let dialog: HTMLDialogElement | undefined
+  // The content stays while the dialog fades out (#149).
+  const presence = createPresence(() => props.open)
   const access = (): ScreenAccess => props.access ?? browserScreen
   const [tab, setTab] = createSignal<Tab>('screen')
   const [selected, setSelected] = createSignal<string | null>(null)
@@ -116,13 +118,13 @@ export function ScreenSourceDialog(props: {
       ref={(element) => {
         dialog = element
       }}
-      class="screen-picker"
+      class="screen-picker rt-dialog"
       aria-labelledby="screen-picker-title"
       onClose={() => {
         props.onClose()
       }}
     >
-      <Show when={props.open}>
+      <Show when={presence.mounted()}>
         <header class="screen-picker-header">
           <h2 id="screen-picker-title">Что показать</h2>
           <IconButton

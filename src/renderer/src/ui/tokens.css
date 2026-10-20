@@ -97,7 +97,11 @@
   /* Motion */
   --duration-fast: 120ms;
   --duration-base: 200ms;
+  /* Coming takes a little longer than going (#149). */
+  --duration-enter: 180ms;
+  --duration-exit: 150ms;
   --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
 
   /*
    * Liquid glass (#110, #149): only for what floats over content — the call's control bar, the

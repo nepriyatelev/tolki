@@ -5,6 +5,9 @@
 }
 
 :root {
+  /* 1: things move as they come and go; 0 with «reduce motion», when they only fade (#149). */
+  --rt-motion: 1;
+
   color-scheme: dark;
   background: var(--color-bg);
   color: var(--color-text);
@@ -59,12 +62,68 @@ a:hover {
   border: 0;
 }
 
+/* «Reduce motion» is not «no feedback» (apple-design §14): movement and scale go, short fades
+   stay, so a change of state is still seen. Loops stop where they are declared. */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    transition-duration: 0s !important;
-    animation-duration: 0s !important;
+  :root {
+    --rt-motion: 0;
+  }
+}
+
+/* Dialogs come up and go away the same way (#149): the content is kept by createPresence while
+   the dialog fades out; display and overlay stay discrete until the end. */
+.rt-dialog {
+  opacity: 0;
+  transform: translateY(calc(8px * var(--rt-motion))) scale(calc(1 - 0.02 * var(--rt-motion)));
+  transition:
+    opacity var(--duration-exit) var(--ease-in),
+    transform var(--duration-exit) var(--ease-in),
+    overlay var(--duration-exit) allow-discrete,
+    display var(--duration-exit) allow-discrete;
+}
+
+.rt-dialog[open] {
+  opacity: 1;
+  transform: none;
+  transition-duration: var(--duration-enter);
+  transition-timing-function: var(--ease-out);
+}
+
+@starting-style {
+  .rt-dialog[open] {
+    opacity: 0;
+    transform: translateY(calc(8px * var(--rt-motion))) scale(calc(1 - 0.02 * var(--rt-motion)));
+  }
+}
+
+.rt-dialog::backdrop {
+  background: rgb(0 0 0 / 0%);
+  transition:
+    background-color var(--duration-exit) var(--ease-in),
+    overlay var(--duration-exit) allow-discrete,
+    display var(--duration-exit) allow-discrete;
+}
+
+.rt-dialog[open]::backdrop {
+  background: rgb(0 0 0 / 55%);
+}
+
+@starting-style {
+  .rt-dialog[open]::backdrop {
+    background: rgb(0 0 0 / 0%);
+  }
+}
+
+/* Leaving (createPresence): back the way it came, shorter; no clicks on the way out. */
+[data-closing] {
+  pointer-events: none;
+  animation: rt-exit var(--duration-exit) var(--ease-in) forwards;
+}
+
+@keyframes rt-exit {
+  to {
+    opacity: 0;
+    transform: translateY(calc(4px * var(--rt-motion))) scale(calc(1 - 0.02 * var(--rt-motion)));
   }
 }
 
