@@ -905,7 +905,7 @@ export function CallScreen(props: {
   }
 
   return (
-    <main class="call">
+    <main class="call" classList={{ 'call--stage': stage() !== null }}>
       <header class="call-header">
         <div class="call-title">
           <h1>{joined().room.name}</h1>
@@ -1217,7 +1217,7 @@ export function CallScreen(props: {
                 disabled={!canSpeak() || ptt().enabled}
                 onClick={toggleMic}
               >
-                <span class="call-control-icon">
+                <span class="call-control-icon rt-glass-control">
                   {(ptt().enabled ? transmitting() : !muted()) ? <Mic /> : <MicOff />}
                 </span>
                 {ptt().enabled
@@ -1243,7 +1243,7 @@ export function CallScreen(props: {
                 aria-label={deafened() ? 'Включить звук' : 'Выключить звук'}
                 onClick={toggleSound}
               >
-                <span class="call-control-icon">
+                <span class="call-control-icon rt-glass-control">
                   {deafened() ? <HeadphoneOff /> : <Headphones />}
                 </span>
                 {deafened() ? 'Звук выкл.' : 'Звук'}
@@ -1266,7 +1266,7 @@ export function CallScreen(props: {
                   else setPickerOpen(true)
                 }}
               >
-                <span class="call-control-icon">
+                <span class="call-control-icon rt-glass-control">
                   {myScreen() ? <ScreenShareOff /> : <ScreenShare />}
                 </span>
                 {screenButton().text}
@@ -1287,7 +1287,7 @@ export function CallScreen(props: {
                   setUnread(0)
                 }}
               >
-                <span class="call-control-icon">
+                <span class="call-control-icon rt-glass-control">
                   <MessageSquare />
                   <Show when={unread() > 0}>
                     <span class="call-control-badge" aria-hidden="true">
@@ -1308,7 +1308,7 @@ export function CallScreen(props: {
                 aria-haspopup="dialog"
                 onClick={() => setSettingsOpen(true)}
               >
-                <span class="call-control-icon">
+                <span class="call-control-icon rt-glass-control">
                   <Settings />
                 </span>
                 Настройки
@@ -1324,7 +1324,7 @@ export function CallScreen(props: {
                 class="call-control call-control--leave"
                 onClick={() => void leave()}
               >
-                <span class="call-control-icon">
+                <span class="call-control-icon rt-glass-control">
                   <LogOut />
                 </span>
                 Выйти
